@@ -1,0 +1,11 @@
+{
+  "sandbox": {
+    "mode": "auto-allow",
+    "allowedDomains": [
+      "store.steampowered.com",
+      "api.steampowered.com",
+      "steamspy.com",
+      "api.opencritic.com"
+    ]
+  }
+}
