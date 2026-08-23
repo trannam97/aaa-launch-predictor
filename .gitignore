@@ -25,6 +25,8 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 coverage/
+*.tsbuildinfo
+next-env.d.ts.bak
 
 # --- Environment / secrets ---
 .env

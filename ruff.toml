@@ -1,0 +1,19 @@
+# Repo-wide lint/format config. Applies to /backend, /jobs, /ml and /data.
+line-length = 100
+target-version = "py311"
+
+[lint]
+select = ["E", "F", "W", "I", "B", "UP", "DTZ", "C4", "SIM"]
+ignore = [
+    # FastAPI's documented pattern is `Depends(...)` in argument defaults.
+    "B008",
+    # Steam's release strings are dates, not timestamps — no zone to attach.
+    "DTZ007",
+]
+
+[lint.per-file-ignores]
+# Alembic generates these; leave its formatting and import order alone.
+"data/migrations/versions/*.py" = ["E501", "I001"]
+# env.py has to extend sys.path before it can import the models.
+"data/migrations/env.py" = ["E402"]
+"jobs/*.py" = ["E402"]
