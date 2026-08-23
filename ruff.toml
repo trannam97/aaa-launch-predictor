@@ -11,6 +11,11 @@ ignore = [
     "DTZ007",
 ]
 
+[lint.isort]
+# Without this, `app` and `tests` get sorted as third-party, which puts the
+# project's own imports above sqlalchemy's in some files and below in others.
+known-first-party = ["app", "tests"]
+
 [lint.per-file-ignores]
 # Alembic generates these; leave its formatting and import order alone.
 "data/migrations/versions/*.py" = ["E501", "I001"]

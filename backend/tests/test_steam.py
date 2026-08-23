@@ -6,6 +6,7 @@ from datetime import date
 
 import httpx
 import pytest
+
 from app.steam import (
     SteamAppNotFound,
     SteamClient,
@@ -13,7 +14,6 @@ from app.steam import (
     SteamUnavailable,
     parse_release_date,
 )
-
 from tests.conftest import (
     MISSING_APPID,
     RELEASED_APPID,

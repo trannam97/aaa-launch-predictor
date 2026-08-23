@@ -25,11 +25,12 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT / "backend"))
 
+from sqlalchemy import select  # noqa: E402
+
 from app.db import session_scope  # noqa: E402
 from app.ingest import ingest_game  # noqa: E402
 from app.models import Game  # noqa: E402
 from app.steam import SteamClient, SteamError  # noqa: E402
-from sqlalchemy import select  # noqa: E402
 
 # Steam tolerates roughly 200 store requests per 5 minutes per IP, and each
 # game costs up to three. A small gap between games keeps a full refresh well

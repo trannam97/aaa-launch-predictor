@@ -21,7 +21,7 @@ if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
 from app.config import get_settings  # noqa: E402
-from app.models import Base  # noqa: E402
+from app.models import Base, UtcDateTime  # noqa: E402
 
 config = context.config
 
@@ -29,6 +29,20 @@ if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
 target_metadata = Base.metadata
+
+
+def render_item(type_, obj, autogen_context) -> str | bool:
+    """Render `UtcDateTime` as the plain SQLAlchemy type it compiles to.
+
+    The decorator only normalizes Python-side values; its DDL is identical to
+    `DateTime(timezone=True)`. Rendering it that way keeps generated
+    migrations free of imports from the application package, so a later
+    refactor of `app.models` can't break an old migration.
+    """
+    if type_ == "type" and isinstance(obj, UtcDateTime):
+        # `sa` is already imported by the revision template.
+        return "sa.DateTime(timezone=True)"
+    return False
 
 
 def get_url() -> str:
@@ -43,6 +57,7 @@ def run_migrations_offline() -> None:
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
         compare_type=True,
+        render_item=render_item,
     )
     with context.begin_transaction():
         context.run_migrations()
@@ -59,6 +74,7 @@ def run_migrations_online() -> None:
             connection=connection,
             target_metadata=target_metadata,
             compare_type=True,
+            render_item=render_item,
             # SQLite can't ALTER most things in place; batch mode rewrites the
             # table instead, so local dev runs the same migrations as Postgres.
             render_as_batch=connection.dialect.name == "sqlite",

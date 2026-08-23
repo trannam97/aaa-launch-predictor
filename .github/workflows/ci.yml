@@ -32,6 +32,17 @@ jobs:
         working-directory: backend
         run: pytest -q
 
+      - name: Curated dataset parses
+        run: |
+          python -c "
+          import sys; sys.path.insert(0, 'backend')
+          from app.backfill import load_curated_csv
+          rows = load_curated_csv('data/historical_releases.csv')
+          labeled = [r for r in rows if r.resolved_outcome]
+          print(f'{len(rows)} rows, {len(labeled)} labeled')
+          assert rows, 'curated CSV is empty'
+          "
+
       - name: Migrations match the models
         working-directory: data
         env:

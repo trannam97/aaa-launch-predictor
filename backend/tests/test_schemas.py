@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import pytest
+
 from app.models import Game, LifecycleStatus, Outcome
 from app.schemas import PROVISIONAL_LABEL, status_badge
 

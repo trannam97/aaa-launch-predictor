@@ -170,18 +170,45 @@ class SteamClient:
             raise SteamAppNotFound(f"Steam returned an empty record for appid {appid}")
         return _parse_app_details(appid, data)
 
-    def get_review_summary(self, appid: int) -> ReviewSummary:
-        """Fetch aggregate user-review counts (no review bodies)."""
-        payload = self._get_json(
-            f"{STORE_BASE_URL}/appreviews/{appid}",
-            {
-                "json": 1,
-                "language": "all",
-                "purchase_type": "all",
-                "num_per_page": 0,
-                "review_type": "all",
-            },
-        )
+    def get_review_summary(
+        self,
+        appid: int,
+        window_start: datetime | None = None,
+        window_end: datetime | None = None,
+    ) -> ReviewSummary:
+        """Fetch aggregate user-review counts (no review bodies).
+
+        With no window, this returns lifetime totals. With one, Steam
+        aggregates only reviews created inside it — which is what makes
+        launch-window figures recoverable for games released years ago, in a
+        single request rather than by paginating every review. Lifetime
+        totals must never stand in for launch-window ones: they fold in years
+        of later sales and sentiment, erasing the very signal being predicted.
+        """
+        params: dict[str, object] = {
+            "json": 1,
+            "language": "all",
+            "purchase_type": "all",
+            "num_per_page": 0,
+            "review_type": "all",
+        }
+        if (window_start is None) != (window_end is None):
+            raise ValueError("window_start and window_end must be given together")
+        if window_start is not None and window_end is not None:
+            if window_end <= window_start:
+                raise ValueError("window_end must be after window_start")
+            params.update(
+                {
+                    # `filter=all` is required for the date range to apply;
+                    # Steam ignores it under the default relevance ordering.
+                    "filter": "all",
+                    "date_range_type": "include",
+                    "start_date": int(window_start.timestamp()),
+                    "end_date": int(window_end.timestamp()),
+                }
+            )
+
+        payload = self._get_json(f"{STORE_BASE_URL}/appreviews/{appid}", params)
         if not payload.get("success"):
             return ReviewSummary()
         summary = payload.get("query_summary")
