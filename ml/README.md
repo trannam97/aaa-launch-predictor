@@ -1,4 +1,4 @@
-# ml
+# ML
 
 Model training code and artifacts: the ordinal gradient-boosted classifier
 (flop/underperform/success/breakout) and the company-tiering clustering
