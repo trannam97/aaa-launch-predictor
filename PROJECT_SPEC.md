@@ -1,5 +1,25 @@
 # AAA Game Launch Predictor — Project Spec
 
+## Build Status — read this before implementing anything
+**Current phase: Phase 0.5 (bulk historical backfill), not started.**
+Phase 0 is done — basic Steam ingestion for a single game is working.
+
+This document is a **design reference, not a build order.** Most of it
+describes decisions for phases that haven't started yet (Public Reception
+Signal, company-tiering clustering, the FTME lifecycle, leak handling,
+retraining cadence) — these are settled *decisions* worth having on record
+so they don't need re-litigating later, not a to-do list for the current
+phase. **When prompting Claude Code for the current phase, scope the ask
+explicitly to what that phase needs** (see MVP Phasing below) rather than
+handing over this whole document as "build this" — most of it describes
+Phase 2-4 work that would be premature to scaffold now.
+
+For Phase 0.5 specifically, the relevant sections are: Historical Labeled
+Dataset, Prediction Categories (for the labeling rubric), and the seed
+CSV (`historical_releases_seed.csv`). Everything under ML Model, Public
+Reception Signal, Prediction Lifecycle, and Company Tiering Pipeline can
+be skipped for now — they're Phase 2-3 territory.
+
 ## Goal
 A dashboard that tracks upcoming Triple-A game releases on Steam and predicts
 whether each will be a **Flop**, **Success**, or **Breakout Success**, using a
@@ -135,7 +155,10 @@ text, and any social-sharing features.
   playtime estimates and review counts/scores at launch as the historical
   proxy instead.
 - **OpenCritic / Metacritic** — critic scores (check ToS/robots before
-  scraping; OpenCritic has a friendlier API).
+  scraping; OpenCritic has a friendlier API). Capture each review's
+  **publish timestamp**, not just the score — this is what makes embargo-
+  timing derivable later without a separate data source (see ML Model and
+  Public Reception Signal below).
 - **News/social search** (via Claude + web search, or a news API) — pre- and
   post-launch buzz, controversy, marketing cadence, and verified wishlist/
   follower announcements (see LLM Reasoning Layer below).
@@ -156,11 +179,68 @@ text, and any social-sharing features.
 - Features: publisher/developer tier (see Company Tiering Pipeline below),
   franchise history (sequel vs new IP), genre, platform reach (PC + consoles
   vs PC-only), price point, marketing lead time, review scores of
-  developer's prior titles, and count of other AAA titles the same
+  developer's prior titles, count of other AAA titles the same
   publisher/studio is releasing within roughly ±3 months (a resource-
   dilution/competing-attention signal distinct from general company
   scale — this is about this specific launch's conditions, not the
-  company's overall tier).
+  company's overall tier), `platform_launch_type` (day-one Steam
+  release / delayed port / former-exclusive now porting — see Release
+  Date Handling below), and `embargo_timing` (early / on-time / late /
+  none — derived from comparing the earliest critic review's publish
+  timestamp to the release date; see Public Reception Signal below).
+  **Availability caveat**: unlike the other features, `embargo_timing`
+  isn't known until reviews actually start publishing, right before or at
+  launch — it can't inform the pre-launch forecast, only post-launch
+  monitoring, FTME resolution, and historical training.
+
+#### Release Date Handling
+Store two separate dates, not one: `steam_release_date` (when the title
+hit Steam) and `original_release_date` (its true first release on any
+platform). These diverge for a large share of AAA titles — e.g. Red Dead
+Redemption 2 launched on console in Oct 2018 and on Steam in Dec 2019.
+**Outcome tiers (flop/underperform/success/breakout) are measured against
+Steam-specific performance**, matching the project's actual scope — but
+the gap between the two dates is itself a meaningful feature
+(`platform_launch_type`), not just metadata. A console-first title arriving
+on Steam with a year of pre-existing reputation and pent-up demand is a
+different prediction problem than a true day-one release with no external
+signal yet — the model shouldn't be blind to that distinction, and it's a
+useful hook for the LLM layer too, since a delayed port has real external
+reviews/sales history to go research that a fresh release doesn't.
+
+#### Windowed Features vs. Lifetime Snapshots
+Time-sensitive features (review count, review score, concurrent players)
+must be captured as snapshots at specific windows relative to release
+(e.g. 2 weeks, 1 month, 3 months post-launch) and stored as first-class
+historical data — never queried as "current/lifetime totals" and used as
+if they represented launch performance. Lifetime numbers erase exactly the
+signal being predicted: a title can read as a mediocre launch and an
+excellent long-term game (again, Red Dead Redemption 2 is a clean example
+of this on Steam specifically, given its delayed port).
+This is achievable going forward for actively-tracked games via the
+concurrent-player polling design already in this spec, extended to cover
+review counts/scores the same way. It is **not** retroactively fixable for
+historical backfill games — those rows depend on whatever windowed figures
+happen to be reported in press coverage at the time, which is noisier and
+less complete than what the pipeline captures for games it tracks itself.
+Treat this as a known, permanent asymmetry between older and newer
+training rows rather than something to "fix" in the historical set.
+
+#### Cohort Normalization
+Raw counts (review counts, concurrent player peaks) are not comparable
+across years — Steam's install base and review-leaving culture have grown
+enormously over time (e.g. a AAA title's launch review count in 2015 vs.
+2024 can differ by roughly two orders of magnitude purely from platform
+growth, not relative success). Any count-based feature must be normalized
+against a same-year (or rolling-window) cohort of comparable AAA Steam
+releases — e.g. percentile rank within that cohort — rather than used raw.
+This affects two places, not just model features: **rubric thresholds
+themselves** (Success/Breakout Success) should be defined in cohort-
+relative terms from the start, not as fixed absolute numbers, or they go
+stale as Steam's baseline keeps growing and need constant manual
+recalibration. This requires a small reference table of per-cohort
+baselines, recomputed on a similar cadence to the company-tiering
+clustering job.
 - Model: gradient-boosted trees (XGBoost or LightGBM) — good fit for
   small/medium tabular datasets with mixed feature types, and gives feature
   importances for free (useful for the dashboard's "why" explanations).
@@ -247,6 +327,55 @@ debates, which undermines the neutrality principle above.
 - **LLM rationale stays descriptive, not evaluative**: e.g. "user review
   score dropped sharply following [dated event]" rather than any claim
   about whether the reaction was fair or deserved.
+- **Embargo timing** (`early` / `on-time` / `late` / `none`): computed
+  from the earliest critic review's publish timestamp relative to the
+  release date, using data already captured from OpenCritic/Metacritic —
+  no new data source needed. This one's more concrete than the others in
+  this section — a late-lifted or absent pre-launch embargo is a
+  well-established, widely-cited signal in games journalism, generally
+  read as reduced publisher confidence. Considered adding influencer/
+  streamer sentiment alongside this, but set it aside: no clean aggregator
+  exists (fragmented across platforms, not a numeric score), it's harder
+  to verify than the wishlist-claim problem already solved above, and
+  disclosure compliance for sponsored early access is inconsistent. Worth
+  revisiting later if a good source emerges, but not now.
+
+#### Leak Events (occurrence + reaction only, never content)
+Unauthorized pre-release leaks (gameplay footage, story details, internal
+builds) are a real, occasionally major pre-launch event — worth tracking
+as one more entry in the existing buzz/controversy signal, with a hard
+scope limit:
+- **Track that a leak happened and how the public/press/market reacted —
+  never the leaked content's substance.** E.g. "a significant leak
+  occurred on [date], generating coverage across major outlets, with a
+  temporary stock reaction" is in scope. Cataloging or summarizing what
+  the leak actually revealed (game mechanics, story, map) is out of
+  scope — leaked footage is frequently outdated relative to the shipping
+  product, leakers often have self-interested incentives to overstate
+  significance, and engaging with content obtained through unauthorized
+  access carries real legal/ethical exposure distinct from citing a
+  published review.
+- **No curated "trusted leaker" allowlist.** Leaker reputation is
+  self-reported and unverifiable, the same underlying problem as the
+  wishlist-claims case — and pseudonymous leak accounts routinely get
+  banned and rebrand, so a maintained list would constantly go stale.
+- **Corroboration threshold instead of source trust**: only log a leak as
+  a real event once it's picked up by 2+ independent mainstream outlets,
+  or acknowledged by the publisher itself (takedown notices, an official
+  statement, a reported stock-price reaction). This filters noise by
+  independent confirmation rather than by vetting individual leakers,
+  and naturally scales — a leak large enough to matter gets corroborated
+  within a day or two; one nobody else picks up gets filtered out for
+  free.
+- **Stock-price reaction, if present, is used only as one input to the
+  corroboration check** ("did something notable happen"), never as a
+  structured ML feature — consistent with the earlier decision against
+  using stock price for company tiering, for the same reason: it's
+  noisy, moves on unrelated factors, and often reverses within days.
+- This needs no new scheduled job or infrastructure — it's handled by
+  the LLM reasoning layer's existing periodic buzz/controversy search
+  pass, just with this as an explicit thing to check for and a boundary
+  on what to do with it if found.
 
 ### 5. Backend
 - Python, FastAPI.
