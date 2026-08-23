@@ -62,6 +62,7 @@ LightGBM (ML model) · Claude (LLM reasoning layer) · GitHub Actions
 | `/data` | Alembic migrations, seed dataset |
 | `/jobs` | Scripts GitHub Actions runs on a schedule |
 | `/ml` | Model training and company-tiering clustering (Phase 2) |
+| `/reports` | Per-phase reports on what shipped and what the data showed |
 
 Each folder has its own README with details.
 
