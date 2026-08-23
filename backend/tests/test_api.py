@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 import pytest
-from app.db import get_db
-from app.main import app, get_steam_client
-from app.models import Game, LifecycleStatus, Outcome
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import sessionmaker
 
+from app.db import get_db
+from app.main import app, get_steam_client
+from app.models import Game, LifecycleStatus, Outcome
 from tests.conftest import MISSING_APPID, RELEASED_APPID, UPCOMING_APPID, load_fixture
 
 

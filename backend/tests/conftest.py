@@ -14,11 +14,12 @@ from pathlib import Path
 
 import httpx
 import pytest
-from app.models import Base
-from app.steam import SteamClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
+
+from app.models import Base
+from app.steam import SteamClient
 
 FIXTURE_DIR = Path(__file__).parent / "fixtures"
 

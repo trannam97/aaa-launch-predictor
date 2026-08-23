@@ -26,6 +26,26 @@ soft limit of roughly 200 store requests per 5 minutes per IP, and exits
 non-zero if any game failed, so a scheduled run surfaces as a failed run
 rather than passing quietly.
 
+### `backfill_historical.py`
+
+Phase 0.5. Reads `data/historical_releases.csv`, fetches each game's Steam
+data plus its windowed review figures, and upserts the merged row into
+`historical_releases`.
+
+```bash
+# Backfill everything in the CSV
+DATABASE_URL=... python jobs/backfill_historical.py
+
+# A few games, without writing
+DATABASE_URL=... python jobs/backfill_historical.py --appid 2443720 --dry-run
+```
+
+Four Steam requests per game (details plus three review windows), paced at
+2s between games. Re-running refreshes the API-derived fields in place and
+leaves curated research alone. Warnings are printed but not fatal — a name
+mismatch between CSV and Steam usually means a wrong appid, and a
+"has not elapsed yet" warning means the game is too recent for that window.
+
 ## Planned
 
 Per `PROJECT_SPEC.md`:

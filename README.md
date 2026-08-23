@@ -6,8 +6,9 @@ whether each will land as a **Flop**, **Underperform**, **Success**, or
 factors with an LLM reasoning layer on live signals (reviews, buzz, public
 reception).
 
-> **Status:** Phase 0 — Steam data ingestion works end-to-end (API → database
-> → dashboard). No ML model or LLM reasoning layer yet; see the roadmap below.
+> **Status:** Phase 0.5 — Steam ingestion works end-to-end (API → database →
+> dashboard), and 126 historical releases are backfilled with launch-window
+> metrics. No ML model or LLM reasoning layer yet; see the roadmap below.
 
 ## Disclaimer
 
@@ -97,8 +98,8 @@ For a hosted database, copy `.env.example` to `.env` and set `DATABASE_URL`.
 | Phase | Status | What |
 |---|---|---|
 | 0 | **Done** | Steam ingestion end-to-end: one game's data into the DB and onto a page |
-| 0.5 | Next | Bulk historical backfill — ~100–200 past releases, API fields plus researched qualitative ones |
-| 1 | | Label 30–50 of them, rule-based baseline prediction to validate the rubric |
+| 0.5 | **Done** | Historical backfill — 126 releases (2015–2025) with windowed launch metrics; 12 labeled, 114 awaiting the research pass |
+| 1 | Next | Label 30–50 of them, rule-based baseline prediction to validate the rubric |
 | 2 | | Train the ordinal gradient-boosted model, replace the baseline |
 | 3 | | Claude reasoning layer on top of model output for live titles |
 | 4 | | Dashboard polish, refresh scheduling, historical accuracy tracking |

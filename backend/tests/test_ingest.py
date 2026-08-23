@@ -4,10 +4,10 @@ from __future__ import annotations
 
 from datetime import UTC, date, datetime, timedelta
 
-from app.ingest import ingest_game
-from app.models import Game, GameSnapshot, LifecycleStatus, Outcome
 from sqlalchemy import select
 
+from app.ingest import ingest_game
+from app.models import Game, GameSnapshot, LifecycleStatus, Outcome
 from tests.conftest import RELEASED_APPID, UPCOMING_APPID, load_fixture
 
 

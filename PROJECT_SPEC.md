@@ -219,12 +219,34 @@ excellent long-term game (again, Red Dead Redemption 2 is a clean example
 of this on Steam specifically, given its delayed port).
 This is achievable going forward for actively-tracked games via the
 concurrent-player polling design already in this spec, extended to cover
-review counts/scores the same way. It is **not** retroactively fixable for
-historical backfill games — those rows depend on whatever windowed figures
-happen to be reported in press coverage at the time, which is noisier and
-less complete than what the pipeline captures for games it tracks itself.
-Treat this as a known, permanent asymmetry between older and newer
-training rows rather than something to "fix" in the historical set.
+review counts/scores the same way.
+
+**Correction (verified against the live API during Phase 0.5):** windowed
+*review* figures **are** retroactively recoverable, contrary to the earlier
+assumption here. Steam's `appreviews` endpoint accepts `start_date` /
+`end_date` with `date_range_type=include`, and `query_summary` then returns
+counts aggregated over just that window — one request per game per window,
+no pagination. Historical rows therefore carry real launch-window review
+counts and scores rather than press-reported approximations. The effect is
+large and not a rounding detail: Batman: Arkham Knight reads 47.7% positive
+over its first two weeks against 89.7% lifetime, and Red Dead Redemption 2
+70.7% against 92.5%.
+
+What remains genuinely unrecoverable is **concurrent players**: Steam
+publishes only a live count, with no historical endpoint and no permitted
+scraping source. So the old/new asymmetry is real but much narrower than
+described above — it applies to CCU alone, not to review data. Backfilled
+rows leave `peak_concurrent_players` null rather than substituting a
+present-day reading.
+
+Two traps this exposed, both handled in the backfill:
+- **Early Access.** Steam's `release_date` reports the 1.0 date, not the
+  Early Access launch — Palworld reads as a 2026 release. Windows measured
+  from it describe the wrong event, so `original_release_date` must be
+  curated for any EA title.
+- **Windows that have not elapsed.** A three-month window on a title
+  released three weeks ago returns a real-looking number covering the wrong
+  period. Such windows are skipped, not stored.
 
 #### Cohort Normalization
 Raw counts (review counts, concurrent player peaks) are not comparable

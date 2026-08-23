@@ -238,3 +238,215 @@ class GameSnapshot(Base):
 
     def __repr__(self) -> str:  # pragma: no cover - debug helper
         return f"<GameSnapshot game_id={self.game_id} at={self.captured_at}>"
+
+
+class PlatformLaunchType(enum.StrEnum):
+    """How a title arrived on Steam relative to its true first release.
+
+    A console-first game reaching Steam a year later carries pre-existing
+    reputation and pent-up demand into its Steam launch; a genuine day-one
+    release has neither. Treating those as the same prediction problem
+    throws away real signal.
+    """
+
+    DAY_ONE_STEAM = "day_one_steam"
+    DELAYED_PORT = "delayed_port"
+    FORMER_EXCLUSIVE = "former_exclusive"
+    UNKNOWN = "unknown"
+
+
+class BudgetTier(enum.StrEnum):
+    """Coarse budget bracket. A $200M title and a $20M one need different bars."""
+
+    AAA = "aaa"
+    AA_LEANING_AAA = "aa_leaning_aaa"
+    UNKNOWN = "unknown"
+
+
+class LabelConfidence(enum.StrEnum):
+    HIGH = "high"
+    MEDIUM = "medium"
+    LOW = "low"
+
+
+class ResearchStatus(enum.StrEnum):
+    """Where a row sits in the qualitative research pass.
+
+    `unresolvable` is deliberately distinct from `not_researched`: it means
+    someone looked and the public record genuinely doesn't settle the
+    outcome, which is information — the same reasoning that keeps
+    "Failed to Meet Expectations" separate from a confirmed Flop.
+    """
+
+    NOT_RESEARCHED = "not_researched"
+    RESEARCHED = "researched"
+    UNRESOLVABLE = "unresolvable"
+
+
+class WindowKey(enum.StrEnum):
+    """Named capture windows, measured from the Steam release date."""
+
+    LAUNCH_2W = "launch_2w"
+    LAUNCH_1M = "launch_1m"
+    LAUNCH_3M = "launch_3m"
+    LIFETIME = "lifetime"
+
+
+PlatformLaunchTypeType = Enum(
+    PlatformLaunchType,
+    name="platform_launch_type",
+    native_enum=False,
+    length=32,
+    values_callable=lambda cls: [m.value for m in cls],
+)
+BudgetTierType = Enum(
+    BudgetTier,
+    name="budget_tier",
+    native_enum=False,
+    length=32,
+    values_callable=lambda cls: [m.value for m in cls],
+)
+LabelConfidenceType = Enum(
+    LabelConfidence,
+    name="label_confidence",
+    native_enum=False,
+    length=16,
+    values_callable=lambda cls: [m.value for m in cls],
+)
+ResearchStatusType = Enum(
+    ResearchStatus,
+    name="research_status",
+    native_enum=False,
+    length=32,
+    values_callable=lambda cls: [m.value for m in cls],
+)
+WindowKeyType = Enum(
+    WindowKey,
+    name="window_key",
+    native_enum=False,
+    length=16,
+    values_callable=lambda cls: [m.value for m in cls],
+)
+
+
+class HistoricalRelease(Base):
+    """One past AAA release in the training set.
+
+    Fields split into three kinds, and the distinction matters when reading a
+    row: **API-derived** (refetchable from Steam at any time), **curated**
+    (human/LLM research that Steam cannot answer — studio outcome, budget
+    tier, the label itself), and **provenance**.
+
+    Only rows with a populated `resolved_outcome` are eligible for training.
+    """
+
+    __tablename__ = "historical_releases"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    steam_appid: Mapped[int] = mapped_column(Integer, nullable=False, unique=True, index=True)
+
+    # --- API-derived ---
+    game_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    developer: Mapped[str | None] = mapped_column(Text)
+    publisher: Mapped[str | None] = mapped_column(Text)
+    genres: Mapped[str | None] = mapped_column(Text)
+    steam_release_date: Mapped[date | None] = mapped_column(Date)
+    # Steam's `price_overview.initial` is today's list price, not the launch
+    # price — publishers permanently re-tier older titles (The Witcher 3
+    # launched at $59.99 and now lists at $39.99). The launch figure is
+    # therefore curated, and this API value kept only for reference.
+    current_list_price_cents: Mapped[int | None] = mapped_column(Integer)
+    price_currency: Mapped[str | None] = mapped_column(String(8))
+    on_windows: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    on_mac: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    on_linux: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    metacritic_score: Mapped[int | None] = mapped_column(Integer)
+    metacritic_url: Mapped[str | None] = mapped_column(String(512))
+    # Grouping key for cohort normalization: raw counts are not comparable
+    # across years, so every count-based feature is ranked within its cohort.
+    cohort_year: Mapped[int | None] = mapped_column(Integer, index=True)
+
+    # --- Curated research ---
+    original_release_date: Mapped[date | None] = mapped_column(Date)
+    launch_price_cents: Mapped[int | None] = mapped_column(Integer)
+    platform_launch_type: Mapped[PlatformLaunchType] = mapped_column(
+        PlatformLaunchTypeType, nullable=False, default=PlatformLaunchType.UNKNOWN
+    )
+    platform_reach: Mapped[str | None] = mapped_column(String(128))
+    budget_tier: Mapped[BudgetTier] = mapped_column(
+        BudgetTierType, nullable=False, default=BudgetTier.UNKNOWN
+    )
+    post_launch_support: Mapped[str | None] = mapped_column(Text)
+    studio_outcome: Mapped[str | None] = mapped_column(Text)
+    resolved_outcome: Mapped[Outcome | None] = mapped_column(OutcomeType)
+    label_confidence: Mapped[LabelConfidence | None] = mapped_column(LabelConfidenceType)
+    research_status: Mapped[ResearchStatus] = mapped_column(
+        ResearchStatusType, nullable=False, default=ResearchStatus.NOT_RESEARCHED
+    )
+
+    # --- Provenance ---
+    notes: Mapped[str | None] = mapped_column(Text)
+    sources: Mapped[str | None] = mapped_column(Text)
+    backfilled_at: Mapped[datetime | None] = mapped_column(UtcDateTime)
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime, nullable=False, default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        UtcDateTime, nullable=False, default=utcnow, onupdate=utcnow
+    )
+
+    windows: Mapped[list[ReleaseWindow]] = relationship(
+        back_populates="release",
+        cascade="all, delete-orphan",
+        order_by="ReleaseWindow.window_key",
+    )
+
+    @property
+    def is_trainable(self) -> bool:
+        """Only resolved rows may enter training — an unlabeled row is excluded."""
+        return self.resolved_outcome is not None
+
+    def __repr__(self) -> str:  # pragma: no cover - debug helper
+        return f"<HistoricalRelease appid={self.steam_appid} name={self.game_name!r}>"
+
+
+class ReleaseWindow(Base):
+    """Metrics for one named window of a historical release.
+
+    Windowed rather than lifetime, because lifetime totals fold years of
+    later sales and sentiment into what is supposed to be a launch-window
+    measurement.
+
+    `peak_concurrent_players` is nullable and, for backfilled games, will
+    stay null: Steam publishes only a current player count, so historical CCU
+    genuinely cannot be recovered. Review figures, by contrast, can be —
+    Steam's review endpoint accepts a date range.
+    """
+
+    __tablename__ = "release_windows"
+    __table_args__ = (
+        UniqueConstraint("release_id", "window_key", name="uq_release_windows_release_key"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    release_id: Mapped[int] = mapped_column(
+        ForeignKey("historical_releases.id", ondelete="CASCADE"), nullable=False
+    )
+    window_key: Mapped[WindowKey] = mapped_column(WindowKeyType, nullable=False)
+    window_start: Mapped[date | None] = mapped_column(Date)
+    window_end: Mapped[date | None] = mapped_column(Date)
+
+    review_total: Mapped[int | None] = mapped_column(Integer)
+    review_positive: Mapped[int | None] = mapped_column(Integer)
+    review_negative: Mapped[int | None] = mapped_column(Integer)
+    review_score_desc: Mapped[str | None] = mapped_column(String(64))
+    peak_concurrent_players: Mapped[int | None] = mapped_column(Integer)
+
+    release: Mapped[HistoricalRelease] = relationship(back_populates="windows")
+
+    @property
+    def positive_pct(self) -> float | None:
+        if not self.review_total:
+            return None
+        return round(100.0 * (self.review_positive or 0) / self.review_total, 1)
+
+    def __repr__(self) -> str:  # pragma: no cover - debug helper
+        return f"<ReleaseWindow release_id={self.release_id} key={self.window_key}>"
