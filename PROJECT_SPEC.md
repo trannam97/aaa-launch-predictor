@@ -1,0 +1,382 @@
+# AAA Game Launch Predictor — Project Spec
+
+## Goal
+A dashboard that tracks upcoming Triple-A game releases on Steam and predicts
+whether each will be a **Flop**, **Success**, or **Breakout Success**, using a
+hybrid of a trained ML model (structural/historical features) and an LLM
+reasoning layer (live qualitative signals).
+
+## Prediction Categories (define thresholds before labeling data)
+Four ordered tiers — adjust based on what data you can actually get. The
+categories are ordinal (Flop < Underperform < Success < Breakout Success),
+which matters for model choice (see ML Model section).
+- **Flop**: doesn't recoup production costs; severe layoffs or real risk of
+  studio closure; game largely abandoned post-launch (no meaningful
+  patches/content); steep discounting almost immediately.
+- **Underperform**: roughly breaks even or modest profit, well below
+  budget-tier target; may involve layoffs but the studio continues
+  operating; game still gets maintained/patched post-launch; mixed-to-
+  decent reviews with a modest but real playerbase. (Mirrors the "sits
+  between a downgrade and a hold" language stock analysts use — reinforces
+  the neutral, forecast tone from the Responsible Framing principle.)
+- **Success**: meets typical expectations for its budget tier and genre —
+  respectable concurrent player peak, "Mostly Positive"+ reviews, holds
+  price.
+- **Breakout Success**: far exceeds expectations — concurrent player peak
+  in top percentile for the genre, "Very Positive"+ reviews, sustained
+  engagement weeks after launch, notable cultural/media buzz.
+
+Budget tier matters a lot here — a $200M AAA game and a $20M "AA-leaning-AAA"
+game need different bars for what counts as "success."
+
+Distinguishing **Flop from Underperform** needs a signal beyond launch-
+window numbers: whether the studio continued operating and kept
+supporting the game post-launch, versus shutting down or abandoning it.
+Peak concurrent players and review scores alone won't reliably separate
+these two — factor in post-launch support duration and layoffs-vs-closure
+reporting (see Historical Labeled Dataset and LLM Reasoning Layer below).
+
+## Prediction Lifecycle: Forecast vs. Resolved Status
+A launched game's status is not the same object as a pre-launch forecast,
+and the dashboard should treat them differently:
+- **Pre-launch**: a forecast — predicted category across all four tiers
+  with a confidence level. Unchanged from the model above.
+- **Early post-launch** (first few weeks): if trajectory trends below
+  Success, status becomes **"Failed to Meet Expectations"** — provisional,
+  not yet resolved to Flop or Underperform. This is the honest state of
+  knowledge at that point in time; the two outcomes genuinely can't be told
+  apart yet.
+- **Resolution window** (tunable parameter, starting estimate 3-6 months
+  post-launch): a scheduled job checks for post-launch support signals
+  (patch/content cadence, layoffs vs. closure reporting) and resolves
+  "Failed to Meet Expectations" into a confirmed Flop or Underperform.
+- **If it never clearly resolves** (thin press coverage, quiet studio),
+  leave the status at "Failed to Meet Expectations" with a note that
+  there's insufficient data to resolve further, rather than forcing a
+  guess. This directly supports the Responsible Framing principle above —
+  it avoids applying the harshest label before it's actually confirmed.
+- This mechanism also feeds Phase 4's "historical accuracy tracking" —
+  comparing the pre-launch forecast against the eventually-resolved status
+  is exactly what that phase needs to measure prediction accuracy over
+  time.
+
+#### Schema Design for Lifecycle vs. Outcome
+Keep three things separate rather than collapsing them into one nullable
+field — a bare null can't distinguish "not launched yet" from "tracking
+fine" from "trending badly but unresolved," which loses real information:
+- **`lifecycle_status`** (enum): `pre_launch` → `tracking` →
+  `failed_to_meet_expectations` → `resolved` / `unresolved_insufficient_data`.
+  Tracks where a game is in the pipeline.
+- **`predicted_outcome`** + confidence: the pre-launch forecast. Set once,
+  **immutable** — never overwritten later, so it can always be compared
+  against what actually happened.
+- **`resolved_outcome`** (enum, nullable until the resolution job fills it
+  in): `flop` / `underperform` / `success` / `breakout`. This is the
+  actual ground-truth label, populated only once resolved.
+
+**Important**: "Failed to Meet Expectations" is a lifecycle status, not a
+training label — it represents not-yet-knowing, not a real outcome, so it
+should never be used as a class the ML model learns to predict. The
+payoff of tracking it explicitly is different: once a game's
+`resolved_outcome` gets populated, that row graduates from the live
+tracking table into `historical_releases` — the same table the model
+retrains on. This turns the resolution mechanism into a flywheel that
+keeps growing the labeled training set over time, on top of its role in
+accuracy tracking. Only rows with a populated `resolved_outcome` should
+ever enter training — an unresolved FTME row is excluded until it settles.
+
+#### Retraining Cadence
+Retrain the ML model **biweekly, but skip the run if no new resolved
+games have been added to `historical_releases` since the last retrain**.
+Rationale: training a gradient-boosted tree model on a dataset this size
+is computationally cheap (seconds to low minutes) — the real cost driver
+in this project is Claude API usage, not model training — so the limiting
+factor is data velocity, not compute. Given AAA release volume and the
+3-6 month resolution window, new labeled examples will likely arrive in
+occasional bursts rather than a steady weekly trickle, so a plain fixed
+cadence would often run against unchanged data. The skip-if-no-new-data
+check keeps the freshness ceiling without paying pipeline overhead on
+empty runs, and self-adjusts to however fast resolved games actually
+accumulate.
+
+## Design Principle: Responsible Framing
+This tool predicts *commercial* performance, not creative quality, and it
+must never read as mockery of developers or artists. Concretely:
+- **Never conflate "flop" with "bad game."** Copy and UI must make clear
+  this is a sales/engagement forecast relative to budget-tier expectations
+  — a critically acclaimed game can still commercially underperform, and
+  the product should say so plainly where relevant.
+- **Attribute outcomes to business decisions and market conditions**
+  (budget, marketing spend, release timing, platform strategy), not to
+  individual developers or artists. Never phrase predictions in a way that
+  could be read as targeting named individuals.
+- **No dunking mechanics.** No "biggest flops" leaderboard, no shareable
+  mockery cards, no celebratory tone on failure predictions. All three
+  categories (flop/success/breakout) get the same neutral, analyst-style
+  visual treatment — think sales forecast, not hot take.
+- **Be mindful of timing.** Avoid gloating or "called it" framing around
+  moments tied to real harm to workers (layoffs, studio closures).
+This should be a review checkpoint for all future UI copy, notification
+text, and any social-sharing features.
+
+## Architecture
+
+### 1. Data Layer
+- **Steam Web API** — store metadata, review counts/scores, tags, pricing.
+  Commercial use is permitted under Steam's Web API Terms of Use; requires
+  a privacy policy page (only if handling nonpublic end-user data, which
+  this project doesn't) and a "not affiliated with Valve" disclaimer.
+- **SteamSpy** — ownership/playtime estimates, uses Steam's public API.
+- **Concurrent player counts** — poll Steam's own public current-players
+  endpoint every 15-30 min and store your own history going forward. Do
+  **not** scrape SteamDB — their ToS explicitly prohibits it and they
+  actively block scrapers (Cloudflare challenges, IP bans). This also means
+  no *historical* CCU backfill for old games; use SteamSpy ownership/
+  playtime estimates and review counts/scores at launch as the historical
+  proxy instead.
+- **OpenCritic / Metacritic** — critic scores (check ToS/robots before
+  scraping; OpenCritic has a friendlier API).
+- **News/social search** (via Claude + web search, or a news API) — pre- and
+  post-launch buzz, controversy, marketing cadence, and verified wishlist/
+  follower announcements (see LLM Reasoning Layer below).
+- Store everything in Postgres (SQLite is fine for MVP/local dev).
+
+### 2. Historical Labeled Dataset (the hard part)
+- Hand-pick ~100–200 past AAA releases spanning several years.
+- Pull their launch-window stats (peak CCU, review score/count at 2 weeks,
+  price cuts in first month) and apply the rubric above to assign a label.
+- For each game, also check what happened afterward: did meaningful
+  post-launch content/patches continue for several months, were there
+  layoffs, did the studio close — this is needed to separate Flop from
+  Underperform, and launch-window numbers alone won't do it.
+- Store as a training table: `historical_releases`.
+- Expect to iterate on the rubric once you see how games actually cluster.
+
+### 3. ML Model
+- Features: publisher/developer tier (see Company Tiering Pipeline below),
+  franchise history (sequel vs new IP), genre, platform reach (PC + consoles
+  vs PC-only), price point, marketing lead time, review scores of
+  developer's prior titles, and count of other AAA titles the same
+  publisher/studio is releasing within roughly ±3 months (a resource-
+  dilution/competing-attention signal distinct from general company
+  scale — this is about this specific launch's conditions, not the
+  company's overall tier).
+- Model: gradient-boosted trees (XGBoost or LightGBM) — good fit for
+  small/medium tabular datasets with mixed feature types, and gives feature
+  importances for free (useful for the dashboard's "why" explanations).
+  Since the four categories are ordered (Flop < Underperform < Success <
+  Breakout Success), consider an ordinal-aware approach (e.g. ordinal
+  logistic regression, or an ordinal wrapper around gradient-boosted trees)
+  rather than plain multiclass — it respects that "predicted Underperform,
+  actual Success" is a smaller miss than "predicted Flop, actual Breakout,"
+  which plain multiclass classification doesn't capture.
+- Output: probability distribution over {flop, underperform, success,
+  breakout}.
+
+#### Company Tiering Pipeline (sub-component, runs offline)
+Budget figures aren't public, so instead of estimating dollars, derive a
+categorical tier per publisher/developer via **unsupervised clustering**
+(k-means or hierarchical) over observable company-level features:
+- Headcount / team size (MobyGames credits, studio "about" pages).
+- Catalog size (# of past AAA releases).
+- Confirmed upcoming AAA titles (announced with a real release window —
+  year or narrower). Weight this below past catalog size in the
+  clustering: past releases are a settled fact, upcoming ones are a
+  forecast that regularly slips or gets cancelled. Exclude
+  rumored/leaked/vaguely-teased projects with no confirmed window.
+- Platform reach on past titles.
+- Average review scores of past titles.
+- Revenue or market-cap bracket for public companies (used as a coarse,
+  slow-changing category — **not** live stock price, which is too noisy
+  and driven by unrelated business lines and market conditions).
+- Run this clustering quarterly (not per-prediction), store output as a
+  `company_tier` lookup table, and hand-review the resulting clusters
+  before trusting them — with only a few dozen AAA publishers/developers
+  to cluster, results can be noisy and deserve a sanity check rather than
+  fully automated trust. The main prediction model just joins against this
+  table at inference time.
+
+### 4. LLM Reasoning Layer (Claude)
+- Input: the ML model's probabilities + freshly gathered live signals
+  (recent reviews, news headlines, social sentiment, marketing footprint,
+  cast prominence, verified wishlist/follower announcements). For games
+  already launched and being monitored post-release, also gather
+  post-launch support signals (patch/content cadence, layoff reports vs.
+  closure reports) needed to distinguish Flop from Underperform.
+- Output: final category call + a short written rationale for the dashboard
+  card, and a confidence level.
+- This layer is what makes the tool explainable instead of a black box, and
+  it's the piece that adapts to things the ML model can't see (a marketing
+  disaster a week before launch, a surprise demo that goes viral, etc.).
+
+#### Wishlist/Follower Signal Handling (resolved rule)
+- **Platform-verified only.** Only count wishlist/follower/pre-order
+  numbers when backed by an independently checkable source (e.g. a Steam
+  Next Fest wishlist leaderboard placement, a platform-published dashboard
+  screenshot, a specific milestone tied to a verifiable event).
+- **Ignore self-reported, unverifiable claims entirely** (e.g. a studio
+  tweeting "over a million wishlists!" with no backing). Do not weight
+  these even lightly.
+- **Absence is neutral, not a red flag.** Most developers don't publicize
+  these numbers at all — the prompt for this layer should explicitly
+  instruct Claude not to treat silence as a bad sign.
+
+#### Public Reception Signal (distinct from commercial performance)
+A game can hit its budget-tier commercial targets and still be broadly
+disliked by buyers — this is worth tracking as its own signal, separate
+from the flop/success/breakout commercial call. Design guardrail: **the
+pipeline measures reception patterns descriptively; it does not classify
+or adjudicate *why* a reaction happened.** Causal attribution (e.g.
+whether backlash was "deserved," tied to content, or organized brigading)
+is a subjective judgment call this tool should not make algorithmically —
+doing so risks the tool itself appearing to take a side in gaming-culture
+debates, which undermines the neutrality principle above.
+- **Critic score vs. user/player score, tracked as two separate numbers**
+  (OpenCritic/Metacritic for critic scores, Steam review data for user
+  scores) — never blended into one. Divergence between them is itself a
+  useful, transparent data point to surface, without the tool asserting
+  which side is "right."
+- **Review-bombing / rating-cliff detection**: flag sudden, sharp drops in
+  review score and roughly when they occurred, as a factual timeline event
+  — not paired with a judgment on legitimacy.
+- **Trailer like/dislike ratio**: one weak, noisy input among several
+  (e.g. flag when dislikes exceed ~40%). Explicitly low-confidence on its
+  own — never a sole trigger for a prediction, since it's easily driven by
+  factors unrelated to gameplay quality (price, DRM, unrelated controversy,
+  coordinated brigading).
+- **LLM rationale stays descriptive, not evaluative**: e.g. "user review
+  score dropped sharply following [dated event]" rather than any claim
+  about whether the reaction was fair or deserved.
+
+### 5. Backend
+- Python, FastAPI.
+- Scheduled job (cron or APScheduler) to refresh tracked games' data daily.
+- Separate scheduled job (less frequent, e.g. monthly) to check launched
+  games currently at "Failed to Meet Expectations" and attempt resolution
+  to Flop/Underperform per the Prediction Lifecycle above.
+- Endpoints: list tracked games, get game detail + prediction, add/remove
+  tracked game, trigger re-prediction.
+
+### 6. Frontend
+- React (Next.js) dashboard.
+- Card grid or table: game title, release date, predicted category badge
+  pre-launch (or resolved status badge post-launch — see Prediction
+  Lifecycle above), confidence, short rationale, sparkline of any trending
+  metric available.
+- Post-launch status badge should visually distinguish provisional
+  ("Failed to Meet Expectations") from resolved (Flop/Underperform/
+  Success/Breakout) states — e.g. a distinct badge style or "provisional"
+  tag — so it's clear to a visitor when a game's outcome is still unsettled.
+- Detail view per game showing the feature breakdown and LLM rationale.
+
+## MVP Phasing (recommended build order)
+1. **Phase 0**: Data ingestion for a handful of Steam fields (no ML/LLM yet)
+   — get one game's data flowing end-to-end into the DB and rendered on a
+   basic page. Deliberately built *before* the full historical research
+   pass — once this pipeline exists, it can pull critic score, price,
+   platforms, and review counts programmatically for any game, so the
+   later bulk backfill only needs manual/LLM research for the fields that
+   genuinely require judgment (studio outcome, post-launch support,
+   budget tier). Doing the full research pass by hand first would mean
+   redoing that work the slow way.
+2. **Phase 0.5**: Bulk historical backfill — combine the Phase 0 pipeline
+   (for API-fetchable fields) with targeted research (via Claude Code or
+   further sessions like the seed batch already compiled) for the
+   qualitative fields, to build out the ~100-200 game historical set.
+   Expect the rubric to still shift a bit as real cases surface edge
+   cases — that's fine, this is why Phase 1 validates on a subset before
+   committing to full-scale training.
+3. **Phase 1**: Manually label ~30–50 historical games (drawn from the
+   Phase 0.5 backfill), build simple rule-based baseline prediction (no
+   ML training yet) — validates the rubric before investing in model
+   training. A rule-based baseline is what covers the gap while the
+   labeled dataset is still thin, so lack of full training data doesn't
+   block having a working prediction feature.
+4. **Phase 2**: Train the ML model on the labeled set, wire it into the
+   backend, replace the rule-based baseline.
+5. **Phase 3**: Add the Claude reasoning layer on top of ML output for live
+   upcoming titles.
+6. **Phase 4**: Dashboard polish — tracking multiple games, refresh
+   scheduling, historical accuracy tracking (did past predictions pan out?).
+
+## Repo Setup Checklist
+1. Create a new **public** GitHub repo (e.g. `aaa-launch-predictor`) — see
+   Hosting & Cost above for why public matters now, not just later.
+   Initialize with a `.gitignore` for Python + Node.
+2. Structure the repo into clear top-level folders from the start, since
+   there are now several distinct scheduled jobs and components rather
+   than one simple app: `/frontend` (Next.js), `/backend` (FastAPI),
+   `/ml` (training scripts, model artifacts, company-tiering clustering),
+   `/jobs` (the polling, retraining, resolution, and clustering scripts
+   that GitHub Actions triggers on schedule), `/data` (seed CSV, schema
+   migrations).
+3. Use a database migration tool (e.g. Alembic for Python + Postgres) from
+   day one rather than hand-editing schema — the schema already has
+   several moving pieces (`lifecycle_status`, `predicted_outcome`,
+   `resolved_outcome`, `company_tier` lookup, `historical_releases`,
+   concurrent-player time-series) and will keep evolving as Claude Code
+   builds it out in phases.
+4. Add a `.env.example` listing required environment variables (Steam API
+   key, Anthropic API key, DB connection string) without real values, and
+   confirm `.gitignore` excludes the real `.env` — this matters more now
+   that there are multiple API keys in play, on a public repo.
+5. Add a short `DISCLAIMER.md` or footer text confirming the project isn't
+   affiliated with Valve, plus a brief note on data sourcing and update
+   cadence — cheap to add early, and reinforces the transparency/
+   responsible-framing principle from earlier in this spec.
+6. Clone the repo locally.
+7. Open the repo in Claude Code and hand it this spec file as the starting
+   context — ask it to scaffold Phase 0 first, not the whole app at once.
+8. Get an Anthropic API key for the LLM reasoning layer (separate from
+   Claude Code itself, which uses your Claude subscription).
+9. Get a Steam Web API key (free, via Steam's developer portal).
+
+## Hosting & Cost (resolved)
+- **Repo visibility: public.** This is now a real cost decision, not just
+  preference — GitHub Actions is free and unlimited on public repos, but
+  capped at 2,000 free minutes/month on private ones (2026 pricing). The
+  concurrent-player polling job (below) makes this cap easy to hit on a
+  private repo. A public repo also fits the project's existing donation-
+  funded, transparent-methodology framing.
+- **Frontend**: Vercel free tier — well-suited to a Next.js dashboard.
+- **Backend**: Render free tier (750 free web-service hours/month). Free
+  tier spins down after ~15 min idle and takes 30-60s to wake on the next
+  request — acceptable for a periodically-checked dashboard, not for
+  instant-response needs. Railway no longer has a permanent free tier as
+  of 2026 (30-day trial credit only), so Render is the better default here.
+- **Database**: Supabase free Postgres — 500MB storage, auto-pauses after
+  7 days with no API activity (the polling job below incidentally
+  prevents this by keeping it active). 500MB requires bounding the
+  concurrent-player time-series growth — see Concurrent Player Polling
+  below. Alternative: Render's free Postgres, which expires after 90 days
+  requiring periodic re-provisioning, if avoiding an extra provider
+  matters more than the storage-growth tradeoff.
+- **Scheduled ingestion**: GitHub Actions free minutes for the daily/
+  periodic data-refresh job, instead of paying for an always-on worker.
+- **Concurrent player polling — revised for cost given the 15-30 min
+  cadence**: GitHub Actions cron isn't precisely reliable at 15-min
+  intervals under load, so treat 30 min as the realistic floor. More
+  importantly, poll at that frequency only during a game's active launch
+  window (first few weeks, when CCU data is actually volatile and
+  informative) — drop to daily or less for pre-launch and long-post-launch
+  games. This bounds both Actions minutes and database growth. Roll up
+  granular polling data older than ~30 days into daily aggregates rather
+  than keeping it at full resolution indefinitely, to stay within the
+  500MB Supabase cap as tracked games accumulate.
+- **The real recurring cost is Claude API calls** for the LLM reasoning
+  layer, not hosting. Keep this cheap by caching predictions and only
+  re-running the LLM pass on a schedule (not per page load), and consider
+  a cheaper model tier for routine signal-gathering, reserving a stronger
+  model for the final category call.
+
+## Monetization (resolved)
+- **Donations only** (Ko-fi / GitHub Sponsors / Buy Me a Coffee) — low
+  effort, no traffic minimums, no ad-content review. Framing it as
+  covering "server + API costs" fits the hobby-dashboard model. Ads and
+  affiliate links were considered and set aside (ads need traffic minimums
+  this project won't have early on; Steam's affiliate program terms would
+  need separate confirmation and shouldn't be assumed available).
+- Donations don't conflict with Steam's Web API terms — you're running a
+  service that uses the API as intended, not selling Steam's data itself.
+- SteamDB scraping is off the table regardless of monetization model — see
+  Data Layer above.

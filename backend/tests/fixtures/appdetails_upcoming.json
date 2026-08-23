@@ -1,0 +1,18 @@
+{
+  "2000950": {
+    "success": true,
+    "data": {
+      "type": "game",
+      "name": "Example Upcoming Game",
+      "steam_appid": 2000950,
+      "is_free": false,
+      "short_description": "An unreleased sequel used as an ingestion fixture.",
+      "header_image": "https://cdn.example.invalid/2000950/header.jpg",
+      "developers": ["Example Studios", "Example Support Studio"],
+      "publishers": ["Example Interactive"],
+      "platforms": {"windows": true, "mac": true, "linux": false},
+      "genres": [{"id": "1", "description": "Action"}],
+      "release_date": {"coming_soon": true, "date": "Q4 2026"}
+    }
+  }
+}

@@ -6,7 +6,8 @@ whether each will land as a **Flop**, **Underperform**, **Success**, or
 factors with an LLM reasoning layer on live signals (reviews, buzz, public
 reception).
 
-> **Status:** early development. Not yet functional — see the roadmap below.
+> **Status:** Phase 0 — Steam data ingestion works end-to-end (API → database
+> → dashboard). No ML model or LLM reasoning layer yet; see the roadmap below.
 
 ## Disclaimer
 
@@ -51,9 +52,64 @@ FastAPI (backend) · Next.js (frontend) · Postgres via Supabase · XGBoost/
 LightGBM (ML model) · Claude (LLM reasoning layer) · GitHub Actions
 (scheduled jobs)
 
-## Setup
+## Repo layout
 
-_Coming soon — Phase 0 is still in progress._
+| Folder | What |
+|---|---|
+| `/backend` | FastAPI app — Steam client, ingestion pipeline, API |
+| `/frontend` | Next.js dashboard |
+| `/data` | Alembic migrations, seed dataset |
+| `/jobs` | Scripts GitHub Actions runs on a schedule |
+| `/ml` | Model training and company-tiering clustering (Phase 2) |
+
+Each folder has its own README with details.
+
+## Quickstart
+
+Nothing here needs an API key — the Steam endpoints Phase 0 uses are public,
+and the database defaults to a local SQLite file.
+
+```bash
+# 1. Backend
+cd backend
+python -m venv .venv && source .venv/bin/activate
+pip install -e '.[dev]'
+
+# 2. Schema
+cd ../data && alembic upgrade head && cd ../backend
+
+# 3. API on :8000
+uvicorn app.main:app --reload
+
+# 4. Track a game (in another shell)
+curl -X POST localhost:8000/games \
+  -H 'content-type: application/json' \
+  -d '{"steam_appid": 1174180}'
+
+# 5. Dashboard on :3000 (in another shell)
+cd frontend && npm install && npm run dev
+```
+
+For a hosted database, copy `.env.example` to `.env` and set `DATABASE_URL`.
+
+## Roadmap
+
+| Phase | Status | What |
+|---|---|---|
+| 0 | **Done** | Steam ingestion end-to-end: one game's data into the DB and onto a page |
+| 0.5 | Next | Bulk historical backfill — ~100–200 past releases, API fields plus researched qualitative ones |
+| 1 | | Label 30–50 of them, rule-based baseline prediction to validate the rubric |
+| 2 | | Train the ordinal gradient-boosted model, replace the baseline |
+| 3 | | Claude reasoning layer on top of model output for live titles |
+| 4 | | Dashboard polish, refresh scheduling, historical accuracy tracking |
+
+## Development
+
+```bash
+cd backend && pytest        # backend suite (hermetic — no network, no DB file)
+ruff check . && ruff format --check .   # from the repo root
+cd frontend && npm run typecheck && npm run build
+```
 
 ## Support
 
