@@ -1,0 +1,681 @@
+<title>Launch-Window Backfill</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;450;600&display=swap">
+<style>
+:root {
+  color-scheme: light;
+  --ground:      #fbfbfa;
+  --surface:     #ffffff;
+  --surface-2:   #f4f3f1;
+  --ink:         #1f1e1c;
+  --ink-2:       #56544f;
+  --ink-3:       #85837c;
+  --rule:        #e3e2df;
+  --rule-strong: #cfcdc8;
+  --accent:      #2a78d6;
+  --warm:        #eb6834;
+  --ord-1:       #86b6ef;
+  --ord-2:       #3987e5;
+  --ord-3:       #1c5cab;
+  --ord-4:       #0d366b;
+  --dot-idle:    #c8c6c0;
+
+  --sans: "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --serif: "Newsreader", ui-serif, Georgia, "Times New Roman", serif;
+  --mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --ground:      #161513;
+    --surface:     #201f1d;
+    --surface-2:   #2a2926;
+    --ink:         #ecebe8;
+    --ink-2:       #adaba4;
+    --ink-3:       #85837c;
+    --rule:        #35332f;
+    --rule-strong: #4a4842;
+    --accent:      #3987e5;
+    --warm:        #d95926;
+    --ord-1:       #cde2fb;
+    --ord-2:       #86b6ef;
+    --ord-3:       #3987e5;
+    --ord-4:       #1c5cab;
+    --dot-idle:    #4d4b45;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --ground:      #161513;
+  --surface:     #201f1d;
+  --surface-2:   #2a2926;
+  --ink:         #ecebe8;
+  --ink-2:       #adaba4;
+  --ink-3:       #85837c;
+  --rule:        #35332f;
+  --rule-strong: #4a4842;
+  --accent:      #3987e5;
+  --warm:        #d95926;
+  --ord-1:       #cde2fb;
+  --ord-2:       #86b6ef;
+  --ord-3:       #3987e5;
+  --ord-4:       #1c5cab;
+  --dot-idle:    #4d4b45;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--ground);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 16px;
+  line-height: 1.62;
+  -webkit-font-smoothing: antialiased;
+}
+
+.page {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: clamp(2rem, 5vw, 4.5rem) clamp(1.1rem, 4vw, 3rem) 6rem;
+}
+
+/* ---------- masthead ---------- */
+.masthead { border-bottom: 2px solid var(--ink); padding-bottom: 1.6rem; }
+.eyebrow {
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  font-weight: 500;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  margin: 0 0 1.1rem;
+}
+h1 {
+  font-family: var(--serif);
+  font-size: clamp(2.4rem, 6.5vw, 4rem);
+  font-weight: 500;
+  line-height: 1.02;
+  letter-spacing: -0.02em;
+  margin: 0 0 0.7rem;
+  text-wrap: balance;
+}
+.standfirst {
+  font-family: var(--serif);
+  font-size: clamp(1.05rem, 2.1vw, 1.28rem);
+  line-height: 1.5;
+  color: var(--ink-2);
+  max-width: 40ch;
+  margin: 0;
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+  gap: 1px;
+  background: var(--rule);
+  border: 1px solid var(--rule);
+  margin: 2rem 0 0;
+}
+.stat { background: var(--ground); padding: 0.95rem 1.05rem; }
+.stat dt {
+  font-family: var(--mono);
+  font-size: 0.63rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  margin: 0 0 0.3rem;
+}
+.stat dd {
+  margin: 0;
+  font-family: var(--serif);
+  font-size: 1.85rem;
+  font-weight: 500;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.stat dd small {
+  font-family: var(--sans);
+  font-size: 0.78rem;
+  font-weight: 400;
+  color: var(--ink-3);
+  margin-left: 0.28rem;
+}
+
+/* ---------- sections ---------- */
+section { margin-top: 3.6rem; }
+.sec-head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.9rem;
+  border-bottom: 1px solid var(--rule);
+  padding-bottom: 0.5rem;
+  margin-bottom: 1.5rem;
+}
+.sec-label {
+  font-family: var(--mono);
+  font-size: 0.66rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--accent);
+  white-space: nowrap;
+}
+h2 {
+  font-family: var(--serif);
+  font-size: clamp(1.5rem, 3vw, 1.95rem);
+  font-weight: 500;
+  letter-spacing: -0.012em;
+  margin: 0;
+  line-height: 1.15;
+  text-wrap: balance;
+}
+h3 {
+  font-family: var(--sans);
+  font-size: 0.94rem;
+  font-weight: 600;
+  letter-spacing: 0.005em;
+  margin: 0 0 0.35rem;
+}
+p { margin: 0 0 1rem; max-width: 66ch; }
+p.wide { max-width: 78ch; }
+strong { font-weight: 600; }
+a { color: var(--accent); text-underline-offset: 2px; }
+a:focus-visible, summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: 2px;
+}
+code {
+  font-family: var(--mono);
+  font-size: 0.85em;
+  background: var(--surface-2);
+  padding: 0.08em 0.34em;
+  border-radius: 3px;
+  border: 1px solid var(--rule);
+}
+
+/* ---------- cards ---------- */
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1rem; }
+.card {
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  padding: 1.1rem 1.2rem 1.25rem;
+}
+.card p { font-size: 0.895rem; color: var(--ink-2); margin: 0; max-width: none; }
+.card .tag {
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  display: block;
+  margin-bottom: 0.55rem;
+}
+
+/* ---------- pull quote / callout ---------- */
+.callout {
+  border-left: 3px solid var(--accent);
+  background: var(--surface);
+  padding: 1.15rem 1.35rem;
+  margin: 1.6rem 0;
+}
+.callout p { margin: 0; max-width: 68ch; }
+.callout p + p { margin-top: 0.7rem; }
+.callout .kicker {
+  font-family: var(--mono);
+  font-size: 0.63rem;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  color: var(--accent);
+  display: block;
+  margin-bottom: 0.5rem;
+}
+
+/* ---------- figures ---------- */
+figure { margin: 1.8rem 0 0; }
+.figbox {
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  padding: 1.25rem 1.3rem 1rem;
+  overflow-x: auto;
+}
+figcaption {
+  font-size: 0.8rem;
+  color: var(--ink-3);
+  margin-top: 0.75rem;
+  max-width: 74ch;
+  line-height: 1.5;
+}
+.fig-title {
+  font-family: var(--sans);
+  font-size: 0.9rem;
+  font-weight: 600;
+  margin: 0 0 0.2rem;
+}
+.fig-sub {
+  font-size: 0.78rem;
+  color: var(--ink-3);
+  margin: 0 0 1rem;
+}
+svg { display: block; overflow: visible; }
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem 1.15rem;
+  margin: 0 0 0.95rem;
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.04em;
+  color: var(--ink-2);
+}
+.legend span { display: inline-flex; align-items: center; gap: 0.4rem; }
+.swatch { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+.swatch.sq { border-radius: 2px; }
+
+.tick { font-family: var(--mono); font-size: 10px; fill: var(--ink-3); }
+.rowlabel { font-family: var(--sans); font-size: 12px; fill: var(--ink); }
+.delta { font-family: var(--mono); font-size: 11px; font-weight: 600; fill: var(--ink-2); }
+.gridline { stroke: var(--rule); stroke-width: 1; }
+.axisline { stroke: var(--rule-strong); stroke-width: 1; }
+.annot { font-family: var(--sans); font-size: 11px; fill: var(--ink-2); }
+.annot-strong { font-weight: 600; fill: var(--ink); }
+
+/* ---------- tooltip ---------- */
+.tip {
+  position: fixed;
+  z-index: 20;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.09s ease;
+  background: var(--ink);
+  color: var(--ground);
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  line-height: 1.5;
+  padding: 0.42rem 0.6rem;
+  border-radius: 4px;
+  max-width: 260px;
+}
+.tip b { font-family: var(--sans); font-size: 0.75rem; display: block; margin-bottom: 0.15rem; }
+
+/* ---------- table ---------- */
+details { margin-top: 0.9rem; border-top: 1px solid var(--rule); padding-top: 0.7rem; }
+summary {
+  cursor: pointer;
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+}
+.tablewrap { overflow-x: auto; margin-top: 0.85rem; }
+table { border-collapse: collapse; width: 100%; font-size: 0.82rem; }
+th, td {
+  text-align: left;
+  padding: 0.38rem 0.7rem 0.38rem 0;
+  border-bottom: 1px solid var(--rule);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+th {
+  font-family: var(--mono);
+  font-size: 0.63rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  font-weight: 500;
+}
+td.num, th.num { text-align: right; font-family: var(--mono); }
+
+/* ---------- gap list ---------- */
+.gaps { list-style: none; padding: 0; margin: 0; display: grid; gap: 0.9rem; }
+.gaps li {
+  display: grid;
+  grid-template-columns: 116px 1fr;
+  gap: 1rem;
+  align-items: start;
+  border-bottom: 1px solid var(--rule);
+  padding-bottom: 0.9rem;
+  max-width: 82ch;
+}
+.gaps li:last-child { border-bottom: 0; }
+.gaps .who {
+  font-family: var(--mono);
+  font-size: 0.63rem;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  padding-top: 0.22rem;
+}
+.gaps .what { font-size: 0.9rem; color: var(--ink-2); }
+.gaps .what b { color: var(--ink); font-weight: 600; }
+@media (max-width: 560px) {
+  .gaps li { grid-template-columns: 1fr; gap: 0.25rem; }
+}
+
+footer {
+  margin-top: 4rem;
+  border-top: 1px solid var(--rule);
+  padding-top: 1.1rem;
+  font-size: 0.78rem;
+  color: var(--ink-3);
+  max-width: 74ch;
+}
+footer p { max-width: none; margin: 0 0 0.5rem; }
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+}
+</style>
+
+<div class="page">
+
+<header class="masthead">
+  <p class="eyebrow">aaa-launch-predictor &nbsp;·&nbsp; Phase 0.5 report &nbsp;·&nbsp; 23 Aug 2026</p>
+  <h1>Launch-Window Backfill</h1>
+  <p class="standfirst">126 AAA Steam releases, measured at the window that actually predicts an outcome rather than the one the API hands you.</p>
+  <dl class="stats">
+    <div class="stat"><dt>Releases</dt><dd>126</dd></div>
+    <div class="stat"><dt>Window rows</dt><dd>503</dd></div>
+    <div class="stat"><dt>Cohorts</dt><dd>2015<small style="margin-left:.05rem">–26</small></dd></div>
+    <div class="stat"><dt>Labeled</dt><dd>12<small>of 126</small></dd></div>
+    <div class="stat"><dt>Tests</dt><dd>82<small>passing</small></dd></div>
+  </dl>
+</header>
+
+<section>
+  <div class="sec-head"><span class="sec-label">Shipped</span><h2>What Phase 0.5 delivers</h2></div>
+  <div class="cards">
+    <div class="card">
+      <span class="tag">Schema · migration 0002</span>
+      <h3>Three-way row split</h3>
+      <p><code>historical_releases</code> separates API-derived fields, curated research, and provenance. Re-running the backfill refreshes the machine half and never overwrites research. <code>release_windows</code> stores metrics per named window instead of one lifetime snapshot.</p>
+    </div>
+    <div class="card">
+      <span class="tag">Pipeline · jobs/</span>
+      <h3>Idempotent backfill</h3>
+      <p><code>backfill_historical.py</code> reads the curated CSV, fetches four Steam requests per game, and upserts. The loader rejects a label with no research behind it — and research with no label — so nothing uncited reaches ground truth.</p>
+    </div>
+    <div class="card">
+      <span class="tag">Dataset · data/</span>
+      <h3>126 releases, 2015–2025</h3>
+      <p>Every row carries full API data. 12 carry the seed batch's labels and sources; 114 await the Phase 1 research pass. Only rows with a resolved outcome are eligible for training.</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head"><span class="sec-label">Correction</span><h2>The spec was wrong about what&nbsp;Steam remembers</h2></div>
+  <p class="wide">The spec assumed windowed review figures could not be recovered for past releases, and that historical rows would have to lean on whatever numbers press coverage happened to report. Testing against the live API showed otherwise: <code>appreviews</code> accepts <code>start_date</code>/<code>end_date</code> with <code>date_range_type=include</code>, and returns counts aggregated over just that window — one request per game per window, no pagination.</p>
+  <p class="wide">That section of <code>PROJECT_SPEC.md</code> is corrected in place. It is not a footnote-sized difference.</p>
+
+  <figure>
+    <div class="figbox">
+      <p class="fig-title">First two weeks vs. lifetime, positive review share</p>
+      <p class="fig-sub">The five largest moves in each direction, of 126 releases</p>
+      <div class="legend">
+        <span><i class="swatch" style="background:var(--accent)"></i>Launch window (14 days)</span>
+        <span><i class="swatch" style="background:var(--warm)"></i>Lifetime to date</span>
+      </div>
+      <div id="dumbbell"></div>
+    </div>
+    <figcaption>A model trained on lifetime numbers would read Batman: Arkham Knight&rsquo;s broken PC launch as a well-received release, and would miss TEKKEN 8&rsquo;s post-launch decline entirely. Hover any row for counts.</figcaption>
+    <details>
+      <summary>Table view</summary>
+      <div class="tablewrap"><table id="dumbtable"></table></div>
+    </details>
+  </figure>
+</section>
+
+<section>
+  <div class="sec-head"><span class="sec-label">Finding</span><h2>Sentiment doesn&rsquo;t separate outcomes. Volume&nbsp;does.</h2></div>
+  <p class="wide">With launch-window data in hand, the labeled set says something the rubric should absorb before Phase 1 starts. Helldivers 2 &mdash; a breakout &mdash; and Suicide Squad: Kill the Justice League &mdash; a flop &mdash; have <strong>identical two-week positive review shares</strong>. What separates them is that one drew 24&times; the reviews.</p>
+
+  <figure>
+    <div class="figbox">
+      <p class="fig-title">Launch-window volume against launch-window sentiment</p>
+      <p class="fig-sub">All 126 releases; the 12 labeled ones by outcome tier</p>
+      <div class="legend">
+        <span><i class="swatch" style="background:var(--ord-1)"></i>Flop</span>
+        <span><i class="swatch" style="background:var(--ord-2)"></i>Underperform</span>
+        <span><i class="swatch" style="background:var(--ord-3)"></i>Success</span>
+        <span><i class="swatch" style="background:var(--ord-4)"></i>Breakout</span>
+        <span><i class="swatch" style="background:var(--dot-idle)"></i>Awaiting research</span>
+      </div>
+      <div id="scatter"></div>
+    </div>
+    <figcaption>Outcome tiers are ordered, so they take one hue stepped light to dark rather than a good/bad colour scale &mdash; consistent with the spec&rsquo;s rule that every category gets the same neutral treatment. Horizontal axis is logarithmic.</figcaption>
+  </figure>
+
+  <div class="callout">
+    <span class="kicker">What this implies for the rubric</span>
+    <p>Review <em>share</em> is close to useless on its own at the launch window &mdash; Concord, the clearest flop in the set, sits at 65.8% positive, above Forspoken and far above Redfall&rsquo;s 27.2%. Review <em>count</em>, normalised within a release-year cohort, is doing the separating work.</p>
+    <p>That matches what the spec already anticipated under Cohort Normalization, and it argues for defining the Success and Breakout thresholds in cohort-relative terms from the start rather than as absolute numbers.</p>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head"><span class="sec-label">Traps</span><h2>Three ways this data lies</h2></div>
+  <p class="wide">Each of these produces a number that looks entirely valid. All three are handled in the backfill; the first surfaced as a live bug in the first full run.</p>
+  <div class="cards">
+    <div class="card">
+      <span class="tag">Handled · skipped with a warning</span>
+      <h3>Windows that haven&rsquo;t elapsed</h3>
+      <p>A three-month window on a title released three weeks ago returns a real count covering the wrong period, and nothing downstream would notice. Those windows are now skipped rather than stored.</p>
+    </div>
+    <div class="card">
+      <span class="tag">Handled · flagged in the CSV</span>
+      <h3>Early Access dates</h3>
+      <p>Steam reports the 1.0 date, not the Early Access launch — Palworld reads as a 2026 release. Any EA title needs a curated <code>original_release_date</code> before its windows describe the right event.</p>
+    </div>
+    <div class="card">
+      <span class="tag">Handled · curated field</span>
+      <h3>Price drift</h3>
+      <p><code>price_overview.initial</code> is today&rsquo;s list price, not the launch price. The Witcher 3 launched at $59.99 and lists at $39.99. Launch price is curated; the API value is kept separately.</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head"><span class="sec-label">Composition</span><h2>What&rsquo;s in the set</h2></div>
+  <figure style="margin-top:0.6rem">
+    <div class="figbox">
+      <p class="fig-title">Releases per cohort year</p>
+      <p class="fig-sub">Cohort year is the Steam release year, which is why delayed ports land later than their console launches</p>
+      <div id="years"></div>
+    </div>
+    <figcaption>Weighted toward 2023&ndash;2025, where the seed batch&rsquo;s labeled games sit. Earlier cohorts are thinner but span far enough back to expose the platform-growth effect that makes raw counts incomparable across years.</figcaption>
+  </figure>
+</section>
+
+<section>
+  <div class="sec-head"><span class="sec-label">Open</span><h2>Known gaps</h2></div>
+  <ul class="gaps">
+    <li><span class="who">Labels</span><span class="what"><b>114 of 126 rows are unlabeled.</b> Deliberate: no sourced research exists for them, and inventing citations would poison the training set. The spec&rsquo;s Phase 1 is the labeling pass, and it now has a ready worklist with the expensive API half already done.</span></li>
+    <li><span class="who">Critic scores</span><span class="what"><b>Present for 72 of 126.</b> Steam&rsquo;s Metacritic field is patchy and absent for most of the labeled games, including Concord, Redfall and Black Myth: Wukong. OpenCritic is the next data source to add.</span></li>
+    <li><span class="who">Concurrent players</span><span class="what"><b>Not recoverable, permanently.</b> Steam publishes only a live count and SteamDB scraping is off the table, so <code>peak_concurrent_players</code> stays null on historical rows rather than borrowing a present-day reading.</span></li>
+    <li><span class="who">Missing game</span><span class="what"><b>Babylon&rsquo;s Fall is omitted.</b> It is delisted, so store search cannot surface it, and <code>GetAppList</code> now requires a Steam Web API key — the first concrete thing that key would buy.</span></li>
+    <li><span class="who">Launch type</span><span class="what"><b>Unknown for 114 rows.</b> <code>platform_launch_type</code> derives from the gap between Steam and true first release, so it stays unknown until <code>original_release_date</code> is researched. The 12 labeled rows resolve correctly, including two delayed ports and one former console exclusive.</span></li>
+  </ul>
+</section>
+
+<footer>
+  <p>Generated from the Phase 0.5 backfill from commit <code>d4dabbe</code>, merged to <code>main</code> as <code>7112294</code>. All figures read from the populated database, not from the report text.</p>
+  <p>Outcome tiers describe commercial performance relative to budget-tier expectations, not creative quality, and are attributed to business and market conditions rather than to any individual&rsquo;s work. Not affiliated with Valve Corporation.</p>
+</footer>
+
+</div>
+
+<div class="tip" id="tip" role="status" aria-live="polite"></div>
+
+<script>
+const DATA = {"dumbbell":[{"name":"Batman: Arkham Knight","launch":47.7,"life":89.7,"delta":42.0,"lt":10545,"lft":159174},{"name":"Monster Hunter: World","launch":59.5,"life":88.8,"delta":29.3,"lt":42659,"lft":515760},{"name":"Mortal Kombat\u00a011","launch":64.1,"life":88.1,"delta":24.0,"lt":6910,"lft":115976},{"name":"No Man's Sky","launch":61.3,"life":85.0,"delta":23.7,"lt":39823,"lft":414267},{"name":"Red Dead Redemption 2","launch":70.7,"life":92.5,"delta":21.8,"lt":19381,"lft":909422},{"name":"Street Fighter 6","launch":89.3,"life":82.2,"delta":-7.1,"lt":10262,"lft":78841},{"name":"Halo Infinite","launch":76.7,"life":69.3,"delta":-7.4,"lt":69682,"lft":181078},{"name":"Starfield","launch":66.1,"life":56.9,"delta":-9.2,"lt":75131,"lft":175023},{"name":"Suicide Squad: Kill the Justice League","launch":75.2,"life":61.3,"delta":-13.9,"lt":5656,"lft":18026},{"name":"TEKKEN 8","launch":75.2,"life":56.4,"delta":-18.8,"lt":12217,"lft":72148}],"scatter":[{"n":"Concord","x":666,"y":65.8,"o":"flop"},{"n":"Redfall","x":2781,"y":27.2,"o":"flop"},{"n":"Forspoken","x":4635,"y":56.6,"o":"flop"},{"n":"Suicide Squad: Kill the Justice League","x":5656,"y":75.2,"o":"flop"},{"n":"Skull and Bones","x":779,"y":67.7,"o":"underperform"},{"n":"Star Wars Outlaws","x":1067,"y":77.4,"o":"underperform"},{"n":"Starfield","x":75131,"y":66.1,"o":"underperform"},{"n":"Marvel's Spider-Man 2","x":10468,"y":72.0,"o":"success"},{"n":"Resident Evil 4","x":51406,"y":97.8,"o":"success"},{"n":"Baldur's Gate 3","x":114345,"y":97.2,"o":"breakout"},{"n":"HELLDIVERS 2","x":134482,"y":75.2,"o":"breakout"},{"n":"Black Myth: Wukong","x":689276,"y":96.4,"o":"breakout"},{"n":"Batman: Arkham Knight","x":10545,"y":47.7,"o":null},{"n":"Just Cause 3","x":4663,"y":68.8,"o":null},{"n":"Mad Max","x":5812,"y":94.3,"o":null},{"n":"XCOM 2","x":7169,"y":80.6,"o":null},{"n":"No Man's Sky","x":39823,"y":61.3,"o":null},{"n":"METAL GEAR SOLID V: THE PHANTOM PAIN","x":9496,"y":92.3,"o":null},{"n":"The Witcher 3: Wild Hunt","x":7519,"y":94.2,"o":null},{"n":"Frostpunk","x":8381,"y":87.8,"o":null},{"n":"Deus Ex: Mankind Divided","x":6986,"y":66.9,"o":null},{"n":"Middle-earth: Shadow of War","x":6771,"y":80.0,"o":null},{"n":"Tom Clancy's Rainbow Six Siege","x":2054,"y":78.8,"o":null},{"n":"Assassin's Creed Syndicate","x":755,"y":82.8,"o":null},{"n":"DARK SOULS III","x":11120,"y":83.9,"o":null},{"n":"Fallout 4","x":23474,"y":77.4,"o":null},{"n":"Kingdom Come: Deliverance","x":15669,"y":80.3,"o":null},{"n":"DOOM","x":11037,"y":93.9,"o":null},{"n":"Borderlands 3","x":17303,"y":80.5,"o":null},{"n":"Dishonored 2","x":6316,"y":75.7,"o":null},{"n":"Metro Exodus","x":5267,"y":83.4,"o":null},{"n":"Resident Evil 7 Biohazard","x":7908,"y":91.6,"o":null},{"n":"Divinity: Original Sin 2 - Definitive Edition","x":6208,"y":95.8,"o":null},{"n":"Watch_Dogs 2","x":3740,"y":85.2,"o":null},{"n":"Prey","x":4926,"y":93.0,"o":null},{"n":"NieR:Automata","x":5139,"y":87.6,"o":null},{"n":"Dying Light 2 Stay Human: Reloaded Edition","x":58694,"y":80.4,"o":null},{"n":"Half-Life: Alyx","x":22664,"y":98.9,"o":null},{"n":"Far Cry 5","x":12503,"y":72.0,"o":null},{"n":"Monster Hunter: World","x":42659,"y":59.5,"o":null},{"n":"Assassin's Creed Origins","x":8481,"y":84.0,"o":null},{"n":"Total War: WARHAMMER II","x":4399,"y":92.3,"o":null},{"n":"Devil May Cry 5","x":14914,"y":92.8,"o":null},{"n":"Wolfenstein II: The New Colossus","x":4444,"y":70.7,"o":null},{"n":"Atomic Heart","x":14741,"y":86.6,"o":null},{"n":"OUTRIDERS","x":31553,"y":65.1,"o":null},{"n":"Saints Row","x":1495,"y":60.3,"o":null},{"n":"Shadow of the Tomb Raider: Definitive Edition","x":4479,"y":77.5,"o":null},{"n":"Total War: THREE KINGDOMS","x":17469,"y":83.9,"o":null},{"n":"DOOM Eternal","x":34586,"y":91.5,"o":null},{"n":"Assassin's Creed Odyssey","x":5694,"y":78.4,"o":null},{"n":"Sekiro: Shadows Die Twice - GOTY Edition","x":16403,"y":89.4,"o":null},{"n":"HITMAN 2","x":6077,"y":89.8,"o":null},{"n":"CONTROL Ultimate Edition","x":3797,"y":90.8,"o":null},{"n":"Granblue Fantasy: Relink","x":18645,"y":91.0,"o":null},{"n":"Resident Evil 2","x":17134,"y":96.3,"o":null},{"n":"Valheim","x":42474,"y":95.9,"o":null},{"n":"Back 4 Blood","x":11810,"y":73.3,"o":null},{"n":"Dead Island 2","x":3965,"y":71.9,"o":null},{"n":"Resident Evil 3","x":23120,"y":71.7,"o":null},{"n":"Mortal Kombat\u00a011","x":6910,"y":64.1,"o":null},{"n":"Hogwarts Legacy","x":142775,"y":93.4,"o":null},{"n":"Marvel's Avengers - The Definitive Edition","x":8745,"y":66.0,"o":null},{"n":"New World: Aeternum","x":109574,"y":69.8,"o":null},{"n":"Cyberpunk 2077","x":269455,"y":80.7,"o":null},{"n":"Gears 5","x":3880,"y":52.1,"o":null},{"n":"Total War: WARHAMMER III","x":27507,"y":70.1,"o":null},{"n":"Hades","x":10411,"y":98.6,"o":null},{"n":"Horizon Zero Dawn Complete Edition","x":20666,"y":72.8,"o":null},{"n":"Crusader Kings III","x":16572,"y":93.1,"o":null},{"n":"STAR WARS Jedi: Fallen Order","x":17336,"y":92.5,"o":null},{"n":"Red Dead Redemption 2","x":19381,"y":70.7,"o":null},{"n":"Resident Evil Village","x":33696,"y":96.1,"o":null},{"n":"Titanfall 2","x":9996,"y":96.0,"o":null},{"n":"Halo Infinite","x":69682,"y":76.7,"o":null},{"n":"ELDEN RING","x":229689,"y":89.6,"o":null},{"n":"DEATHLOOP","x":9111,"y":77.2,"o":null},{"n":"Days Gone","x":8338,"y":93.5,"o":null},{"n":"PAYDAY 3","x":35982,"y":37.3,"o":null},{"n":"REMNANT II","x":19157,"y":83.5,"o":null},{"n":"Sid Meier's Civilization VII","x":16921,"y":49.9,"o":null},{"n":"Mass Effect Legendary Edition","x":8241,"y":90.6,"o":null},{"n":"Stray","x":57525,"y":97.7,"o":null},{"n":"Street Fighter 6","x":10262,"y":89.3,"o":null},{"n":"It Takes Two","x":8615,"y":96.3,"o":null},{"n":"Wo Long: Fallen Dynasty","x":17490,"y":46.2,"o":null},{"n":"Gotham Knights","x":7416,"y":71.8,"o":null},{"n":"Lords of the Fallen","x":18641,"y":64.4,"o":null},{"n":"Battlefield 2042","x":70356,"y":33.9,"o":null},{"n":"The Callisto Protocol","x":19034,"y":58.9,"o":null},{"n":"God of War","x":26929,"y":97.2,"o":null},{"n":"Frostpunk 2","x":11535,"y":75.0,"o":null},{"n":"Palworld","x":23347,"y":94.2,"o":null},{"n":"Lies of P","x":8280,"y":91.0,"o":null},{"n":"S.T.A.L.K.E.R. 2: Heart of Chornobyl","x":75441,"y":83.4,"o":null},{"n":"UNCHARTED: Legacy of Thieves Collection","x":3809,"y":89.7,"o":null},{"n":"Kingdom Come: Deliverance II","x":45596,"y":93.9,"o":null},{"n":"STAR WARS Jedi: Survivor","x":21884,"y":62.6,"o":null},{"n":"TEKKEN 8","x":12217,"y":75.2,"o":null},{"n":"Marvel's Spider-Man Remastered","x":23940,"y":97.1,"o":null},{"n":"Dragon Age: The Veilguard","x":20709,"y":70.0,"o":null},{"n":"DEATH STRANDING DIRECTOR'S CUT","x":1520,"y":93.3,"o":null},{"n":"ARMORED CORE VI FIRES OF RUBICON","x":36546,"y":88.9,"o":null},{"n":"Clair Obscur: Expedition 33","x":53386,"y":94.5,"o":null},{"n":"Split Fiction","x":46265,"y":98.1,"o":null},{"n":"Immortals of Aveum","x":464,"y":74.1,"o":null},{"n":"Dragon's Dogma 2","x":72535,"y":59.7,"o":null},{"n":"Like a Dragon: Infinite Wealth","x":5445,"y":90.5,"o":null},{"n":"SILENT HILL 2","x":15838,"y":95.4,"o":null},{"n":"Sifu","x":1709,"y":93.8,"o":null},{"n":"Persona 3 Reload","x":9426,"y":95.9,"o":null},{"n":"Warhammer 40,000: Space Marine 2","x":51978,"y":82.5,"o":null},{"n":"Watch Dogs: Legion","x":1336,"y":53.7,"o":null},{"n":"Monster Hunter Wilds","x":152666,"y":55.7,"o":null},{"n":"Diablo IV","x":3512,"y":58.1,"o":null},{"n":"Far Cry 6","x":4047,"y":68.3,"o":null},{"n":"Avowed","x":4834,"y":76.1,"o":null},{"n":"Hellblade II: Senua's Saga","x":3116,"y":88.1,"o":null},{"n":"ELDEN RING NIGHTREIGN","x":86638,"y":81.0,"o":null},{"n":"Indiana Jones and the Great Circle","x":4909,"y":91.7,"o":null},{"n":"Metaphor: ReFantazio","x":10751,"y":90.4,"o":null},{"n":"Prince of Persia The Lost Crown","x":729,"y":80.0,"o":null},{"n":"FINAL FANTASY VII REBIRTH","x":9601,"y":77.9,"o":null},{"n":"DOOM: The Dark Ages","x":15875,"y":87.4,"o":null},{"n":"Assassin's Creed Shadows","x":14899,"y":80.4,"o":null},{"n":"Stellar Blade","x":37503,"y":94.3,"o":null}],"years":{"2015":8,"2016":7,"2017":8,"2018":7,"2019":8,"2020":12,"2021":11,"2022":10,"2023":21,"2024":21,"2025":12,"2026":1},"totals":{"games":126,"windows":503,"labeled":12,"pending":114,"metacritic":72},"outcomes":{"flop":4,"underperform":3,"success":2,"breakout":3},"confidence":{"high":8,"medium":3,"low":1}};
+const NS = "http://www.w3.org/2000/svg";
+const el = (n, a = {}) => { const e = document.createElementNS(NS, n);
+  for (const k in a) e.setAttribute(k, a[k]); return e; };
+const fmt = n => n.toLocaleString("en-US");
+
+/* ---- shared tooltip ---- */
+const tip = document.getElementById("tip");
+function bindTip(node, html) {
+  const show = ev => {
+    tip.innerHTML = html;
+    tip.style.opacity = "1";
+    const r = tip.getBoundingClientRect();
+    let x = ev.clientX + 14, y = ev.clientY - r.height - 10;
+    if (x + r.width > innerWidth - 8) x = ev.clientX - r.width - 14;
+    if (y < 8) y = ev.clientY + 18;
+    tip.style.left = x + "px"; tip.style.top = y + "px";
+  };
+  node.addEventListener("pointerenter", show);
+  node.addEventListener("pointermove", show);
+  node.addEventListener("pointerleave", () => { tip.style.opacity = "0"; });
+}
+
+/* ---- 1. dumbbell: launch vs lifetime ---- */
+(function dumbbell() {
+  const rows = DATA.dumbbell;
+  const W = 720, rowH = 30, padT = 26, padB = 34, L = 208, R = 62;
+  const H = padT + rows.length * rowH + padB;
+  const x0 = 40, x1 = 95;
+  const sx = v => L + (v - x0) / (x1 - x0) * (W - L - R);
+
+  const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, width: "100%",
+    style: `min-width:640px;height:${H}px`, role: "img",
+    "aria-label": "Dumbbell chart comparing launch-window and lifetime positive review share for ten games" });
+
+  for (let v = 40; v <= 95; v += 10) {
+    svg.appendChild(el("line", { class: "gridline", x1: sx(v), x2: sx(v), y1: padT - 8, y2: H - padB + 2 }));
+    const t = el("text", { class: "tick", x: sx(v), y: H - padB + 16, "text-anchor": "middle" });
+    t.textContent = v + "%"; svg.appendChild(t);
+  }
+
+  rows.forEach((r, i) => {
+    const y = padT + i * rowH + rowH / 2;
+    const lo = Math.min(r.launch, r.life), hi = Math.max(r.launch, r.life);
+
+    const name = el("text", { class: "rowlabel", x: L - 14, y: y + 4, "text-anchor": "end" });
+    name.textContent = r.name.length > 27 ? r.name.slice(0, 26) + "\u2026" : r.name;
+    svg.appendChild(name);
+
+    svg.appendChild(el("line", { x1: sx(lo), x2: sx(hi), y1: y, y2: y,
+      stroke: "var(--rule-strong)", "stroke-width": 2, "stroke-linecap": "round" }));
+
+    [["life", "var(--warm)"], ["launch", "var(--accent)"]].forEach(([k, c]) => {
+      svg.appendChild(el("circle", { cx: sx(r[k]), cy: y, r: 5.5, fill: c,
+        stroke: "var(--surface)", "stroke-width": 2 }));
+    });
+
+    const d = el("text", { class: "delta", x: W - R + 12, y: y + 4 });
+    d.textContent = (r.delta > 0 ? "+" : "") + r.delta.toFixed(1);
+    svg.appendChild(d);
+
+    const hit = el("rect", { x: 0, y: y - rowH / 2, width: W, height: rowH, fill: "transparent" });
+    bindTip(hit, `<b>${r.name}</b>Launch 2wk &nbsp;${r.launch}% of ${fmt(r.lt)}<br>Lifetime &nbsp;&nbsp;&nbsp;${r.life}% of ${fmt(r.lft)}<br>Shift &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;${r.delta > 0 ? "+" : ""}${r.delta} pts`);
+    svg.appendChild(hit);
+  });
+
+  const cap = el("text", { class: "tick", x: W - R + 12, y: padT - 12 });
+  cap.textContent = "shift"; svg.appendChild(cap);
+  document.getElementById("dumbbell").appendChild(svg);
+
+  const tbl = document.getElementById("dumbtable");
+  tbl.innerHTML = "<thead><tr><th>Game</th><th class='num'>Launch 2wk</th><th class='num'>Reviews</th>"
+    + "<th class='num'>Lifetime</th><th class='num'>Reviews</th><th class='num'>Shift</th></tr></thead><tbody>"
+    + rows.map(r => `<tr><td>${r.name}</td><td class="num">${r.launch}%</td><td class="num">${fmt(r.lt)}</td>`
+      + `<td class="num">${r.life}%</td><td class="num">${fmt(r.lft)}</td>`
+      + `<td class="num">${r.delta > 0 ? "+" : ""}${r.delta}</td></tr>`).join("") + "</tbody>";
+})();
+
+/* ---- 2. scatter: launch volume vs launch sentiment ---- */
+(function scatter() {
+  const pts = DATA.scatter;
+  const W = 720, H = 400, L = 46, R = 22, T = 18, B = 42;
+  const tiers = { flop: "var(--ord-1)", underperform: "var(--ord-2)",
+                  success: "var(--ord-3)", breakout: "var(--ord-4)" };
+  const lx = v => Math.log10(Math.max(v, 100));
+  const xmin = lx(100), xmax = lx(1000000);
+  const sx = v => L + (lx(v) - xmin) / (xmax - xmin) * (W - L - R);
+  const ymin = 20, ymax = 100;
+  const sy = v => T + (ymax - v) / (ymax - ymin) * (H - T - B);
+
+  const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, width: "100%",
+    style: `min-width:640px;height:${H}px`, role: "img",
+    "aria-label": "Scatter plot of launch-window review count against launch-window positive share for 126 releases" });
+
+  for (let v = 20; v <= 100; v += 20) {
+    svg.appendChild(el("line", { class: "gridline", x1: L, x2: W - R, y1: sy(v), y2: sy(v) }));
+    const t = el("text", { class: "tick", x: L - 8, y: sy(v) + 3, "text-anchor": "end" });
+    t.textContent = v + "%"; svg.appendChild(t);
+  }
+  [[100, "100"], [1000, "1K"], [10000, "10K"], [100000, "100K"], [1000000, "1M"]].forEach(([v, lab]) => {
+    svg.appendChild(el("line", { class: "gridline", x1: sx(v), x2: sx(v), y1: T, y2: H - B }));
+    const t = el("text", { class: "tick", x: sx(v), y: H - B + 16, "text-anchor": "middle" });
+    t.textContent = lab; svg.appendChild(t);
+  });
+  svg.appendChild(el("line", { class: "axisline", x1: L, x2: W - R, y1: H - B, y2: H - B }));
+
+  const axl = el("text", { class: "tick", x: (L + W - R) / 2, y: H - 6, "text-anchor": "middle" });
+  axl.textContent = "reviews in first 14 days (log scale)"; svg.appendChild(axl);
+
+  const mark = (p, labeled) => {
+    const c = el("circle", { cx: sx(p.x), cy: sy(p.y), r: labeled ? 7 : 3.3,
+      fill: labeled ? tiers[p.o] : "var(--dot-idle)",
+      stroke: labeled ? "var(--surface)" : "none", "stroke-width": 2,
+      opacity: labeled ? 1 : 0.72 });
+    bindTip(c, `<b>${p.n}</b>${fmt(p.x)} reviews &middot; ${p.y}% positive`
+      + (labeled ? `<br>Outcome: ${p.o}` : "<br>Awaiting research"));
+    svg.appendChild(c);
+  };
+  pts.filter(p => !p.o).forEach(p => mark(p, false));
+  pts.filter(p => p.o).forEach(p => mark(p, true));
+
+  // The finding worth pointing at: identical sentiment, 24x the volume.
+  const hd = pts.find(p => p.n.startsWith("HELLDIVERS"));
+  const sq = pts.find(p => p.n.startsWith("Suicide Squad"));
+  if (hd && sq) {
+    svg.appendChild(el("line", { x1: sx(sq.x) + 9, x2: sx(hd.x) - 9, y1: sy(sq.y), y2: sy(hd.y),
+      stroke: "var(--ink-3)", "stroke-width": 1, "stroke-dasharray": "3 3" }));
+    [[sq, "Suicide Squad \u00b7 5,656", "end", -12, true],
+     [hd, "Helldivers 2 \u00b7 134,482", "start", 12, true]].forEach(([p, txt, anc, dx]) => {
+      const t = el("text", { class: "annot annot-strong", x: sx(p.x) + dx, y: sy(p.y) + 4,
+        "text-anchor": anc });
+      t.textContent = txt; svg.appendChild(t);
+    });
+  }
+  const cc = pts.find(p => p.n.startsWith("Concord"));
+  if (cc) {
+    const t = el("text", { class: "annot", x: sx(cc.x), y: sy(cc.y) + 20, "text-anchor": "middle" });
+    t.textContent = "Concord \u00b7 666"; svg.appendChild(t);
+  }
+  document.getElementById("scatter").appendChild(svg);
+})();
+
+/* ---- 3. cohort bars ---- */
+(function years() {
+  const ys = Object.entries(DATA.years);
+  const W = 720, H = 176, L = 26, R = 12, T = 14, B = 30;
+  const max = Math.max(...ys.map(([, v]) => v));
+  const bw = (W - L - R) / ys.length;
+  const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, width: "100%",
+    style: `min-width:560px;height:${H}px`, role: "img",
+    "aria-label": "Bar chart of releases per cohort year, 2015 to 2026" });
+
+  svg.appendChild(el("line", { class: "axisline", x1: L, x2: W - R, y1: H - B, y2: H - B }));
+  ys.forEach(([y, v], i) => {
+    const h = (v / max) * (H - T - B);
+    const x = L + i * bw + 3;
+    const r = el("rect", { x, y: H - B - h, width: bw - 6, height: h,
+      fill: "var(--accent)", rx: 4, ry: 4 });
+    bindTip(r, `<b>${y}</b>${v} release${v === 1 ? "" : "s"}`);
+    svg.appendChild(r);
+    const n = el("text", { class: "delta", x: x + (bw - 6) / 2, y: H - B - h - 6, "text-anchor": "middle" });
+    n.textContent = v; svg.appendChild(n);
+    const t = el("text", { class: "tick", x: x + (bw - 6) / 2, y: H - B + 15, "text-anchor": "middle" });
+    t.textContent = y; svg.appendChild(t);
+  });
+  document.getElementById("years").appendChild(svg);
+})();
+</script>
