@@ -13,11 +13,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.baseline import forecast as baseline_forecast
 from app.config import get_settings
 from app.db import get_db
 from app.ingest import get_game_by_appid, ingest_game
 from app.models import Game, GameSnapshot
-from app.schemas import GameDetail, GameSummary, TrackGameRequest
+from app.schemas import GameDetail, GameSummary, PredictionOut, TrackGameRequest
 from app.steam import SteamAppNotFound, SteamClient, SteamError, SteamUnavailable
 
 # How many snapshots a game detail response carries by default. Snapshot
@@ -179,6 +180,28 @@ def refresh_game(
     result = _ingest_or_http_error(session, appid, client)
     session.commit()
     return GameDetail.from_model(result.game, snapshots=_recent_snapshots(session, result.game))
+
+
+@app.get("/games/{appid}/prediction", response_model=PredictionOut, tags=["games"])
+def get_prediction(appid: int, session: Session = Depends(get_db)) -> PredictionOut:
+    """Rule-based baseline forecast for a tracked game.
+
+    Computed on request rather than stored: it is cheap, and the Phase 1
+    baseline has no LLM cost to cache against. Storing a forecast becomes
+    meaningful in Phase 3, where `predicted_outcome` is written once and left
+    immutable for accuracy tracking.
+    """
+    game = _require_game(session, appid)
+    result = baseline_forecast(
+        session,
+        developer=game.developers,
+        publisher=game.publishers,
+        on_windows=game.on_windows,
+        on_mac=game.on_mac,
+        on_linux=game.on_linux,
+        exclude_appid=game.steam_appid,
+    )
+    return PredictionOut.from_forecast(game.steam_appid, result)
 
 
 @app.delete("/games/{appid}", status_code=status.HTTP_204_NO_CONTENT, tags=["games"])

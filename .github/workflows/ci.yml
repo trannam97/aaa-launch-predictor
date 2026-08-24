@@ -43,6 +43,18 @@ jobs:
           assert rows, 'curated CSV is empty'
           "
 
+      - name: Rubric agrees with the hand labels
+        run: |
+          python -c "
+          import sys; sys.path.insert(0, 'backend')
+          from app.backfill import load_curated_csv
+          rows = load_curated_csv('data/historical_releases.csv')
+          labeled = [r for r in rows if r.resolved_outcome]
+          missing = [r.game_name for r in labeled if r.studio_signal.value == 'unknown']
+          assert not missing, f'labeled rows without a studio signal: {missing}'
+          print(f'{len(labeled)} labeled rows, all carrying structured signals')
+          "
+
       - name: Migrations match the models
         working-directory: data
         env:

@@ -25,6 +25,15 @@ The backfill splits every row in two, and the split is the point:
 Re-running the backfill therefore refreshes the machine half in place
 without ever overwriting research.
 
+Two of the curated fields exist in both prose and structured form.
+`studio_outcome` and `post_launch_support` are for a human reading the row;
+`studio_signal` (`grew`/`continued`/`severe_layoffs`/`closed`) and
+`support_signal` (`sustained`/`curtailed`/`abandoned`) are what the rubric
+runs on, because a rule cannot read prose. They are deliberately separate
+axes: a studio can be gutted and still finish the season pass (The Callisto
+Protocol), and a healthy studio can walk away from a title (Marvel's
+Avengers). Telling Flop from Underperform needs both.
+
 `research_status` tracks the qualitative pass: `not_researched` (API data
 only), `researched` (a label is set), `unresolvable` (someone looked and the
 public record doesn't settle it). The loader rejects a `resolved_outcome`
@@ -52,6 +61,21 @@ lifetime:
 
 A model trained on lifetime numbers would see Arkham Knight's broken PC
 launch as a well-received release.
+
+## Labels
+
+34 of 126 rows carry an outcome label, each with a confidence level and cited
+sources. Distribution: 7 flop, 12 underperform, 7 success, 8 breakout.
+
+**Labels are Steam-scoped.** Per the spec's Release Date Handling, outcome
+tiers measure Steam-specific performance, so only day-one Steam releases are
+labeled. A delayed port's commercial story happened on another platform
+months or years earlier, and labeling it would teach a model backwards —
+Titanfall 2's Steam launch reviews at 96% positive while its "underperform"
+outcome belongs to a 2016 Origin release. Ports carry
+`original_release_date` and `platform_launch_type` but no label, and three
+seed rows whose labels predate this rule are flagged in their notes and
+excluded from rubric validation.
 
 ## Known caveats
 
@@ -108,6 +132,7 @@ never import from `app` and can't be broken by a later refactor.
 |---|---|
 | `0001` | `games`, `game_snapshots` |
 | `0002` | `historical_releases`, `release_windows` |
+| `0003` | `studio_signal`, `support_signal` on `historical_releases` |
 
 ## Planned
 

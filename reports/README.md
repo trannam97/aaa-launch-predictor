@@ -6,6 +6,7 @@ turned out to say, and what's still open. One file per report.
 | Report | Phase | Covers |
 |---|---|---|
 | [`phase-0.5-launch-window-backfill.html`](./phase-0.5-launch-window-backfill.html) | 0.5 | Historical backfill of 126 AAA Steam releases with windowed launch metrics |
+| [`phase-1-rubric-validation.html`](./phase-1-rubric-validation.html) | 1 | 34 games labeled from sourced research; the outcome rubric encoded and scored against them |
 
 ## Naming
 

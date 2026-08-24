@@ -46,6 +46,22 @@ leaves curated research alone. Warnings are printed but not fatal — a name
 mismatch between CSV and Steam usually means a wrong appid, and a
 "has not elapsed yet" warning means the game is too recent for that window.
 
+### `validate_rubric.py`
+
+Phase 1's checkpoint. Scores `app/rubric.py` against every hand-labeled
+day-one Steam release and prints where it disagrees.
+
+```bash
+DATABASE_URL=... python jobs/validate_rubric.py
+DATABASE_URL=... python jobs/validate_rubric.py --json
+DATABASE_URL=... python jobs/validate_rubric.py --min-agreement 90   # gate CI
+```
+
+Read the disagreements rather than the headline number — they are where the
+rubric is still wrong. Delayed ports are excluded from scoring: their label
+describes a launch that happened on another platform, so scoring them against
+a Steam window measures nothing.
+
 ## Planned
 
 Per `PROJECT_SPEC.md`:

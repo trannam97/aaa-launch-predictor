@@ -23,6 +23,8 @@ from app.models import (
     PlatformLaunchType,
     ReleaseWindow,
     ResearchStatus,
+    StudioSignal,
+    SupportSignal,
     WindowKey,
 )
 from app.steam import SteamClient
@@ -30,8 +32,8 @@ from tests.conftest import RELEASED_APPID, load_fixture
 
 CSV_HEADER = (
     "steam_appid,game_name,original_release_date,platform_launch_type,platform_reach,"
-    "budget_tier,launch_price_usd,post_launch_support,studio_outcome,resolved_outcome,"
-    "label_confidence,research_status,notes,sources\n"
+    "budget_tier,launch_price_usd,post_launch_support,studio_outcome,studio_signal,"
+    "support_signal,resolved_outcome,label_confidence,research_status,notes,sources\n"
 )
 
 
@@ -68,9 +70,9 @@ def write_csv(tmp_path, body: str):
 def test_load_curated_csv(tmp_path):
     path = write_csv(
         tmp_path,
-        "2443720,Concord,2024-08-23,,PC+PS5,aaa,40,Shut down,Studio closed,flop,high,"
-        "researched,Lowest peak CCU tracked,bo3.gg\n"
-        "1245620,ELDEN RING,,,,unknown,,,,,,not_researched,,\n",
+        "2443720,Concord,2024-08-23,,PC+PS5,aaa,40,Shut down,Studio closed,closed,"
+        "abandoned,flop,high,researched,Lowest peak CCU tracked,bo3.gg\n"
+        "1245620,ELDEN RING,,,,unknown,,,,,,,,not_researched,,\n",
     )
 
     rows = load_curated_csv(path)
@@ -84,6 +86,8 @@ def test_load_curated_csv(tmp_path):
     assert concord.resolved_outcome is Outcome.FLOP
     assert concord.label_confidence is LabelConfidence.HIGH
     assert concord.research_status is ResearchStatus.RESEARCHED
+    assert concord.studio_signal is StudioSignal.CLOSED
+    assert concord.support_signal is SupportSignal.ABANDONED
     assert elden.resolved_outcome is None
     assert elden.research_status is ResearchStatus.NOT_RESEARCHED
     assert elden.launch_price_cents is None
@@ -98,7 +102,7 @@ def test_load_curated_csv_rejects_missing_columns(tmp_path):
 
 
 def test_load_curated_csv_rejects_unknown_enum(tmp_path):
-    path = write_csv(tmp_path, "1,Example,,,,,,,,,,disaster,,\n")
+    path = write_csv(tmp_path, "1,Example,,,,,,,,,,,,disaster,,\n")
 
     with pytest.raises(CuratedCsvError, match="research_status"):
         load_curated_csv(path)
@@ -107,8 +111,8 @@ def test_load_curated_csv_rejects_unknown_enum(tmp_path):
 def test_load_curated_csv_rejects_duplicate_appid(tmp_path):
     path = write_csv(
         tmp_path,
-        "1,Example,,,,unknown,,,,,,not_researched,,\n"
-        "1,Example Again,,,,unknown,,,,,,not_researched,,\n",
+        "1,Example,,,,unknown,,,,,,,,not_researched,,\n"
+        "1,Example Again,,,,unknown,,,,,,,,not_researched,,\n",
     )
 
     with pytest.raises(CuratedCsvError, match="already used"):
@@ -117,14 +121,14 @@ def test_load_curated_csv_rejects_duplicate_appid(tmp_path):
 
 def test_load_curated_csv_rejects_label_without_research(tmp_path):
     # A label with no research behind it must not enter ground truth.
-    path = write_csv(tmp_path, "1,Example,,,,unknown,,,,flop,high,not_researched,,\n")
+    path = write_csv(tmp_path, "1,Example,,,,unknown,,,,,,flop,high,not_researched,,\n")
 
     with pytest.raises(CuratedCsvError, match="research_status is not_researched"):
         load_curated_csv(path)
 
 
 def test_load_curated_csv_rejects_research_without_label(tmp_path):
-    path = write_csv(tmp_path, "1,Example,,,,unknown,,,,,,researched,,\n")
+    path = write_csv(tmp_path, "1,Example,,,,unknown,,,,,,,,researched,,\n")
 
     with pytest.raises(CuratedCsvError, match="resolved_outcome is empty"):
         load_curated_csv(path)

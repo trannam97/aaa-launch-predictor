@@ -1,0 +1,819 @@
+<title>Rubric Validation</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;450;600&display=swap">
+<style>
+:root {
+  color-scheme: light;
+  --ground:      #fbfbfa;
+  --surface:     #ffffff;
+  --surface-2:   #f4f3f1;
+  --ink:         #1f1e1c;
+  --ink-2:       #56544f;
+  --ink-3:       #85837c;
+  --rule:        #e3e2df;
+  --rule-strong: #cfcdc8;
+  --accent:      #2a78d6;
+  --warm:        #eb6834;
+  --ord-1:       #86b6ef;
+  --ord-2:       #3987e5;
+  --ord-3:       #1c5cab;
+  --ord-4:       #0d366b;
+  --dot-idle:    #c8c6c0;
+
+  --sans: "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --serif: "Newsreader", ui-serif, Georgia, "Times New Roman", serif;
+  --mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --ground:      #161513;
+    --surface:     #201f1d;
+    --surface-2:   #2a2926;
+    --ink:         #ecebe8;
+    --ink-2:       #adaba4;
+    --ink-3:       #85837c;
+    --rule:        #35332f;
+    --rule-strong: #4a4842;
+    --accent:      #3987e5;
+    --warm:        #d95926;
+    --ord-1:       #cde2fb;
+    --ord-2:       #86b6ef;
+    --ord-3:       #3987e5;
+    --ord-4:       #1c5cab;
+    --dot-idle:    #4d4b45;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --ground:      #161513;
+  --surface:     #201f1d;
+  --surface-2:   #2a2926;
+  --ink:         #ecebe8;
+  --ink-2:       #adaba4;
+  --ink-3:       #85837c;
+  --rule:        #35332f;
+  --rule-strong: #4a4842;
+  --accent:      #3987e5;
+  --warm:        #d95926;
+  --ord-1:       #cde2fb;
+  --ord-2:       #86b6ef;
+  --ord-3:       #3987e5;
+  --ord-4:       #1c5cab;
+  --dot-idle:    #4d4b45;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--ground);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 16px;
+  line-height: 1.62;
+  -webkit-font-smoothing: antialiased;
+}
+
+.page {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: clamp(2rem, 5vw, 4.5rem) clamp(1.1rem, 4vw, 3rem) 6rem;
+}
+
+/* ---------- masthead ---------- */
+.masthead { border-bottom: 2px solid var(--ink); padding-bottom: 1.6rem; }
+.eyebrow {
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  font-weight: 500;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  margin: 0 0 1.1rem;
+}
+h1 {
+  font-family: var(--serif);
+  font-size: clamp(2.4rem, 6.5vw, 4rem);
+  font-weight: 500;
+  line-height: 1.02;
+  letter-spacing: -0.02em;
+  margin: 0 0 0.7rem;
+  text-wrap: balance;
+}
+.standfirst {
+  font-family: var(--serif);
+  font-size: clamp(1.05rem, 2.1vw, 1.28rem);
+  line-height: 1.5;
+  color: var(--ink-2);
+  max-width: 40ch;
+  margin: 0;
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+  gap: 1px;
+  background: var(--rule);
+  border: 1px solid var(--rule);
+  margin: 2rem 0 0;
+}
+.stat { background: var(--ground); padding: 0.95rem 1.05rem; }
+.stat dt {
+  font-family: var(--mono);
+  font-size: 0.63rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  margin: 0 0 0.3rem;
+}
+.stat dd {
+  margin: 0;
+  font-family: var(--serif);
+  font-size: 1.85rem;
+  font-weight: 500;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.stat dd small {
+  font-family: var(--sans);
+  font-size: 0.78rem;
+  font-weight: 400;
+  color: var(--ink-3);
+  margin-left: 0.28rem;
+}
+
+/* ---------- sections ---------- */
+section { margin-top: 3.6rem; }
+.sec-head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.9rem;
+  border-bottom: 1px solid var(--rule);
+  padding-bottom: 0.5rem;
+  margin-bottom: 1.5rem;
+}
+.sec-label {
+  font-family: var(--mono);
+  font-size: 0.66rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--accent);
+  white-space: nowrap;
+}
+h2 {
+  font-family: var(--serif);
+  font-size: clamp(1.5rem, 3vw, 1.95rem);
+  font-weight: 500;
+  letter-spacing: -0.012em;
+  margin: 0;
+  line-height: 1.15;
+  text-wrap: balance;
+}
+h3 {
+  font-family: var(--sans);
+  font-size: 0.94rem;
+  font-weight: 600;
+  letter-spacing: 0.005em;
+  margin: 0 0 0.35rem;
+}
+p { margin: 0 0 1rem; max-width: 66ch; }
+p.wide { max-width: 78ch; }
+strong { font-weight: 600; }
+a { color: var(--accent); text-underline-offset: 2px; }
+a:focus-visible, summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: 2px;
+}
+code {
+  font-family: var(--mono);
+  font-size: 0.85em;
+  background: var(--surface-2);
+  padding: 0.08em 0.34em;
+  border-radius: 3px;
+  border: 1px solid var(--rule);
+}
+
+/* ---------- cards ---------- */
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1rem; }
+.card {
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  padding: 1.1rem 1.2rem 1.25rem;
+}
+.card p { font-size: 0.895rem; color: var(--ink-2); margin: 0; max-width: none; }
+.card .tag {
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  display: block;
+  margin-bottom: 0.55rem;
+}
+
+/* ---------- pull quote / callout ---------- */
+.callout {
+  border-left: 3px solid var(--accent);
+  background: var(--surface);
+  padding: 1.15rem 1.35rem;
+  margin: 1.6rem 0;
+}
+.callout p { margin: 0; max-width: 68ch; }
+.callout p + p { margin-top: 0.7rem; }
+.callout .kicker {
+  font-family: var(--mono);
+  font-size: 0.63rem;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  color: var(--accent);
+  display: block;
+  margin-bottom: 0.5rem;
+}
+
+/* ---------- figures ---------- */
+figure { margin: 1.8rem 0 0; }
+.figbox {
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  padding: 1.25rem 1.3rem 1rem;
+  overflow-x: auto;
+}
+figcaption {
+  font-size: 0.8rem;
+  color: var(--ink-3);
+  margin-top: 0.75rem;
+  max-width: 74ch;
+  line-height: 1.5;
+}
+.fig-title {
+  font-family: var(--sans);
+  font-size: 0.9rem;
+  font-weight: 600;
+  margin: 0 0 0.2rem;
+}
+.fig-sub {
+  font-size: 0.78rem;
+  color: var(--ink-3);
+  margin: 0 0 1rem;
+}
+svg { display: block; overflow: visible; }
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem 1.15rem;
+  margin: 0 0 0.95rem;
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.04em;
+  color: var(--ink-2);
+}
+.legend span { display: inline-flex; align-items: center; gap: 0.4rem; }
+.swatch { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+.swatch.sq { border-radius: 2px; }
+
+.tick { font-family: var(--mono); font-size: 10px; fill: var(--ink-3); }
+.rowlabel { font-family: var(--sans); font-size: 12px; fill: var(--ink); }
+.delta { font-family: var(--mono); font-size: 11px; font-weight: 600; fill: var(--ink-2); }
+.gridline { stroke: var(--rule); stroke-width: 1; }
+.axisline { stroke: var(--rule-strong); stroke-width: 1; }
+.annot { font-family: var(--sans); font-size: 11px; fill: var(--ink-2); }
+.annot-strong { font-weight: 600; fill: var(--ink); }
+
+/* ---------- tooltip ---------- */
+.tip {
+  position: fixed;
+  z-index: 20;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.09s ease;
+  background: var(--ink);
+  color: var(--ground);
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  line-height: 1.5;
+  padding: 0.42rem 0.6rem;
+  border-radius: 4px;
+  max-width: 260px;
+}
+.tip b { font-family: var(--sans); font-size: 0.75rem; display: block; margin-bottom: 0.15rem; }
+
+/* ---------- table ---------- */
+details { margin-top: 0.9rem; border-top: 1px solid var(--rule); padding-top: 0.7rem; }
+summary {
+  cursor: pointer;
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+}
+.tablewrap { overflow-x: auto; margin-top: 0.85rem; }
+table { border-collapse: collapse; width: 100%; font-size: 0.82rem; }
+th, td {
+  text-align: left;
+  padding: 0.38rem 0.7rem 0.38rem 0;
+  border-bottom: 1px solid var(--rule);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+th {
+  font-family: var(--mono);
+  font-size: 0.63rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  font-weight: 500;
+}
+td.num, th.num { text-align: right; font-family: var(--mono); }
+
+/* ---------- gap list ---------- */
+.gaps { list-style: none; padding: 0; margin: 0; display: grid; gap: 0.9rem; }
+.gaps li {
+  display: grid;
+  grid-template-columns: 116px 1fr;
+  gap: 1rem;
+  align-items: start;
+  border-bottom: 1px solid var(--rule);
+  padding-bottom: 0.9rem;
+  max-width: 82ch;
+}
+.gaps li:last-child { border-bottom: 0; }
+.gaps .who {
+  font-family: var(--mono);
+  font-size: 0.63rem;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  padding-top: 0.22rem;
+}
+.gaps .what { font-size: 0.9rem; color: var(--ink-2); }
+.gaps .what b { color: var(--ink); font-weight: 600; }
+@media (max-width: 560px) {
+  .gaps li { grid-template-columns: 1fr; gap: 0.25rem; }
+}
+
+footer {
+  margin-top: 4rem;
+  border-top: 1px solid var(--rule);
+  padding-top: 1.1rem;
+  font-size: 0.78rem;
+  color: var(--ink-3);
+  max-width: 74ch;
+}
+footer p { max-width: none; margin: 0 0 0.5rem; }
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+}
+</style><style>
+/* Phase 1 additions to the shared report stylesheet. */
+.metricrow {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 1px;
+  background: var(--rule);
+  border: 1px solid var(--rule);
+  margin: 1.5rem 0 0;
+}
+.metric { background: var(--surface); padding: 1rem 1.15rem; }
+.metric .k {
+  font-family: var(--mono); font-size: 0.63rem; letter-spacing: 0.09em;
+  text-transform: uppercase; color: var(--ink-3); display: block; margin-bottom: 0.35rem;
+}
+.metric .v {
+  font-family: var(--serif); font-size: 2rem; line-height: 1; font-weight: 500;
+  font-variant-numeric: tabular-nums; display: block;
+}
+.metric .n { font-size: 0.76rem; color: var(--ink-3); display: block; margin-top: 0.4rem; }
+.metric--lead { background: var(--surface-2); }
+
+table.confusion td, table.confusion th { text-align: center; padding: 0.45rem 0.5rem; }
+table.confusion td:first-child, table.confusion th:first-child { text-align: left; }
+table.confusion td.hit { background: var(--surface-2); font-weight: 600; }
+table.confusion td.miss {
+  outline: 2px dashed var(--warm); outline-offset: -3px; font-weight: 600;
+}
+table.confusion td.zero { color: var(--ink-3); }
+
+.vs {
+  display: grid; grid-template-columns: 1fr auto 1fr; gap: 1.1rem; align-items: center;
+  margin: 1.4rem 0 0; max-width: 62ch;
+}
+.vs-card { background: var(--surface); border: 1px solid var(--rule); padding: 0.95rem 1.1rem; }
+.vs-card .k {
+  font-family: var(--mono); font-size: 0.62rem; letter-spacing: 0.09em;
+  text-transform: uppercase; color: var(--ink-3); display: block; margin-bottom: 0.4rem;
+}
+.vs-card .v {
+  font-family: var(--serif); font-size: 1.8rem; line-height: 1; font-variant-numeric: tabular-nums;
+}
+.vs-arrow { font-family: var(--mono); color: var(--ink-3); font-size: 1.1rem; }
+@media (max-width: 560px) {
+  .vs { grid-template-columns: 1fr; }
+  .vs-arrow { transform: rotate(90deg); justify-self: center; }
+}
+
+.caveat {
+  border: 1px solid var(--warm);
+  background: var(--surface);
+  padding: 1.15rem 1.35rem;
+  margin: 1.6rem 0;
+}
+.caveat .kicker {
+  font-family: var(--mono); font-size: 0.63rem; letter-spacing: 0.11em;
+  text-transform: uppercase; color: var(--warm); display: block; margin-bottom: 0.5rem;
+}
+.caveat p { margin: 0; max-width: 68ch; }
+.caveat p + p { margin-top: 0.7rem; }
+
+.case { border-top: 1px solid var(--rule); padding-top: 1rem; margin-top: 1rem; }
+.case:first-of-type { border-top: 0; padding-top: 0; margin-top: 0; }
+.case h3 { margin-bottom: 0.15rem; }
+.case .verdicts {
+  font-family: var(--mono); font-size: 0.72rem; color: var(--ink-3);
+  margin: 0 0 0.5rem; letter-spacing: 0.02em;
+}
+.case p { font-size: 0.9rem; color: var(--ink-2); }
+.region { font-family: var(--mono); font-size: 10px; fill: var(--ink-3); }
+
+/* Label ink for text sitting ON a ramp step. Deliberately NOT redefined per
+   theme: the ramp's light step is light in both themes and its dark step is
+   dark in both, so the readable ink depends on the step, not the theme.
+   Theme-flipping ink here produces light-on-light in dark mode. */
+:root { --ink-on-pale: #10203a; --ink-on-deep: #f2f7ff; }
+</style>
+
+<div class="page">
+
+<header class="masthead">
+  <p class="eyebrow">aaa-launch-predictor &nbsp;·&nbsp; Phase 1 report &nbsp;·&nbsp; 24 Aug 2026</p>
+  <h1>Rubric Validation</h1>
+  <p class="standfirst">34 releases labeled from sourced research, and a rubric that reproduces those labels — once it stopped trusting the size of a launch.</p>
+  <dl class="stats">
+    <div class="stat"><dt>Labeled</dt><dd>34<small>of 126</small></dd></div>
+    <div class="stat"><dt>Scored</dt><dd>31<small>day-one</small></dd></div>
+    <div class="stat"><dt>Agreement</dt><dd>96.8<small>%</small></dd></div>
+    <div class="stat"><dt>Disagreements</dt><dd>2</dd></div>
+    <div class="stat"><dt>Tests</dt><dd>117<small>passing</small></dd></div>
+  </dl>
+</header>
+
+<section>
+  <div class="sec-head"><span class="sec-label">Result</span><h2>The rubric holds up</h2></div>
+  <p class="wide">Phase 1's job is to check the labeling rubric before any model is trained. The rubric is now code &mdash; <code>app/rubric.py</code> &mdash; and <code>jobs/validate_rubric.py</code> scores it against every hand-labeled day-one Steam release.</p>
+  <div class="metricrow">
+    <div class="metric metric--lead">
+      <span class="k">Met-expectations agreement</span>
+      <span class="v">96.8%</span>
+      <span class="n">The falsifiable axis: did the release clear its cohort's bar at all? Nothing about a cohort percentile encodes the labeler's judgment, so this one is a real test.</span>
+    </div>
+    <div class="metric">
+      <span class="k">Exact 4-tier agreement</span>
+      <span class="v">93.5%</span>
+      <span class="n">Partly circular &mdash; the same studio-outcome evidence informs both the rule and the label on the Flop/Underperform axis.</span>
+    </div>
+    <div class="metric">
+      <span class="k">Mean ordinal distance</span>
+      <span class="v">0.06</span>
+      <span class="n">Average tier miss. A Flop/Breakout confusion would cost 3; nothing in the set missed by more than 1.</span>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head"><span class="sec-label">Correction</span><h2>Launch size measures attention, not&nbsp;success</h2></div>
+  <p class="wide">The first version of the rubric led with cohort-normalized launch volume, following the Phase 0.5 finding that volume separated the labeled extremes. Scored against the full labeled set, it managed 74.2% &mdash; and failed in one direction, consistently. <strong>Seven of ten underperformers came back as successes.</strong></p>
+  <p class="wide">The reason is visible in the data. Battlefield 2042 opened in the <strong>89th percentile</strong> of its release cohort at <strong>34% positive</strong>. Starfield: 88th percentile, 66% positive. PAYDAY 3: 74th, 37%. A hyped AAA release draws an enormous launch crowd whether or not it deserves one, and volume alone cannot see the collapse that follows.</p>
+
+  <div class="vs">
+    <div class="vs-card"><span class="k">Volume-led rubric</span><span class="v">74.2%</span></div>
+    <div class="vs-arrow">&rarr;</div>
+    <div class="vs-card"><span class="k">Sentiment + floor + retention</span><span class="v">96.8%</span></div>
+  </div>
+
+  <p class="wide" style="margin-top:1.4rem">Launch <em>sentiment</em> turned out to be the strongest single separator, with two corrections: a volume floor to catch well-reviewed releases nobody bought, and a retention check for launches that recovered.</p>
+
+  <figure>
+    <div class="figbox">
+      <p class="fig-title">How the rubric decides</p>
+      <p class="fig-sub">Every labeled release against the two thresholds it is judged on</p>
+      <div class="legend">
+        <span><i class="swatch" style="background:var(--ord-1);width:8px;height:8px"></i>Flop</span>
+        <span><i class="swatch" style="background:var(--ord-2);width:10px;height:10px"></i>Underperform</span>
+        <span><i class="swatch" style="background:var(--ord-3);width:12px;height:12px"></i>Success</span>
+        <span><i class="swatch" style="background:var(--ord-4);width:14px;height:14px"></i>Breakout</span>
+        <span><i class="swatch sq" style="background:var(--surface-2);border:1px solid var(--rule-strong)"></i>Met-expectations region</span>
+      </div>
+      <div id="boundary"></div>
+    </div>
+    <figcaption>The shaded region is where the rubric says a release met the expectations of its budget tier: at least 78% positive over the launch window <em>and</em> at least 35th-percentile volume for its release cohort. Labels below the line sit almost entirely outside it. Two releases enter by a separate route not shown on these axes &mdash; the retention rescue described below.</figcaption>
+  </figure>
+</section>
+
+<section>
+  <div class="sec-head"><span class="sec-label">Signal</span><h2>Retention catches what sentiment misses</h2></div>
+  <p class="wide">One release breaks the sentiment rule cleanly. <strong>Helldivers 2</strong> opened at 75.2% positive &mdash; below the bar, through days of server failures &mdash; and is unambiguously a breakout. What separates it from a genuine disappointment is what happened next: it accrued <strong>5.9&times;</strong> its launch-window reviews by the three-month mark, against 1.0&ndash;1.7&times; for every flop in the set.</p>
+  <p class="wide">That ratio is only available because Phase 0.5 stored windowed metrics rather than lifetime totals. It now does two jobs in the rubric: it rescues a high-volume launch that reviewed badly but kept growing, and it promotes a strong release to breakout when its audience compounded (Space Marine 2, Clair Obscur).</p>
+  <figure>
+    <div class="figbox">
+      <p class="fig-title">Reviews at three months, as a multiple of the launch window</p>
+      <p class="fig-sub">Labeled releases, grouped by outcome</p>
+      <div id="retention"></div>
+    </div>
+    <figcaption>Flops cluster tightly near 1&times; &mdash; the launch crowd arrived and left. Back 4 Blood at 2.4&times; is the one underperformer with real retention, which is why the rubric requires high volume alongside a strong ratio before it rescues anything.</figcaption>
+  </figure>
+</section>
+
+<section>
+  <div class="sec-head"><span class="sec-label">Detail</span><h2>Where it agrees and where it doesn&rsquo;t</h2></div>
+  <figure style="margin-top:0">
+    <div class="figbox">
+      <p class="fig-title">Hand label against rubric call</p>
+      <p class="fig-sub">31 day-one Steam releases; rows are the hand label, columns the rubric</p>
+      <div class="tablewrap"><table class="confusion" id="confusion"></table></div>
+    </div>
+  </figure>
+
+  <h3 style="margin-top:2rem">The two disagreements</h3>
+  <p class="wide">Both are worth more than the headline number, because neither is noise.</p>
+
+  <div class="case">
+    <h3>No Man&rsquo;s Sky</h3>
+    <p class="verdicts">label: success &nbsp;·&nbsp; rubric: underperform &nbsp;·&nbsp; 98th-percentile volume, 61% positive</p>
+    <p>The rubric is reading the launch window, where No Man&rsquo;s Sky was a disaster. The label records what the game eventually became after ten years and forty free updates. Both are correct about different questions, which exposes a real gap in the schema: <code>resolved_outcome</code> currently conflates &ldquo;how did this launch go&rdquo; with &ldquo;how did this end up&rdquo;. For a game that recovered, those are different answers.</p>
+  </div>
+
+  <div class="case">
+    <h3>Suicide Squad: Kill the Justice League</h3>
+    <p class="verdicts">label: flop &nbsp;·&nbsp; rubric: underperform &nbsp;·&nbsp; 32nd-percentile volume, 75% positive</p>
+    <p>Rocksteady was not closed and no mass layoffs were tied to the title, so the rubric&rsquo;s post-launch test lands on underperform. The label rests on Warner Bros. Discovery&rsquo;s confirmed ~$200M write-down &mdash; a publisher-level financial signal the rubric has no field for. It was already carried at medium confidence.</p>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head"><span class="sec-label">Caveat</span><h2>What this number is not</h2></div>
+  <div class="caveat">
+    <span class="kicker">Read before quoting 96.8%</span>
+    <p><strong>The thresholds were fitted after seeing these 31 games.</strong> 78% sentiment, a 35th-percentile floor, 2.5&times; retention &mdash; each was chosen by looking at where the labeled set separated. Agreement measured on the same games is therefore in-sample and optimistic, and would not survive contact with 31 new releases unchanged.</p>
+    <p>What the exercise establishes is the <em>structure</em>: that sentiment beats volume as the primary separator, that a volume floor is needed to catch well-reviewed titles nobody bought, and that retention carries information neither of them has. Those findings should survive; the specific constants should not be trusted to three significant figures.</p>
+    <p>Phase 2 should hold out a labeled subset before training, rather than tuning against everything available.</p>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head"><span class="sec-label">Labels</span><h2>What got labeled, and what deliberately didn&rsquo;t</h2></div>
+  <p class="wide">34 rows now carry an outcome, each with cited sources and an explicit confidence level. Every label came from published reporting on studio outcomes, layoffs, sales disclosures and post-launch support &mdash; not from recollection.</p>
+  <figure style="margin-top:0.4rem">
+    <div class="figbox">
+      <p class="fig-title">Labeled set composition</p>
+      <p class="fig-sub">By outcome tier and by labeling confidence</p>
+      <div id="composition"></div>
+    </div>
+  </figure>
+
+  <div class="callout">
+    <span class="kicker">Labels are Steam-scoped, and that excluded good candidates</span>
+    <p>The spec measures outcome tiers against Steam-specific performance. That rules out delayed ports, whose commercial story happened elsewhere: <strong>Titanfall 2&rsquo;s Steam launch reviews at 96% positive</strong>, while the &ldquo;underperform&rdquo; outcome everyone knows belongs to its 2016 Origin release. Labeling it would teach a model the exact inverse of the truth.</p>
+    <p>So Titanfall 2, Days Gone, Saints Row and Monster Hunter: World are researched and carry launch-type metadata, but no label. Three seed rows labeled before this rule &mdash; Marvel&rsquo;s Spider-Man 2, Star Wars Outlaws and Skull and Bones &mdash; are flagged in their notes and excluded from scoring.</p>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head"><span class="sec-label">Shipped</span><h2>What Phase 1 adds to the repo</h2></div>
+  <div class="cards">
+    <div class="card">
+      <span class="tag">app/rubric.py</span>
+      <h3>The rubric, as code</h3>
+      <p>Observed launch metrics plus post-launch signals to one of four tiers, with the reasoning attached. Returns unresolved rather than guessing when the evidence to separate Flop from Underperform hasn&rsquo;t arrived &mdash; which is exactly the &ldquo;Failed to Meet Expectations&rdquo; state.</p>
+    </div>
+    <div class="card">
+      <span class="tag">app/cohort.py</span>
+      <h3>Cohort normalization</h3>
+      <p>Percentile ranks within a rolling three-year window, so counts stay comparable as Steam&rsquo;s baseline grows. Refuses to return a percentile when the cohort is too small to rank against.</p>
+    </div>
+    <div class="card">
+      <span class="tag">app/baseline.py</span>
+      <h3>Pre-launch baseline</h3>
+      <p>The floor a trained model has to beat: a structural prior from how the same team&rsquo;s past day-one releases resolved. Served at <code>GET /games/{appid}/prediction</code>, always at low confidence, tagged with the method that produced it.</p>
+    </div>
+    <div class="card">
+      <span class="tag">migration 0003</span>
+      <h3>Structured signals</h3>
+      <p><code>studio_signal</code> and <code>support_signal</code> as separate axes. A studio can be gutted and still finish the season pass (Callisto Protocol); a healthy studio can walk away from a title (Marvel&rsquo;s Avengers). Telling Flop from Underperform needs both.</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head"><span class="sec-label">Open</span><h2>Carried into Phase 2</h2></div>
+  <ul class="gaps">
+    <li><span class="who">Schema</span><span class="what"><b>Launch outcome and resolved outcome are the same field.</b> No Man&rsquo;s Sky shows they aren&rsquo;t the same thing. A recovered game needs both recorded, or accuracy tracking will score launch forecasts against decade-long outcomes.</span></li>
+    <li><span class="who">Overfitting</span><span class="what"><b>Hold out labels before training.</b> The rubric&rsquo;s constants were tuned on all 31 scored games. Phase 2 should split the set and report out-of-sample performance.</span></li>
+    <li><span class="who">Labels</span><span class="what"><b>92 rows still unlabeled.</b> Full API data, no outcome. The research pass is the bottleneck and every added label makes the cohort baselines and the base rate more trustworthy.</span></li>
+    <li><span class="who">Publisher signal</span><span class="what"><b>No field for a publisher-level financial write-down.</b> That is what the Suicide Squad label rests on and the rubric cannot see it.</span></li>
+    <li><span class="who">Critic scores</span><span class="what"><b>Still only 72 of 126.</b> Unchanged from Phase 0.5; OpenCritic remains the next data source, and critic-vs-user divergence is a Phase 3 signal that needs it.</span></li>
+    <li><span class="who">Free-to-play</span><span class="what"><b>Halo Infinite has no unit sales to measure.</b> It was labeled on engagement and roadmap delivery instead. The rubric has no explicit handling for free-to-play, and more of them will arrive.</span></li>
+  </ul>
+</section>
+
+<footer>
+  <p>Generated from the Phase 1 labeling and validation pass. All figures read from the populated database via <code>jobs/validate_rubric.py</code>, not from the report text. Labels and their sources live in <code>data/historical_releases.csv</code>.</p>
+  <p>Outcome tiers describe commercial performance relative to budget-tier expectations, not creative quality, and are attributed to business and market conditions rather than to any individual&rsquo;s work. Several games discussed here involved real layoffs and studio closures; they are recorded as market outcomes, not as verdicts on the people affected. Not affiliated with Valve Corporation.</p>
+</footer>
+
+</div>
+
+<div class="tip" id="tip" role="status" aria-live="polite"></div>
+
+<script>
+const D = {"games":[{"n":"Concord","o":"flop","conf":"high","lt":"day_one_steam","year":2024,"vol":2.8,"pos":65.8,"ret":1.05,"n2w":666,"studio":"closed","support":"abandoned","eligible":true},{"n":"Redfall","o":"flop","conf":"high","lt":"day_one_steam","year":2023,"vol":18.3,"pos":27.2,"ret":1.15,"n2w":2781,"studio":"closed","support":"abandoned","eligible":true},{"n":"Forspoken","o":"flop","conf":"high","lt":"day_one_steam","year":2023,"vol":29.8,"pos":56.6,"ret":1.26,"n2w":4635,"studio":"closed","support":"abandoned","eligible":true},{"n":"Suicide Squad: Kill the Justice League","o":"flop","conf":"medium","lt":"day_one_steam","year":2024,"vol":32.4,"pos":75.2,"ret":1.38,"n2w":5656,"studio":"continued","support":"curtailed","eligible":true},{"n":"Skull and Bones","o":"underperform","conf":"medium","lt":"delayed_port","year":2024,"vol":6.5,"pos":67.7,"ret":1.44,"n2w":779,"studio":"continued","support":"sustained","eligible":false},{"n":"Star Wars Outlaws","o":"underperform","conf":"medium","lt":"delayed_port","year":2024,"vol":8.3,"pos":77.4,"ret":2.33,"n2w":1067,"studio":"continued","support":"sustained","eligible":false},{"n":"Starfield","o":"underperform","conf":"low","lt":"day_one_steam","year":2023,"vol":87.5,"pos":66.1,"ret":1.61,"n2w":75132,"studio":"continued","support":"sustained","eligible":true},{"n":"Marvel's Spider-Man 2","o":"success","conf":"high","lt":"former_exclusive","year":2025,"vol":36.8,"pos":72.0,"ret":1.66,"n2w":10468,"studio":"continued","support":"sustained","eligible":false},{"n":"Resident Evil 4","o":"success","conf":"high","lt":"day_one_steam","year":2023,"vol":77.9,"pos":97.8,"ret":1.54,"n2w":51404,"studio":"continued","support":"sustained","eligible":true},{"n":"Baldur's Gate 3","o":"breakout","conf":"high","lt":"day_one_steam","year":2023,"vol":91.3,"pos":97.2,"ret":2.63,"n2w":114345,"studio":"grew","support":"sustained","eligible":true},{"n":"HELLDIVERS 2","o":"breakout","conf":"high","lt":"day_one_steam","year":2024,"vol":93.5,"pos":75.2,"ret":5.88,"n2w":134481,"studio":"grew","support":"sustained","eligible":true},{"n":"Black Myth: Wukong","o":"breakout","conf":"high","lt":"day_one_steam","year":2024,"vol":99.1,"pos":96.4,"ret":1.4,"n2w":689273,"studio":"grew","support":"sustained","eligible":true},{"n":"Batman: Arkham Knight","o":"underperform","conf":"medium","lt":"day_one_steam","year":2015,"vol":70.0,"pos":47.7,"ret":1.3,"n2w":10545,"studio":"continued","support":"curtailed","eligible":true},{"n":"No Man's Sky","o":"success","conf":"medium","lt":"day_one_steam","year":2016,"vol":97.8,"pos":61.3,"ret":1.52,"n2w":39823,"studio":"grew","support":"sustained","eligible":true},{"n":"Deus Ex: Mankind Divided","o":"underperform","conf":"high","lt":"day_one_steam","year":2016,"vol":54.3,"pos":66.9,"ret":1.34,"n2w":6985,"studio":"continued","support":"curtailed","eligible":true},{"n":"Back 4 Blood","o":"underperform","conf":"medium","lt":"day_one_steam","year":2021,"vol":37.9,"pos":73.3,"ret":2.43,"n2w":11810,"studio":"continued","support":"curtailed","eligible":true},{"n":"Hogwarts Legacy","o":"breakout","conf":"high","lt":"day_one_steam","year":2023,"vol":95.2,"pos":93.4,"ret":1.35,"n2w":142773,"studio":"continued","support":"sustained","eligible":true},{"n":"Marvel's Avengers - The Definitive Edition","o":"flop","conf":"high","lt":"day_one_steam","year":2020,"vol":24.2,"pos":66.0,"ret":1.59,"n2w":8745,"studio":"continued","support":"abandoned","eligible":true},{"n":"Cyberpunk 2077","o":"breakout","conf":"high","lt":"day_one_steam","year":2020,"vol":98.4,"pos":80.7,"ret":1.36,"n2w":269454,"studio":"continued","support":"sustained","eligible":true},{"n":"Halo Infinite","o":"underperform","conf":"high","lt":"day_one_steam","year":2021,"vol":86.4,"pos":76.7,"ret":1.7,"n2w":69682,"studio":"severe_layoffs","support":"sustained","eligible":true},{"n":"ELDEN RING","o":"breakout","conf":"high","lt":"day_one_steam","year":2022,"vol":98.8,"pos":89.6,"ret":2.0,"n2w":229689,"studio":"grew","support":"sustained","eligible":true},{"n":"PAYDAY 3","o":"underperform","conf":"medium","lt":"day_one_steam","year":2023,"vol":74.0,"pos":37.3,"ret":1.22,"n2w":35980,"studio":"continued","support":"sustained","eligible":true},{"n":"Gotham Knights","o":"underperform","conf":"medium","lt":"day_one_steam","year":2022,"vol":25.0,"pos":71.8,"ret":1.63,"n2w":7416,"studio":"continued","support":"curtailed","eligible":true},{"n":"Battlefield 2042","o":"underperform","conf":"high","lt":"day_one_steam","year":2021,"vol":89.4,"pos":33.9,"ret":1.69,"n2w":70356,"studio":"continued","support":"sustained","eligible":true},{"n":"The Callisto Protocol","o":"underperform","conf":"medium","lt":"day_one_steam","year":2022,"vol":51.2,"pos":58.9,"ret":1.29,"n2w":19034,"studio":"severe_layoffs","support":"sustained","eligible":true},{"n":"S.T.A.L.K.E.R. 2: Heart of Chornobyl","o":"success","conf":"high","lt":"day_one_steam","year":2024,"vol":88.0,"pos":83.4,"ret":1.37,"n2w":75438,"studio":"continued","support":"sustained","eligible":true},{"n":"Dragon Age: The Veilguard","o":"flop","conf":"medium","lt":"day_one_steam","year":2024,"vol":65.7,"pos":70.0,"ret":1.71,"n2w":20709,"studio":"severe_layoffs","support":"curtailed","eligible":true},{"n":"ARMORED CORE VI FIRES OF RUBICON","o":"success","conf":"high","lt":"day_one_steam","year":2023,"vol":76.0,"pos":88.9,"ret":1.45,"n2w":36546,"studio":"continued","support":"sustained","eligible":true},{"n":"Clair Obscur: Expedition 33","o":"breakout","conf":"high","lt":"day_one_steam","year":2025,"vol":80.9,"pos":94.5,"ret":2.67,"n2w":53386,"studio":"grew","support":"sustained","eligible":true},{"n":"Immortals of Aveum","o":"flop","conf":"high","lt":"day_one_steam","year":2023,"vol":1.0,"pos":74.1,"ret":1.45,"n2w":464,"studio":"severe_layoffs","support":"abandoned","eligible":true},{"n":"SILENT HILL 2","o":"success","conf":"high","lt":"day_one_steam","year":2024,"vol":52.8,"pos":95.4,"ret":2.0,"n2w":15838,"studio":"grew","support":"sustained","eligible":true},{"n":"Warhammer 40,000: Space Marine 2","o":"breakout","conf":"high","lt":"day_one_steam","year":2024,"vol":80.6,"pos":82.5,"ret":2.0,"n2w":51978,"studio":"grew","support":"sustained","eligible":true},{"n":"Hellblade II: Senua's Saga","o":"underperform","conf":"medium","lt":"day_one_steam","year":2024,"vol":17.6,"pos":88.1,"ret":1.35,"n2w":3116,"studio":"continued","support":"curtailed","eligible":true},{"n":"Metaphor: ReFantazio","o":"success","conf":"medium","lt":"day_one_steam","year":2024,"vol":43.5,"pos":90.4,"ret":2.64,"n2w":10751,"studio":"continued","support":"sustained","eligible":true}],"totals":{"labeled":34,"scored":31,"excluded":3,"corpus":126},"metrics":{"met":96.8,"exact":93.5,"dist":0.06},"confusion":{"underperform|underperform":10,"success|underperform":1,"flop|flop":6,"breakout|breakout":8,"success|success":5,"flop|underperform":1},"disagreements":[{"n":"No Man's Sky","exp":"success","got":"underperform","vol":97.8,"pos":61.3,"reasons":["61% positive over the launch window, below the 78% bar","studio continued operating and the game kept being supported"]},{"n":"Suicide Squad: Kill the Justice League","exp":"flop","got":"underperform","vol":32.4,"pos":75.2,"reasons":["75% positive over the launch window, below the 78% bar","studio continued operating and the game kept being supported"]}],"excluded":[{"n":"Skull and Bones","why":"launch type is delayed_port"},{"n":"Star Wars Outlaws","why":"launch type is delayed_port"},{"n":"Marvel's Spider-Man 2","why":"launch type is former_exclusive"}],"tiers":{"flop":7,"underperform":12,"success":7,"breakout":8},"confidence":{"high":21,"medium":12,"low":1}};
+const NS = "http://www.w3.org/2000/svg";
+const el = (n, a = {}) => { const e = document.createElementNS(NS, n);
+  for (const k in a) e.setAttribute(k, a[k]); return e; };
+const TIER = { flop: "var(--ord-1)", underperform: "var(--ord-2)",
+               success: "var(--ord-3)", breakout: "var(--ord-4)" };
+const ORDER = ["flop", "underperform", "success", "breakout"];
+// Redundant size encoding for the same ordinal variable the hue steps
+// encode: four steps of one hue are hard to separate at small radii,
+// especially on the dark surface.
+const RADIUS = { flop: 5, underperform: 6, success: 7, breakout: 8.5 };
+const NAME = { flop: "Flop", underperform: "Underperform", success: "Success",
+               breakout: "Breakout" };
+
+const tip = document.getElementById("tip");
+function bindTip(node, html) {
+  const show = ev => {
+    tip.innerHTML = html; tip.style.opacity = "1";
+    const r = tip.getBoundingClientRect();
+    let x = ev.clientX + 14, y = ev.clientY - r.height - 10;
+    if (x + r.width > innerWidth - 8) x = ev.clientX - r.width - 14;
+    if (y < 8) y = ev.clientY + 18;
+    tip.style.left = x + "px"; tip.style.top = y + "px";
+  };
+  node.addEventListener("pointerenter", show);
+  node.addEventListener("pointermove", show);
+  node.addEventListener("pointerleave", () => { tip.style.opacity = "0"; });
+}
+
+/* ---- 1. decision boundary ---- */
+(function boundary() {
+  const pts = D.games.filter(g => g.vol !== null && g.pos !== null && g.eligible);
+  const W = 720, H = 430, L = 46, R = 20, T = 16, B = 46;
+  const SENT = 78, FLOOR = 35;
+  const sx = v => L + (v / 100) * (W - L - R);
+  const ymin = 20;
+  const sy = v => T + (100 - v) / (100 - ymin) * (H - T - B);
+
+  const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, width: "100%",
+    style: `min-width:640px;height:${H}px`, role: "img",
+    "aria-label": "Scatter of launch sentiment against cohort volume percentile, with the rubric's met-expectations region shaded" });
+
+  svg.appendChild(el("rect", { x: sx(FLOOR), y: sy(100), width: sx(100) - sx(FLOOR),
+    height: sy(SENT) - sy(100), fill: "var(--surface-2)" }));
+
+  for (let v = 20; v <= 100; v += 20) {
+    svg.appendChild(el("line", { class: "gridline", x1: L, x2: W - R, y1: sy(v), y2: sy(v) }));
+    const t = el("text", { class: "tick", x: L - 8, y: sy(v) + 3, "text-anchor": "end" });
+    t.textContent = v + "%"; svg.appendChild(t);
+  }
+  for (let v = 0; v <= 100; v += 25) {
+    const t = el("text", { class: "tick", x: sx(v), y: H - B + 16, "text-anchor": "middle" });
+    t.textContent = v + "th"; svg.appendChild(t);
+  }
+  svg.appendChild(el("line", { class: "axisline", x1: L, x2: W - R, y1: H - B, y2: H - B }));
+
+  [[sx(FLOOR), sy(100), sx(FLOOR), H - B], [L, sy(SENT), W - R, sy(SENT)]].forEach(([x1, y1, x2, y2]) => {
+    svg.appendChild(el("line", { x1, y1, x2, y2, stroke: "var(--rule-strong)",
+      "stroke-width": 1.5, "stroke-dasharray": "5 3" }));
+  });
+  const s1 = el("text", { class: "region", x: L + 5, y: sy(SENT) - 6 });
+  s1.textContent = "78% sentiment bar"; svg.appendChild(s1);
+  const s2 = el("text", { class: "region", x: sx(FLOOR) + 5, y: H - B - 6 });
+  s2.textContent = "35th-pct volume floor"; svg.appendChild(s2);
+
+  const axl = el("text", { class: "tick", x: (L + W - R) / 2, y: H - 8, "text-anchor": "middle" });
+  axl.textContent = "launch volume, percentile within release cohort"; svg.appendChild(axl);
+  const ayl = el("text", { class: "tick", x: 12, y: (T + H - B) / 2,
+    transform: `rotate(-90 12 ${(T + H - B) / 2})`, "text-anchor": "middle" });
+  ayl.textContent = "positive share, first 14 days"; svg.appendChild(ayl);
+
+  const flagged = { "No Man's Sky": [-11, 4], "Suicide Squad: Kill the Justice League": [-11, 4],
+                    "HELLDIVERS 2": [-11, 18] };
+  pts.forEach(g => {
+    const c = el("circle", { cx: sx(g.vol), cy: sy(g.pos), r: RADIUS[g.o], fill: TIER[g.o],
+      stroke: "var(--surface)", "stroke-width": 2 });
+    bindTip(c, `<b>${g.n}</b>label: ${g.o}<br>${g.pos}% positive &middot; ${g.vol}th percentile`
+      + (g.ret ? `<br>retention ${g.ret}x by 3 months` : ""));
+    svg.appendChild(c);
+    const off = flagged[g.n];
+    if (off) {
+      const t = el("text", { class: "annot annot-strong", x: sx(g.vol) + off[0],
+        y: sy(g.pos) + off[1], "text-anchor": off[0] < 0 ? "end" : "start" });
+      t.textContent = g.n.split(":")[0]; svg.appendChild(t);
+    }
+  });
+  document.getElementById("boundary").appendChild(svg);
+})();
+
+/* ---- 2. retention by tier ---- */
+(function retention() {
+  const pts = D.games.filter(g => g.ret !== null && g.eligible);
+  const W = 720, H = 250, L = 108, R = 60, T = 14, B = 38;
+  const max = Math.max(...pts.map(g => g.ret));
+  const sx = v => L + ((v - 1) / (max - 1)) * (W - L - R);
+  const rowH = (H - T - B) / ORDER.length;
+
+  const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, width: "100%",
+    style: `min-width:640px;height:${H}px`, role: "img",
+    "aria-label": "Strip plot of three-month review retention ratios grouped by outcome tier" });
+
+  [1, 2, 3, 4, 5, 6].filter(v => v <= max).forEach(v => {
+    svg.appendChild(el("line", { class: "gridline", x1: sx(v), x2: sx(v), y1: T, y2: H - B }));
+    const t = el("text", { class: "tick", x: sx(v), y: H - B + 16, "text-anchor": "middle" });
+    t.textContent = v + "x"; svg.appendChild(t);
+  });
+
+  ORDER.forEach((tier, i) => {
+    const y = T + i * rowH + rowH / 2;
+    const lab = el("text", { class: "rowlabel", x: L - 14, y: y + 4, "text-anchor": "end" });
+    lab.textContent = NAME[tier]; svg.appendChild(lab);
+    pts.filter(g => g.o === tier).forEach(g => {
+      const c = el("circle", { cx: sx(g.ret), cy: y, r: RADIUS[tier], fill: TIER[tier],
+        stroke: "var(--surface)", "stroke-width": 2, opacity: 0.92 });
+      bindTip(c, `<b>${g.n}</b>${g.ret}x reviews by three months<br>${g.n2w.toLocaleString("en-US")} in the launch window`);
+      svg.appendChild(c);
+    });
+  });
+
+  const hd = pts.find(g => g.n.startsWith("HELLDIVERS"));
+  if (hd) {
+    const y = T + ORDER.indexOf("breakout") * rowH + rowH / 2;
+    const t = el("text", { class: "annot annot-strong", x: sx(hd.ret) - 11, y: y + 4,
+      "text-anchor": "end" });
+    t.textContent = "Helldivers 2"; svg.appendChild(t);
+  }
+  document.getElementById("retention").appendChild(svg);
+})();
+
+/* ---- 3. confusion table ---- */
+(function confusion() {
+  const t = document.getElementById("confusion");
+  let head = "<thead><tr><th>hand label \u2193 / rubric \u2192</th>";
+  ORDER.forEach(c => { head += `<th>${NAME[c]}</th>`; });
+  head += "<th>total</th></tr></thead><tbody>";
+  let body = "";
+  ORDER.forEach(exp => {
+    let row = `<tr><td>${NAME[exp]}</td>`, total = 0;
+    ORDER.forEach(got => {
+      const n = D.confusion[`${exp}|${got}`] || 0;
+      total += n;
+      const cls = n === 0 ? "zero" : (exp === got ? "hit" : "miss");
+      row += `<td class="${cls}">${n}</td>`;
+    });
+    body += row + `<td>${total}</td></tr>`;
+  });
+  t.innerHTML = head + body + "</tbody>";
+})();
+
+/* ---- 4. composition ---- */
+(function composition() {
+  const W = 720, H = 150, pad = 8;
+  const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, width: "100%",
+    style: `min-width:560px;height:${H}px`, role: "img",
+    "aria-label": "Stacked bars of the labeled set by outcome tier and by labeling confidence" });
+
+  // The .delta class sets `fill` in CSS, which beats a presentation
+  // attribute — so per-segment label colour has to go through `style`.
+  function bar(y, label, entries, colors, inkFrom) {
+    const total = entries.reduce((s, e) => s + e[1], 0);
+    const t = el("text", { class: "stat-label", x: 0, y: y - 8 });
+    t.textContent = label; svg.appendChild(t);
+    let x = 0;
+    entries.forEach(([key, n], i) => {
+      const w = (n / total) * W - (i < entries.length - 1 ? 2 : 0);
+      const r = el("rect", { x, y, width: Math.max(w, 1), height: 34, fill: colors[i], rx: 3 });
+      bindTip(r, `<b>${key}</b>${n} of ${total} labeled`);
+      svg.appendChild(r);
+      if (w > 52) {
+        const lt = el("text", { x: x + w / 2, y: y + 22, "text-anchor": "middle",
+          class: "delta",
+          style: `fill:${i >= inkFrom ? "var(--ink-on-deep)" : "var(--ink-on-pale)"}` });
+        lt.textContent = `${key} ${n}`; svg.appendChild(lt);
+      }
+      x += w + 2;
+    });
+  }
+  bar(24, "By outcome tier", ORDER.map(k => [NAME[k], D.tiers[k] || 0]),
+      ["var(--ord-1)", "var(--ord-2)", "var(--ord-3)", "var(--ord-4)"], 2);
+  // Confidence is its own ordinal scale, stepped so that "more confident"
+  // reads darker — the reverse of the tier bar above, so the two are not
+  // mistaken for the same variable.
+  bar(100, "By labeling confidence",
+      ["high", "medium", "low"].map(k => [k, D.confidence[k] || 0]),
+      ["var(--ord-4)", "var(--ord-3)", "var(--ord-2)"], 0);
+  document.getElementById("composition").appendChild(svg);
+})();
+</script>

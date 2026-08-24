@@ -25,6 +25,8 @@ from app.models import (
     PlatformLaunchType,
     ReleaseWindow,
     ResearchStatus,
+    StudioSignal,
+    SupportSignal,
     WindowKey,
     utcnow,
 )
@@ -55,6 +57,8 @@ class CuratedRelease:
     launch_price_cents: int | None = None
     post_launch_support: str | None = None
     studio_outcome: str | None = None
+    studio_signal: StudioSignal = StudioSignal.UNKNOWN
+    support_signal: SupportSignal = SupportSignal.UNKNOWN
     resolved_outcome: Outcome | None = None
     label_confidence: LabelConfidence | None = None
     research_status: ResearchStatus = ResearchStatus.NOT_RESEARCHED
@@ -160,6 +164,8 @@ def _apply_curated_fields(
     release.launch_price_cents = curated.launch_price_cents
     release.post_launch_support = curated.post_launch_support
     release.studio_outcome = curated.studio_outcome
+    release.studio_signal = curated.studio_signal
+    release.support_signal = curated.support_signal
     release.resolved_outcome = curated.resolved_outcome
     release.label_confidence = curated.label_confidence
     release.research_status = curated.research_status
@@ -261,6 +267,8 @@ CSV_COLUMNS = (
     "launch_price_usd",
     "post_launch_support",
     "studio_outcome",
+    "studio_signal",
+    "support_signal",
     "resolved_outcome",
     "label_confidence",
     "research_status",
@@ -330,6 +338,10 @@ def _parse_row(raw: dict) -> CuratedRelease:
         launch_price_cents=round(float(price) * 100) if price else None,
         post_launch_support=_text(raw["post_launch_support"]),
         studio_outcome=_text(raw["studio_outcome"]),
+        studio_signal=_enum_or_none(StudioSignal, _text(raw["studio_signal"]), "studio_signal")
+        or StudioSignal.UNKNOWN,
+        support_signal=_enum_or_none(SupportSignal, _text(raw["support_signal"]), "support_signal")
+        or SupportSignal.UNKNOWN,
         resolved_outcome=outcome,
         label_confidence=_enum_or_none(
             LabelConfidence, _text(raw["label_confidence"]), "label_confidence"

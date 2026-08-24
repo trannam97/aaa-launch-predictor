@@ -283,6 +283,49 @@ class ResearchStatus(enum.StrEnum):
     UNRESOLVABLE = "unresolvable"
 
 
+class StudioSignal(enum.StrEnum):
+    """What happened to the studio after launch, worst signal wins.
+
+    Ordered by severity so a rule can compare them. This is the axis the spec
+    says launch-window numbers cannot supply — peak players and review scores
+    will not tell you whether a studio survived.
+    """
+
+    GREW = "grew"
+    CONTINUED = "continued"
+    SEVERE_LAYOFFS = "severe_layoffs"
+    CLOSED = "closed"
+    UNKNOWN = "unknown"
+
+    @property
+    def severity(self) -> int:
+        return _STUDIO_SEVERITY[self]
+
+
+_STUDIO_SEVERITY = {
+    StudioSignal.GREW: 0,
+    StudioSignal.CONTINUED: 1,
+    StudioSignal.SEVERE_LAYOFFS: 2,
+    StudioSignal.CLOSED: 3,
+    StudioSignal.UNKNOWN: -1,
+}
+
+
+class SupportSignal(enum.StrEnum):
+    """How post-launch support for the game itself played out.
+
+    Separate from the studio's fate on purpose: a studio can be gutted and
+    still finish the season pass (The Callisto Protocol), and a healthy studio
+    can walk away from a title (Marvel's Avengers). Distinguishing Flop from
+    Underperform needs both.
+    """
+
+    SUSTAINED = "sustained"
+    CURTAILED = "curtailed"
+    ABANDONED = "abandoned"
+    UNKNOWN = "unknown"
+
+
 class WindowKey(enum.StrEnum):
     """Named capture windows, measured from the Steam release date."""
 
@@ -316,6 +359,20 @@ LabelConfidenceType = Enum(
 ResearchStatusType = Enum(
     ResearchStatus,
     name="research_status",
+    native_enum=False,
+    length=32,
+    values_callable=lambda cls: [m.value for m in cls],
+)
+StudioSignalType = Enum(
+    StudioSignal,
+    name="studio_signal",
+    native_enum=False,
+    length=32,
+    values_callable=lambda cls: [m.value for m in cls],
+)
+SupportSignalType = Enum(
+    SupportSignal,
+    name="support_signal",
     native_enum=False,
     length=32,
     values_callable=lambda cls: [m.value for m in cls],
@@ -378,6 +435,14 @@ class HistoricalRelease(Base):
     )
     post_launch_support: Mapped[str | None] = mapped_column(Text)
     studio_outcome: Mapped[str | None] = mapped_column(Text)
+    # Structured counterparts to the two prose fields above — the rubric runs
+    # on these; the prose stays for a human reading the row.
+    studio_signal: Mapped[StudioSignal] = mapped_column(
+        StudioSignalType, nullable=False, default=StudioSignal.UNKNOWN
+    )
+    support_signal: Mapped[SupportSignal] = mapped_column(
+        SupportSignalType, nullable=False, default=SupportSignal.UNKNOWN
+    )
     resolved_outcome: Mapped[Outcome | None] = mapped_column(OutcomeType)
     label_confidence: Mapped[LabelConfidence | None] = mapped_column(LabelConfidenceType)
     research_status: Mapped[ResearchStatus] = mapped_column(

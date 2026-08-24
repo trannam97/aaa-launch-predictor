@@ -11,6 +11,7 @@ from datetime import date, datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.baseline import BaselineForecast
 from app.ingest import split_list
 from app.models import Game, GameSnapshot, LifecycleStatus, Outcome
 
@@ -209,3 +210,36 @@ def status_badge(game: Game) -> StatusBadge:
         provisional=True,
         note="Marked resolved but no outcome is recorded.",
     )
+
+
+class PredictionOut(BaseModel):
+    """A pre-launch baseline forecast for one game.
+
+    Explicitly labeled as the rule-based baseline: Phase 2 replaces the
+    method behind this endpoint with a trained model, and a reader should be
+    able to tell which one produced a given number.
+    """
+
+    steam_appid: int
+    method: str = "rule_based_baseline_v1"
+    predicted_outcome: Outcome
+    predicted_label: str
+    confidence: str
+    probabilities: dict[str, float]
+    rationale: str
+    basis: list[str] = Field(default_factory=list)
+
+    @classmethod
+    def from_forecast(cls, appid: int, forecast: BaselineForecast) -> PredictionOut:
+        return cls(
+            steam_appid=appid,
+            predicted_outcome=forecast.predicted,
+            predicted_label=OUTCOME_LABELS[forecast.predicted],
+            confidence=forecast.confidence,
+            probabilities={
+                outcome.value: probability
+                for outcome, probability in forecast.probabilities.items()
+            },
+            rationale=forecast.rationale,
+            basis=forecast.basis,
+        )
