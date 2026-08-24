@@ -13,8 +13,8 @@ from dataclasses import dataclass
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models import Game, GameSnapshot, LifecycleStatus, utcnow
-from app.steam import AppDetails, SteamClient
+from app.models import Game, GameSnapshot, LifecycleStatus, ReleaseDateChange, utcnow
+from app.steam import COARSE_DATE_PATTERN, AppDetails, SteamClient
 
 
 @dataclass(slots=True)
@@ -46,6 +46,9 @@ def ingest_game(session: Session, appid: int, client: SteamClient) -> IngestResu
         game = Game(steam_appid=appid)
         session.add(game)
 
+    # Must run before _apply_details overwrites the stored date.
+    _record_release_date_change(session, game, details, created)
+
     _apply_details(game, details)
     game.lifecycle_status = _next_lifecycle_status(game.lifecycle_status, details)
     game.last_ingested_at = utcnow()
@@ -65,6 +68,45 @@ def ingest_game(session: Session, appid: int, client: SteamClient) -> IngestResu
     session.add(snapshot)
     session.flush()
     return IngestResult(game=game, snapshot=snapshot, created=created)
+
+
+def _record_release_date_change(
+    session: Session, game: Game, details: AppDetails, created: bool
+) -> None:
+    """Append a row when Steam's announced release date has moved.
+
+    Steam keeps no history of its own, so a delay only exists in this
+    database if it is caught between two refreshes. A game's first ingest
+    records nothing — there is no previous date to have moved from.
+    """
+    if created or game.release_date_raw is None:
+        return
+
+    previous_raw = game.release_date_raw
+    new_raw = details.release_date_raw
+    if previous_raw == new_raw:
+        return
+
+    previous_date = game.release_date
+    new_date = details.release_date
+    days_moved = (
+        (new_date - previous_date).days
+        if previous_date is not None and new_date is not None
+        else None
+    )
+
+    session.add(
+        ReleaseDateChange(
+            game=game,
+            observed_at=utcnow(),
+            previous_date=previous_date,
+            previous_raw=previous_raw,
+            new_date=new_date,
+            new_raw=new_raw,
+            days_moved=days_moved,
+            from_coarse_estimate=bool(COARSE_DATE_PATTERN.match(previous_raw.strip())),
+        )
+    )
 
 
 def _apply_details(game: Game, details: AppDetails) -> None:

@@ -152,6 +152,9 @@ cd backend && alembic upgrade head
 | `0001` | `games`, `game_snapshots` |
 | `0002` | `historical_releases`, `release_windows` |
 | `0003` | `studio_signal`, `support_signal` on `historical_releases` |
+| `0004` | demo presence and timing (`has_demo`, `demo_released_before_launch`) |
+| `0005` | add-on content by timing (`launch_day_dlc_count`, `post_launch_dlc_count`, `has_in_app_purchases`) |
+| `0006` | `release_date_changes` — announced-date slippage, observed forward only |
 
 ## Planned
 

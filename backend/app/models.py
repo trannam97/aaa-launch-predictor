@@ -190,6 +190,11 @@ class Game(Base):
         cascade="all, delete-orphan",
         order_by="GameSnapshot.captured_at.desc()",
     )
+    release_date_changes: Mapped[list[ReleaseDateChange]] = relationship(
+        back_populates="game",
+        cascade="all, delete-orphan",
+        order_by="ReleaseDateChange.observed_at",
+    )
 
     def __repr__(self) -> str:  # pragma: no cover - debug helper
         return f"<Game appid={self.steam_appid} name={self.name!r}>"
@@ -413,6 +418,54 @@ WindowKeyType = Enum(
     length=16,
     values_callable=lambda cls: [m.value for m in cls],
 )
+
+
+class ReleaseDateChange(Base):
+    """One observed change to a tracked game's announced release date.
+
+    Steam publishes only the *current* date, with no history — so a delay is
+    invisible unless it is caught as it happens. Every refresh compares what
+    Steam now says against what we last recorded, and appends a row when they
+    differ. Nothing recovers a delay that happened before a game was tracked.
+
+    Deliberately captured without assuming a direction. Repeated delays are
+    commonly read as production trouble, but the counter-examples are strong:
+    Elden Ring slipped once and was a breakout, while Cyberpunk 2077 slipped
+    three times and shipped broken anyway. Whether slippage predicts anything,
+    and with what sign, is for Phase 2 to determine from data rather than for
+    this table to presume.
+    """
+
+    __tablename__ = "release_date_changes"
+    __table_args__ = (Index("ix_release_date_changes_game_observed", "game_id", "observed_at"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    game_id: Mapped[int] = mapped_column(ForeignKey("games.id", ondelete="CASCADE"), nullable=False)
+    observed_at: Mapped[datetime] = mapped_column(UtcDateTime, nullable=False, default=utcnow)
+
+    previous_date: Mapped[date | None] = mapped_column(Date)
+    previous_raw: Mapped[str | None] = mapped_column(String(64))
+    new_date: Mapped[date | None] = mapped_column(Date)
+    new_raw: Mapped[str | None] = mapped_column(String(64))
+
+    # Positive = pushed back, negative = brought forward. Null when either
+    # side could not be parsed to a real date.
+    days_moved: Mapped[int | None] = mapped_column(Integer)
+
+    # True when the previous date was a coarse window ("Q4 2026", "2026").
+    # Narrowing "Q4 2026" to "Nov 12, 2026" is a precision increase, not a
+    # delay, and counting it as slippage would inflate every such game.
+    from_coarse_estimate: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+
+    game: Mapped[Game] = relationship(back_populates="release_date_changes")
+
+    @property
+    def is_delay(self) -> bool:
+        """A real push-back, excluding mere precision increases."""
+        return not self.from_coarse_estimate and self.days_moved is not None and self.days_moved > 0
+
+    def __repr__(self) -> str:  # pragma: no cover - debug helper
+        return f"<ReleaseDateChange game_id={self.game_id} {self.previous_raw!r}->{self.new_raw!r}>"
 
 
 class HistoricalRelease(Base):

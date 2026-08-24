@@ -362,6 +362,40 @@ posted nothing. Feed coverage is also inconsistent (Battlefield 2042's
 history is truncated before its own release). Patch *size*, which is what
 would actually discriminate, is not public. Not implemented.
 
+#### Release Date Slippage (pre-launch signal, captured forward only)
+Announced release dates move, sometimes repeatedly, and slippage is a
+plausible pre-launch signal — one of the few available *before* a game
+ships, and so one of the few usable for an actual forecast rather than a
+post-hoc explanation.
+
+**Steam publishes only the current date and no history.** A delay therefore
+exists in this project's data only if it was observed between two refreshes.
+`release_date_changes` records each observed move for tracked games. Nothing
+recovers slippage that happened before a game was tracked, so historical rows
+have none and never will — for those, delay history would have to come from
+press coverage via the LLM layer, as it is heavily reported.
+
+Two design notes:
+- **Direction is not assumed.** Repeated delays are commonly read as
+  production trouble, but the counter-examples are strong: Elden Ring slipped
+  once and was a breakout; Cyberpunk 2077 slipped three times and shipped
+  broken anyway. Whether slippage predicts anything, and with what sign, is
+  for the model to determine. The table records the fact, not a judgment.
+- **Precision increases are not delays.** "Q4 2026" parses to 2026-10-01, so
+  pinning it to "Nov 12, 2026" looks like a 42-day slip when it is a gain in
+  precision. Changes from a coarse window are flagged and excluded from delay
+  counts; otherwise every game that ever announced a quarter would read as
+  having slipped.
+
+#### Day-One Patch (investigated, rejected)
+Detectable in principle — `ISteamNews` is public and reaches back past
+release — but measured against known launches it tracks how communicative a
+studio is rather than how broken the game was. The two most infamous launches
+in the corpus, Cyberpunk 2077 and Redfall, posted no launch-window patch
+notes at all, while Elden Ring and Baldur's Gate 3 did. Feed coverage is
+inconsistent, and patch *size* — the discriminating quantity — is not public.
+Not pursued.
+
 #### Cohort Normalization
 Raw counts (review counts, concurrent player peaks) are not comparable
 across years — Steam's install base and review-leaving culture have grown

@@ -10,6 +10,7 @@ Nothing here scrapes SteamDB — see the Data Layer section of PROJECT_SPEC.md.
 
 from __future__ import annotations
 
+import re
 import time
 from dataclasses import dataclass, field
 from datetime import date, datetime
@@ -33,6 +34,13 @@ MIN_REQUEST_INTERVAL_SECONDS = 1.5
 # switches between the middle-endian and little-endian forms depending on the
 # country code, and unreleased titles use coarse windows ("Q4 2026", "2026").
 _DATE_FORMATS = ("%b %d, %Y", "%d %b, %Y", "%B %d, %Y", "%d %B %Y", "%b %Y", "%B %Y", "%Y")
+
+# Release-date strings that name a window rather than a day. Narrowing one of
+# these ("Q4 2026" -> "Nov 12, 2026") is a gain in precision, not a delay.
+COARSE_DATE_PATTERN = re.compile(
+    r"^(Q[1-4]\s*\d{4}|\d{4}|[A-Za-z]+\s+\d{4}|coming\s+soon|to\s+be\s+announced|TBA|TBD)$",
+    re.IGNORECASE,
+)
 
 
 class SteamError(RuntimeError):
