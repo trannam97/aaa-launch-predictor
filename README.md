@@ -6,10 +6,10 @@ whether each will land as a **Flop**, **Underperform**, **Success**, or
 factors with an LLM reasoning layer on live signals (reviews, buzz, public
 reception).
 
-> **Status:** Phase 1 — 126 historical releases backfilled, 34 hand-labeled
-> from sourced research, and the outcome rubric encoded and validated against
-> them. Predictions come from a rule-based baseline; no trained model or LLM
-> reasoning layer yet. See the roadmap below.
+> **Status:** Phase 1 — 204 historical releases backfilled, 34 hand-labeled
+> from sourced research, and the outcome rubric encoded and reproducing every
+> label on its falsifiable axis. Predictions come from a rule-based baseline;
+> no trained model or LLM reasoning layer yet. See the roadmap below.
 
 ## Disclaimer
 
@@ -100,8 +100,8 @@ For a hosted database, copy `.env.example` to `.env` and set `DATABASE_URL`.
 | Phase | Status | What |
 |---|---|---|
 | 0 | **Done** | Steam ingestion end-to-end: one game's data into the DB and onto a page |
-| 0.5 | **Done** | Historical backfill — 126 releases (2015–2025) with windowed launch metrics |
-| 1 | **Done** | 34 games labeled from sourced research; rubric encoded and validated at 96.8% on its falsifiable axis; rule-based baseline wired to the API |
+| 0.5 | **Done** | Historical backfill — now 204 releases (2014–2025) with windowed launch metrics |
+| 1 | **Done** | 34 games labeled from sourced research; rubric encoded and reproducing all 31 scored labels on its falsifiable axis; rule-based baseline wired to the API |
 | 2 | Next | Train the ordinal gradient-boosted model on the labeled set, replace the baseline |
 | 3 | | Claude reasoning layer on top of model output for live titles |
 | 4 | | Dashboard polish, refresh scheduling, historical accuracy tracking |

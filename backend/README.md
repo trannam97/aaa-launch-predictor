@@ -60,7 +60,7 @@ Steam failures are mapped to HTTP: unknown appid → 404, rate limit or outage �
 | `app/schemas.py` | API response models and the status-badge mapping |
 | `app/main.py` | Routes and Steam-error → HTTP mapping |
 | `app/db.py` | Engine, request-scoped session, `session_scope()` for jobs |
-| `app/cohort.py` | Cohort-normalized percentiles — raw counts aren't comparable across years |
+| `app/cohort.py` | Cohort-normalized percentiles for counts, and price relative to each year's going rate |
 | `app/rubric.py` | The outcome rubric as code: observed signals → one of four tiers |
 | `app/baseline.py` | Rule-based pre-launch forecast, replaced by the model in Phase 2 |
 | `app/validation.py` | Scores the rubric against the hand-labeled set |

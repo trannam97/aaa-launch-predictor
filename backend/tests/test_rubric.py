@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from app.cohort import MIN_COHORT_SIZE, CohortIndex, CohortStats
+from app.cohort import MIN_COHORT_SIZE, CohortIndex, CohortStats, PriceIndex
 from app.models import Outcome, StudioSignal, SupportSignal
 from app.rubric import RubricInput, classify
 
@@ -204,3 +204,55 @@ def test_upper_tier_confidence_drops_without_a_settled_support_picture(support):
 
     assert result.outcome is Outcome.BREAKOUT
     assert result.confidence == "low"
+
+
+# --- price normalization --------------------------------------------------
+
+
+def test_going_rate_is_the_modal_price_not_the_mean():
+    # AAA pricing clusters on a headline number. A mean would report $63.75,
+    # which nobody ever charged.
+    index = PriceIndex({2023: [7000] * 6 + [6000, 4000]})
+
+    assert index.going_rate(2023) == 7000
+
+
+def test_going_rate_breaks_ties_toward_the_higher_price():
+    # In a step year the new rate should win, not the outgoing one.
+    index = PriceIndex({2023: [6000] * 4 + [7000] * 4})
+
+    assert index.going_rate(2023) == 7000
+
+
+def test_relative_price_expresses_the_going_rate_as_1():
+    index = PriceIndex({2024: [7000] * 10})
+
+    assert index.relative_price(2024, 7000) == 1.0
+    assert index.relative_price(2024, 4000) == 0.571
+    assert index.relative_price(2024, 8000) == 1.143
+
+
+def test_same_nominal_price_reads_differently_across_eras():
+    # The point of the whole exercise: $60 was the going rate in 2016 and
+    # below it in 2024, so the same number must not mean the same thing.
+    index = PriceIndex({2016: [6000] * 10, 2024: [7000] * 10})
+
+    assert index.relative_price(2016, 6000) == 1.0
+    assert index.relative_price(2024, 6000) == 0.857
+
+
+def test_thin_price_cohort_returns_none():
+    # Only curated rows carry a launch price, so early cohorts are sparse.
+    # An invented going rate would be worse than no answer.
+    index = PriceIndex({2015: [6000, 6000]})
+
+    assert index.going_rate(2015) is None
+    assert index.relative_price(2015, 6000) is None
+
+
+def test_free_and_missing_prices_are_not_ranked():
+    index = PriceIndex({2024: [7000] * 10})
+
+    assert index.relative_price(2024, None) is None
+    assert index.relative_price(2024, 0) is None
+    assert index.relative_price(None, 7000) is None

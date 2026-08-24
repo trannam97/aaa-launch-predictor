@@ -118,3 +118,78 @@ class CohortIndex:
     @property
     def years(self) -> list[int]:
         return sorted(self._by_year)
+
+
+# --- Price ----------------------------------------------------------------
+# Nominal launch price is not comparable across cohorts either, for two
+# compounding reasons. General inflation is one: $60 in 2015 is worth roughly
+# $80 in 2025 terms, so the industry's 2023 move from $60 to $70 was a real
+# price *cut*. The industry's own pricing norm is the other, and it matters
+# more here: $60 was the standard AAA price through 2022 and $70 from 2023,
+# so the same $60 means "priced at the going rate" in 2016 and "priced under
+# it" in 2024.
+#
+# Rather than deflate by a CPI series, price is expressed relative to what
+# comparable releases charged that year. That answers the question the rubric
+# actually asks — was this priced at, above, or below the going rate for its
+# tier? — and it needs no external data, no annual maintenance, and no
+# assumption that game prices track consumer inflation (they demonstrably do
+# not).
+
+
+class PriceIndex:
+    """Launch prices grouped into the same rolling year cohorts."""
+
+    def __init__(self, prices_by_year: dict[int, list[int]]) -> None:
+        self._by_year = {year: sorted(v) for year, v in prices_by_year.items()}
+
+    @classmethod
+    def from_db(cls, session: Session) -> PriceIndex:
+        rows = session.execute(
+            select(HistoricalRelease.cohort_year, HistoricalRelease.launch_price_cents).where(
+                HistoricalRelease.launch_price_cents.is_not(None),
+                HistoricalRelease.launch_price_cents > 0,
+                HistoricalRelease.cohort_year.is_not(None),
+            )
+        ).all()
+        prices: dict[int, list[int]] = {}
+        for year, cents in rows:
+            prices.setdefault(year, []).append(cents)
+        return cls(prices)
+
+    def _cohort(self, year: int) -> list[int]:
+        values: list[int] = []
+        for offset in range(-COHORT_HALF_WIDTH, COHORT_HALF_WIDTH + 1):
+            values.extend(self._by_year.get(year + offset, []))
+        return sorted(values)
+
+    def going_rate(self, year: int) -> int | None:
+        """The modal launch price of the cohort — the year's standard price.
+
+        Mode rather than mean: AAA pricing clusters hard on a single headline
+        number, and an average smears the $60/$70 step change into a fiction
+        nobody ever charged.
+        """
+        values = self._cohort(year)
+        if len(values) < MIN_COHORT_SIZE:
+            return None
+        counts: dict[int, int] = {}
+        for cents in values:
+            counts[cents] = counts.get(cents, 0) + 1
+        top = max(counts.values())
+        # Ties break toward the higher price: the step year (2023) should read
+        # as the new rate, not the outgoing one.
+        return max(price for price, n in counts.items() if n == top)
+
+    def relative_price(self, year: int | None, cents: int | None) -> float | None:
+        """Launch price as a multiple of its cohort's going rate.
+
+        1.0 means priced at the going rate, 0.57 means a $40 release in a $70
+        year. None when the cohort is too thin to establish a rate.
+        """
+        if year is None or cents is None or cents <= 0:
+            return None
+        rate = self.going_rate(year)
+        if not rate:
+            return None
+        return round(cents / rate, 3)

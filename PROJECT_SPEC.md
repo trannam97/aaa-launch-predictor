@@ -248,6 +248,46 @@ Two traps this exposed, both handled in the backfill:
   released three weeks ago returns a real-looking number covering the wrong
   period. Such windows are skipped, not stored.
 
+#### Outcome Scope: Launch, Not Eventual Fate
+**Resolved in Phase 1.** Outcome tiers describe how a release *launched*, not
+what it eventually became. A title that recovers years later is labeled on
+its launch window: No Man's Sky is `underperform` (61.3% positive over its
+first two weeks) despite a ten-year recovery to 85.0% lifetime, 200M+
+revenue and forty free updates.
+
+The reasoning is that the features the model sees are launch-window
+features. Labeling against a decade-long outcome would train launch data to
+predict something it cannot contain, and would make accuracy tracking
+meaningless — a pre-launch forecast cannot be scored against an outcome that
+took ten years to settle. Recovery is real and worth tracking eventually,
+but as its own signal, not folded into the launch label.
+
+Flop vs. Underperform still uses post-launch studio and support evidence, as
+before; that evidence is about whether the shortfall was survivable, not
+about eventual redemption. No Man's Sky is `underperform` rather than `flop`
+because Hello Games kept operating and kept supporting the game.
+
+#### Price Normalization (inflation)
+Nominal launch price is not comparable across cohorts, for two compounding
+reasons:
+- **General inflation.** $60 in 2015 is worth roughly $80 in 2025 terms, so
+  the industry's 2023 move from $60 to $70 was a real-terms price *cut*.
+- **The industry's own pricing norm**, which matters more here. $60 was the
+  standard AAA price through 2022 and $70 from 2023, so the same $60 means
+  "at the going rate" in 2016 and "under it" in 2024.
+
+Rather than deflate by a CPI series, price is expressed **relative to the
+modal launch price of its cohort** — the same rolling-window machinery that
+normalizes review counts. That answers the question actually being asked
+(was this priced at, above, or below the going rate for its tier?), needs no
+external data or annual maintenance, and avoids assuming game prices track
+consumer inflation, which they demonstrably do not.
+
+Development *cost* inflation is a separate matter, currently absorbed by
+`budget_tier` being categorical rather than a dollar figure. AAA budgets have
+risen faster than CPI, so if dollar figures are ever attached, they will need
+their own deflator rather than reusing this one.
+
 #### Cohort Normalization
 Raw counts (review counts, concurrent player peaks) are not comparable
 across years — Steam's install base and review-leaving culture have grown

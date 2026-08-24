@@ -22,6 +22,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT / "backend"))
 
+from app.cohort import PriceIndex  # noqa: E402
 from app.db import session_scope  # noqa: E402
 from app.models import Outcome  # noqa: E402
 from app.validation import validate  # noqa: E402
@@ -57,6 +58,7 @@ def main(argv: list[str] | None = None) -> int:
             print(json.dumps(_as_dict(report), indent=2))
         else:
             _print_report(report)
+            _print_price_context(session)
 
         agreement = report.met_expectations_agreement
 
@@ -137,6 +139,22 @@ def _print_report(report) -> None:
         print("  Excluded from scoring")
         for game, reason in report.excluded:
             print(f"    {game[:38]:<38} {reason}")
+        print()
+
+
+def _print_price_context(session) -> None:
+    """Show the going rate per cohort — the reference nominal price is ranked against."""
+    prices = PriceIndex.from_db(session)
+    years = sorted({y for y in range(2014, 2027) if prices.going_rate(y)})
+    print("  Going launch price by cohort (modal price of comparable releases)")
+    if not years:
+        print("    not enough curated launch prices to establish a rate for any cohort")
+        return
+    for year in years:
+        rate = prices.going_rate(year)
+        print(f"    {year}   ${rate / 100:.0f}")
+    print("    Nominal price is not comparable across these — $60 was the going")
+    print("    rate through 2022 and below it from 2023.")
 
 
 if __name__ == "__main__":

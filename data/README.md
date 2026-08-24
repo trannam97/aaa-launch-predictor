@@ -68,8 +68,14 @@ launch as a well-received release.
 
 ## Labels
 
-34 of 126 rows carry an outcome label, each with a confidence level and cited
-sources. Distribution: 7 flop, 12 underperform, 7 success, 8 breakout.
+34 of 204 rows carry an outcome label, each with a confidence level and cited
+sources. Distribution: 7 flop, 13 underperform, 6 success, 8 breakout.
+
+**Labels describe the launch, not the eventual outcome.** No Man's Sky is
+`underperform` — 61.3% positive over its first two weeks — despite a ten-year
+recovery to 85.0% lifetime. The features are launch-window features, so
+labeling against a decade-long outcome would train them to predict something
+they cannot contain. Recovery is out of scope for now.
 
 **Labels are Steam-scoped.** Per the spec's Release Date Handling, outcome
 tiers measure Steam-specific performance, so only day-one Steam releases are
@@ -106,6 +112,13 @@ excluded from rubric validation.
   but store *search* won't surface them, and `GetAppList` now requires a
   Steam Web API key. Babylon's Fall is the one seed game left out for this
   reason.
+- **Nominal prices aren't comparable across years either.** $60 was the
+  standard AAA price through 2022 and $70 from 2023, and $60 in 2015 is worth
+  roughly $80 in 2025 terms — so the industry's price rise was a real-terms
+  cut. `launch_price_cents` stores the nominal figure; `PriceIndex` in
+  `app/cohort.py` expresses it relative to the modal price of its cohort.
+  That index only produces a rate for cohorts with enough curated prices,
+  which today means the recent years — it improves as more rows get labeled.
 - **Counts aren't comparable across years.** The Witcher 3 drew 7,519 launch
   reviews in 2015; Black Myth: Wukong drew 689,276 in 2024. That's Steam's
   growth, not a 90x difference in success. `cohort_year` is stored so
