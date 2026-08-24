@@ -119,6 +119,13 @@ excluded from rubric validation.
   `app/cohort.py` expresses it relative to the modal price of its cohort.
   That index only produces a rate for cohorts with enough curated prices,
   which today means the recent years — it improves as more rows get labeled.
+- **A demo listed today usually wasn't there at launch.** Steam's `demos`
+  field reports current state, and across this corpus roughly two-thirds of
+  listed demos were added *after* release — publishers converting holdouts
+  when sales disappoint. `demo_timing` classifies each against the demo app's
+  own release date, and only `pre_launch` is safe as a pre-launch feature.
+  `none_listed` means no demo is listed now, never that none existed: Next
+  Fest demos are routinely delisted.
 - **Counts aren't comparable across years.** The Witcher 3 drew 7,519 launch
   reviews in 2015; Black Myth: Wukong drew 689,276 in 2024. That's Steam's
   growth, not a 90x difference in success. `cohort_year` is stored so

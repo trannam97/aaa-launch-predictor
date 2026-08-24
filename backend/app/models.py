@@ -326,6 +326,28 @@ class SupportSignal(enum.StrEnum):
     UNKNOWN = "unknown"
 
 
+class DemoTiming(enum.StrEnum):
+    """When a demo appeared relative to the game's Steam release.
+
+    The distinction is the whole point. Of the corpus games that list a demo
+    today, most got it *after* launch — publishers add one to convert
+    holdouts when sales disappoint. So a bare "has a demo" flag correlates
+    with commercial disappointment rather than predicting success, and only
+    `PRE_LAUNCH` is usable as a pre-launch feature.
+
+    `NONE_LISTED` means no demo is listed *now*, which is not the same as no
+    demo ever existing: Steam Next Fest demos are routinely taken down after
+    the event. Absence is not evidence of absence here — the same rule the
+    spec already applies to wishlist figures.
+    """
+
+    PRE_LAUNCH = "pre_launch"
+    LAUNCH_WINDOW = "launch_window"
+    POST_LAUNCH = "post_launch"
+    NONE_LISTED = "none_listed"
+    UNKNOWN = "unknown"
+
+
 class WindowKey(enum.StrEnum):
     """Named capture windows, measured from the Steam release date."""
 
@@ -377,6 +399,13 @@ SupportSignalType = Enum(
     length=32,
     values_callable=lambda cls: [m.value for m in cls],
 )
+DemoTimingType = Enum(
+    DemoTiming,
+    name="demo_timing",
+    native_enum=False,
+    length=32,
+    values_callable=lambda cls: [m.value for m in cls],
+)
 WindowKeyType = Enum(
     WindowKey,
     name="window_key",
@@ -419,6 +448,13 @@ class HistoricalRelease(Base):
     on_linux: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     metacritic_score: Mapped[int | None] = mapped_column(Integer)
     metacritic_url: Mapped[str | None] = mapped_column(String(512))
+    # Demo, if Steam currently lists one. Timing is what carries the signal;
+    # see DemoTiming for why a bare presence flag would mislead.
+    demo_appid: Mapped[int | None] = mapped_column(Integer)
+    demo_release_date: Mapped[date | None] = mapped_column(Date)
+    demo_timing: Mapped[DemoTiming] = mapped_column(
+        DemoTimingType, nullable=False, default=DemoTiming.UNKNOWN
+    )
     # Grouping key for cohort normalization: raw counts are not comparable
     # across years, so every count-based feature is ranked within its cohort.
     cohort_year: Mapped[int | None] = mapped_column(Integer, index=True)

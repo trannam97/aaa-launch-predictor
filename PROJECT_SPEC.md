@@ -288,6 +288,41 @@ Development *cost* inflation is a separate matter, currently absorbed by
 risen faster than CPI, so if dollar figures are ever attached, they will need
 their own deflator rather than reusing this one.
 
+#### Demo Timing (and why a bare "has a demo" flag is harmful)
+**Resolved in Phase 1.** A pre-launch demo plausibly moves perception —
+players who try the game form a view before buying — so it is worth
+capturing. But the obvious implementation is actively wrong.
+
+Steam's `appdetails` exposes a `demos` field, which says a demo exists
+*now*. Checking the demo app's own release date against the game's, across
+the corpus, shows why that is not the same question: **of the titles listing
+a demo, roughly two-thirds got it after launch, not before.** Publishers add
+a demo to convert holdouts when sales disappoint — Immortals of Aveum 87 days
+post-launch, Dragon Age: The Veilguard 34 days, Skull and Bones 279 days,
+Star Wars Outlaws 147 days, all of them commercial disappointments. The
+pre-launch demos skew the other way (Metaphor: ReFantazio, Resident Evil 4,
+Tekken 8, Street Fighter 6).
+
+A naive `has_demo` boolean would therefore teach a model that demos predict
+failure, when what it is really seeing is a *response* to failure. Only
+`demo_timing == pre_launch` may be used as a pre-launch feature. A
+post-launch demo is outcome-contaminated and must be excluded from anything
+forecasting a launch, though it stays recorded as a post-launch marketing
+signal.
+
+Two further limits, both stated rather than worked around:
+- **Absence is not evidence.** A demo delisted after Steam Next Fest leaves
+  no trace in the API, so `none_listed` means "no demo listed today", never
+  "no demo existed". This is the same rule the spec already applies to
+  wishlist figures.
+- **Same-day demos are ambiguous** and are recorded as `launch_window` rather
+  than forced into either bucket.
+- **Selection effect.** Studios choose whether to demo, and that choice
+  correlates with budget tier, genre and confidence in the product. Any
+  association found here is descriptive, not causal — consistent with the
+  Public Reception Signal guardrail against adjudicating *why* a reaction
+  happened.
+
 #### Cohort Normalization
 Raw counts (review counts, concurrent player peaks) are not comparable
 across years — Steam's install base and review-leaving culture have grown

@@ -64,6 +64,9 @@ class AppDetails:
     on_linux: bool = False
     metacritic_score: int | None = None
     metacritic_url: str | None = None
+    # Demo apps Steam currently lists for this title. Current state only —
+    # a demo taken down after Steam Next Fest leaves no trace here.
+    demo_appids: list[int] = field(default_factory=list)
 
 
 @dataclass(slots=True)
@@ -221,6 +224,28 @@ class SteamClient:
             score_desc=summary.get("review_score_desc") or None,
         )
 
+    def get_demo_release_date(self, demo_appid: int) -> date | None:
+        """When a demo app itself released.
+
+        Needed because the parent game's `demos` field says only that a demo
+        exists *now*, not whether it existed before launch. Those are very
+        different things: publishers routinely add a demo months after a weak
+        launch to convert holdouts, so a demo's mere presence correlates with
+        disappointment rather than predicting success.
+        """
+        payload = self._get_json(
+            f"{STORE_BASE_URL}/api/appdetails",
+            {"appids": demo_appid, "cc": self._country_code, "l": self._language},
+        )
+        entry = payload.get(str(demo_appid))
+        if not isinstance(entry, dict) or not entry.get("success"):
+            return None
+        data = entry.get("data")
+        if not isinstance(data, dict):
+            return None
+        release = data.get("release_date") if isinstance(data.get("release_date"), dict) else {}
+        return parse_release_date(release.get("date"))
+
     def get_current_players(self, appid: int) -> int | None:
         """Current concurrent players, or None if Steam won't report it.
 
@@ -284,4 +309,9 @@ def _parse_app_details(appid: int, data: dict) -> AppDetails:
         on_linux=bool(platforms.get("linux")),
         metacritic_score=_as_int(metacritic.get("score")),
         metacritic_url=metacritic.get("url") or None,
+        demo_appids=[
+            demo_id
+            for demo in data.get("demos") or []
+            if isinstance(demo, dict) and (demo_id := _as_int(demo.get("appid")))
+        ],
     )

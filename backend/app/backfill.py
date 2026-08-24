@@ -19,6 +19,7 @@ from sqlalchemy.orm import Session
 
 from app.models import (
     BudgetTier,
+    DemoTiming,
     HistoricalRelease,
     LabelConfidence,
     Outcome,
@@ -42,6 +43,11 @@ WINDOW_DAYS: dict[WindowKey, int] = {
 # A Steam release within this many days of the original counts as day-one.
 # Wide enough to absorb timezone and staggered-regional-rollout noise.
 DAY_ONE_TOLERANCE_DAYS = 7
+
+# A demo dated within this many days either side of release is treated as a
+# launch-window demo rather than a genuine pre-launch one — same-day demos are
+# ambiguous, and a pre-launch feature must not lean on an ambiguous case.
+DEMO_LAUNCH_WINDOW_DAYS = 3
 
 
 @dataclass(slots=True)
@@ -96,6 +102,29 @@ def derive_platform_launch_type(
     return PlatformLaunchType.UNKNOWN
 
 
+def classify_demo_timing(
+    game_release: date | None, demo_release: date | None, has_demo: bool
+) -> DemoTiming:
+    """Place a demo relative to the game's Steam release.
+
+    Only `PRE_LAUNCH` is safe to use as a pre-launch feature. A post-launch
+    demo is a response to how the launch went, so feeding it to a forecaster
+    leaks the outcome backwards into the prediction.
+    """
+    if not has_demo:
+        # No demo listed today. Not the same as none ever existing — Next Fest
+        # demos are routinely delisted after the event.
+        return DemoTiming.NONE_LISTED
+    if game_release is None or demo_release is None:
+        return DemoTiming.UNKNOWN
+    gap_days = (demo_release - game_release).days
+    if gap_days < -DEMO_LAUNCH_WINDOW_DAYS:
+        return DemoTiming.PRE_LAUNCH
+    if gap_days > DEMO_LAUNCH_WINDOW_DAYS:
+        return DemoTiming.POST_LAUNCH
+    return DemoTiming.LAUNCH_WINDOW
+
+
 def _as_utc_datetime(day: date) -> datetime:
     return datetime.combine(day, time.min, tzinfo=UTC)
 
@@ -114,6 +143,10 @@ def backfill_release(
     details = client.get_app_details(curated.steam_appid)
     warnings: list[str] = []
 
+    # One extra request, and only for the minority of titles that list a demo.
+    demo_appid = details.demo_appids[0] if details.demo_appids else None
+    demo_release = client.get_demo_release_date(demo_appid) if demo_appid else None
+
     if not _names_match(details.name, curated.game_name):
         warnings.append(
             f"name mismatch: CSV says {curated.game_name!r}, Steam says {details.name!r}"
@@ -126,6 +159,11 @@ def backfill_release(
         session.add(release)
 
     _apply_api_fields(release, details)
+    release.demo_appid = demo_appid
+    release.demo_release_date = demo_release
+    release.demo_timing = classify_demo_timing(
+        details.release_date, demo_release, has_demo=demo_appid is not None
+    )
     _apply_curated_fields(release, curated, details)
     release.backfilled_at = utcnow()
     session.flush()

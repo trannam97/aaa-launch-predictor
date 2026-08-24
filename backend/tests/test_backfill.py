@@ -12,11 +12,13 @@ from app.backfill import (
     CuratedCsvError,
     CuratedRelease,
     backfill_release,
+    classify_demo_timing,
     derive_platform_launch_type,
     load_curated_csv,
 )
 from app.models import (
     BudgetTier,
+    DemoTiming,
     HistoricalRelease,
     LabelConfidence,
     Outcome,
@@ -349,3 +351,73 @@ def test_future_release_date_skips_all_launch_windows(session):
 
     assert result.windows_written == [WindowKey.LIFETIME]
     assert any("in the future" in w for w in result.warnings)
+
+
+# --- demo timing ----------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("game", "demo", "has_demo", "expected"),
+    [
+        # Metaphor: ReFantazio — a genuine pre-launch demo.
+        (date(2024, 10, 10), date(2024, 9, 25), True, DemoTiming.PRE_LAUNCH),
+        # Dragon Age: The Veilguard — demo added a month AFTER a weak launch.
+        (date(2024, 10, 31), date(2024, 12, 4), True, DemoTiming.POST_LAUNCH),
+        # Forspoken — demo dated the same day; too ambiguous to lean on.
+        (date(2023, 1, 24), date(2023, 1, 24), True, DemoTiming.LAUNCH_WINDOW),
+        (date(2023, 1, 24), date(2023, 1, 26), True, DemoTiming.LAUNCH_WINDOW),
+        (date(2023, 1, 24), date(2023, 1, 20), True, DemoTiming.PRE_LAUNCH),
+        (date(2024, 1, 1), None, True, DemoTiming.UNKNOWN),
+        (None, date(2024, 1, 1), True, DemoTiming.UNKNOWN),
+        (date(2024, 1, 1), None, False, DemoTiming.NONE_LISTED),
+    ],
+)
+def test_classify_demo_timing(game, demo, has_demo, expected):
+    assert classify_demo_timing(game, demo, has_demo=has_demo) is expected
+
+
+def test_no_demo_listed_is_not_a_claim_that_none_existed():
+    # Next Fest demos are routinely delisted, so absence is not evidence.
+    # The enum name has to keep saying that.
+    assert DemoTiming.NONE_LISTED.value == "none_listed"
+
+
+def test_backfill_records_a_pre_launch_demo(session):
+    details = load_fixture("appdetails_released.json")
+    details["1174180"]["data"]["demos"] = [{"appid": 999001, "description": ""}]
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/api/appdetails"):
+            if request.url.params.get("appids") == "999001":
+                return httpx.Response(
+                    200,
+                    json={
+                        "999001": {
+                            "success": True,
+                            "data": {
+                                "name": "Example Demo",
+                                "type": "demo",
+                                "release_date": {"coming_soon": False, "date": "Oct 1, 2018"},
+                            },
+                        }
+                    },
+                )
+            return httpx.Response(200, json=details)
+        return httpx.Response(200, json=load_fixture("appreviews_released.json"))
+
+    with httpx.Client(transport=httpx.MockTransport(handler)) as http_client:
+        result = backfill_release(session, curated(), SteamClient(http_client))
+        session.commit()
+
+    assert result.release.demo_appid == 999001
+    assert result.release.demo_release_date == date(2018, 10, 1)
+    # Game released 2018-10-26, so the demo predates it.
+    assert result.release.demo_timing is DemoTiming.PRE_LAUNCH
+
+
+def test_backfill_records_absence_of_a_demo(session, steam):
+    result = backfill_release(session, curated(), steam)
+    session.commit()
+
+    assert result.release.demo_appid is None
+    assert result.release.demo_timing is DemoTiming.NONE_LISTED
