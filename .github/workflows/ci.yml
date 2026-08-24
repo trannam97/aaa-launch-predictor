@@ -56,7 +56,7 @@ jobs:
           "
 
       - name: Migrations match the models
-        working-directory: data
+        working-directory: backend
         env:
           # A throwaway SQLite file: `alembic check` needs somewhere to apply
           # the migrations before diffing them against the models.

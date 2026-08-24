@@ -13,8 +13,8 @@ cd backend
 python -m venv .venv && source .venv/bin/activate
 pip install -e '.[dev]'                 # add '.[dev,postgres]' for Postgres
 
-# Create the schema (defaults to a local SQLite file; see /data)
-cd ../data && alembic upgrade head && cd ../backend
+# Create the schema (defaults to a local SQLite file)
+alembic upgrade head
 
 uvicorn app.main:app --reload           # http://localhost:8000
 ```
@@ -64,6 +64,7 @@ Steam failures are mapped to HTTP: unknown appid → 404, rate limit or outage �
 | `app/rubric.py` | The outcome rubric as code: observed signals → one of four tiers |
 | `app/baseline.py` | Rule-based pre-launch forecast, replaced by the model in Phase 2 |
 | `app/validation.py` | Scores the rubric against the hand-labeled set |
+| `migrations/` | Alembic revisions, beside the models they migrate |
 
 ## Tests
 
@@ -72,6 +73,29 @@ pytest              # from /backend
 ruff check .        # from the repo root — config is in /ruff.toml
 ruff format .
 ```
+
+## Migrations
+
+Alembic lives here, not in `/data`, so it can import `app.models` directly
+rather than reaching across the tree — the schema's definition and its
+migration history belong together. The dataset CSVs stay in `/data`, since
+`/jobs` and `/ml` read them too.
+
+```bash
+cd backend
+
+alembic upgrade head              # apply migrations
+alembic downgrade -1              # roll back one
+alembic check                     # do the models match the migrations?
+alembic revision --autogenerate -m "add company_tier"
+alembic upgrade head --sql        # print SQL instead of running it
+```
+
+The URL comes from `DATABASE_URL` (or the SQLite default) — never from
+`alembic.ini`, which is committed. Batch mode is on for SQLite so the same
+revision applies cleanly to hosted Postgres. `migrations/env.py` renders the
+project's `UtcDateTime` as plain `sa.DateTime(timezone=True)`, so generated
+migrations never import from `app` and can't be broken by a later refactor.
 
 The suite is hermetic: an in-memory SQLite database and a stubbed Steam
 transport replaying the recorded payloads in `tests/fixtures/`. No network,

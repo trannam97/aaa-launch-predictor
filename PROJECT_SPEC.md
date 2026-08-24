@@ -459,8 +459,14 @@ scope limit:
    than one simple app: `/frontend` (Next.js), `/backend` (FastAPI),
    `/ml` (training scripts, model artifacts, company-tiering clustering),
    `/jobs` (the polling, retraining, resolution, and clustering scripts
-   that GitHub Actions triggers on schedule), `/data` (seed CSV, schema
-   migrations).
+   that GitHub Actions triggers on schedule), `/data` (curated datasets),
+   `/reports` (per-phase reports).
+   **Revised during Phase 1:** schema migrations were originally placed in
+   `/data` alongside the seed CSV. They now live in `/backend/migrations`,
+   beside the models they migrate — keeping them apart forced `env.py` to
+   reach across the tree to import `app.models`, and split the schema's
+   definition from its history. Datasets stay in `/data`, which `/backend`,
+   `/jobs` and `/ml` all read.
 3. Use a database migration tool (e.g. Alembic for Python + Postgres) from
    day one rather than hand-editing schema — the schema already has
    several moving pieces (`lifecycle_status`, `predicted_outcome`,

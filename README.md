@@ -58,9 +58,9 @@ LightGBM (ML model) · Claude (LLM reasoning layer) · GitHub Actions
 
 | Folder | What |
 |---|---|
-| `/backend` | FastAPI app — Steam client, ingestion pipeline, API |
+| `/backend` | FastAPI app — Steam client, ingestion pipeline, API, DB migrations |
 | `/frontend` | Next.js dashboard |
-| `/data` | Alembic migrations, seed dataset |
+| `/data` | Curated datasets shared by the backend, jobs and ML code |
 | `/jobs` | Scripts GitHub Actions runs on a schedule |
 | `/ml` | Model training and company-tiering clustering (Phase 2) |
 | `/reports` | Per-phase reports on what shipped and what the data showed |
@@ -79,7 +79,7 @@ python -m venv .venv && source .venv/bin/activate
 pip install -e '.[dev]'
 
 # 2. Schema
-cd ../data && alembic upgrade head && cd ../backend
+alembic upgrade head
 
 # 3. API on :8000
 uvicorn app.main:app --reload

@@ -1,15 +1,19 @@
 # Data
 
-Alembic migrations, the curated historical dataset, and the seed research it
-grew from.
+The curated historical dataset and the seed research it grew from.
+
+Datasets live here rather than under `/backend` because three top-level
+components read them: the backend, the scheduled jobs in `/jobs`, and (from
+Phase 2) the training code in `/ml`. Schema **migrations** used to live here
+too, but they now sit in `/backend/migrations`, beside the models they
+migrate — see that folder's notes in `backend/README.md`.
 
 ## Files
 
 | File | What |
 |---|---|
-| `historical_releases.csv` | **Curated input** for the Phase 0.5 backfill — one row per game, holding only what Steam cannot answer. |
+| `historical_releases.csv` | **Curated input** for the backfill — one row per game, holding only what Steam cannot answer. |
 | `historical_releases_seed.csv` | The original 13-game research batch, kept as provenance. Superseded by the file above; not read by any code. |
-| `migrations/` | Alembic revisions. Models live in `/backend/app/models.py`. |
 
 ## The curated CSV
 
@@ -108,27 +112,16 @@ excluded from rubric validation.
   count-based features can be ranked within a same-year cohort; the
   normalization itself is Phase 2 work.
 
-## Migrations
+## Schema
 
-The database URL comes from `DATABASE_URL` (or the backend's SQLite
-default) — never from `alembic.ini`, which is committed.
+The tables these CSVs load into are defined in `/backend/app/models.py` and
+migrated from `/backend/migrations`. Run migrations from `/backend`:
 
 ```bash
-cd data
-
-alembic upgrade head              # apply migrations
-alembic downgrade -1              # roll back one
-alembic check                     # do the models match the migrations?
-alembic revision --autogenerate -m "add company_tier"
-alembic upgrade head --sql        # print SQL instead of running it
+cd backend && alembic upgrade head
 ```
 
-Batch mode is on for SQLite so the same revision applies cleanly to both
-local SQLite and hosted Postgres. `migrations/env.py` renders the project's
-`UtcDateTime` as plain `sa.DateTime(timezone=True)`, so generated migrations
-never import from `app` and can't be broken by a later refactor.
-
-| Revision | Tables |
+| Revision | What it adds |
 |---|---|
 | `0001` | `games`, `game_snapshots` |
 | `0002` | `historical_releases`, `release_windows` |
