@@ -9,6 +9,7 @@ import pytest
 from sqlalchemy import select
 
 from app.backfill import (
+    MAX_DLC_LOOKUPS,
     CuratedCsvError,
     CuratedRelease,
     backfill_release,
@@ -166,7 +167,7 @@ def windowed_steam_client(window_totals: dict[str, int] | None = None) -> SteamC
             return httpx.Response(200, json=payload)
         return httpx.Response(200, json=load_fixture("currentplayers.json"))
 
-    return SteamClient(httpx.Client(transport=httpx.MockTransport(handler)))
+    return SteamClient(httpx.Client(transport=httpx.MockTransport(handler)), min_request_interval=0)
 
 
 @pytest.fixture
@@ -325,7 +326,8 @@ def test_windows_that_have_not_elapsed_are_skipped(session, monkeypatch):
         return httpx.Response(200, json=load_fixture("appreviews_released.json"))
 
     with httpx.Client(transport=httpx.MockTransport(handler)) as http_client:
-        result = backfill_release(session, curated(), SteamClient(http_client))
+        client = SteamClient(http_client, min_request_interval=0)
+        result = backfill_release(session, curated(), client)
         session.commit()
 
     written = set(result.windows_written)
@@ -347,7 +349,8 @@ def test_future_release_date_skips_all_launch_windows(session):
         return httpx.Response(200, json=load_fixture("appreviews_released.json"))
 
     with httpx.Client(transport=httpx.MockTransport(handler)) as http_client:
-        result = backfill_release(session, curated(), SteamClient(http_client))
+        client = SteamClient(http_client, min_request_interval=0)
+        result = backfill_release(session, curated(), client)
 
     assert result.windows_written == [WindowKey.LIFETIME]
     assert any("in the future" in w for w in result.warnings)
@@ -406,7 +409,8 @@ def test_backfill_records_a_pre_launch_demo(session):
         return httpx.Response(200, json=load_fixture("appreviews_released.json"))
 
     with httpx.Client(transport=httpx.MockTransport(handler)) as http_client:
-        result = backfill_release(session, curated(), SteamClient(http_client))
+        client = SteamClient(http_client, min_request_interval=0)
+        result = backfill_release(session, curated(), client)
         session.commit()
 
     assert result.release.demo_appid == 999001
@@ -421,3 +425,104 @@ def test_backfill_records_absence_of_a_demo(session, steam):
 
     assert result.release.demo_appid is None
     assert result.release.demo_timing is DemoTiming.NONE_LISTED
+
+
+# --- DLC timing -----------------------------------------------------------
+
+
+def dlc_client(dlc_dates: dict[int, str | None], *, in_app: bool = False) -> SteamClient:
+    """Steam stub whose DLC apps each report their own release date."""
+    details = load_fixture("appdetails_released.json")
+    details["1174180"]["data"]["dlc"] = list(dlc_dates)
+    if in_app:
+        details["1174180"]["data"]["categories"] = [{"id": 35, "description": "In-App Purchases"}]
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/api/appdetails"):
+            appid = int(request.url.params.get("appids"))
+            if appid in dlc_dates:
+                raw = dlc_dates[appid]
+                if raw is None:
+                    return httpx.Response(200, json={str(appid): {"success": False}})
+                return httpx.Response(
+                    200,
+                    json={
+                        str(appid): {
+                            "success": True,
+                            "data": {
+                                "name": f"DLC {appid}",
+                                "type": "dlc",
+                                "release_date": {"coming_soon": False, "date": raw},
+                            },
+                        }
+                    },
+                )
+            return httpx.Response(200, json=details)
+        return httpx.Response(200, json=load_fixture("appreviews_released.json"))
+
+    return SteamClient(httpx.Client(transport=httpx.MockTransport(handler)), min_request_interval=0)
+
+
+def test_dlc_split_by_launch_timing(session):
+    # Game releases 2018-10-26. Two launch-day items, two shipped later.
+    client = dlc_client(
+        {
+            901: "Oct 26, 2018",  # season pass, day one
+            902: "Oct 27, 2018",  # within the launch window
+            903: "Mar 1, 2019",  # post-launch
+            904: "Sep 1, 2020",  # post-launch, the latest
+        }
+    )
+    result = backfill_release(session, curated(), client)
+    session.commit()
+
+    r = result.release
+    assert r.dlc_count == 4
+    assert r.launch_day_dlc_count == 2
+    assert r.post_launch_dlc_count == 2
+    # Days from release to the most recent DLC — a support-duration signal.
+    assert r.last_dlc_days_after_launch == (date(2020, 9, 1) - date(2018, 10, 26)).days
+
+
+def test_no_dlc_is_recorded_as_zero_not_unknown(session, steam):
+    result = backfill_release(session, curated(), steam)
+    session.commit()
+
+    assert result.release.dlc_count == 0
+    assert result.release.launch_day_dlc_count == 0
+    assert result.release.post_launch_dlc_count == 0
+    assert result.release.last_dlc_days_after_launch is None
+
+
+def test_in_app_purchases_flag_catches_what_dlc_count_misses(session):
+    # Helldivers 2's shape: no DLC sold as Steam apps, all content bought
+    # with in-game currency. A zero DLC count must not read as "no content".
+    client = dlc_client({}, in_app=True)
+
+    result = backfill_release(session, curated(), client)
+    session.commit()
+
+    assert result.release.dlc_count == 0
+    assert result.release.has_in_app_purchases is True
+
+
+def test_undated_dlc_is_skipped_rather_than_bucketed(session):
+    client = dlc_client({901: "Oct 26, 2018", 902: None})
+
+    result = backfill_release(session, curated(), client)
+
+    assert result.release.dlc_count == 2
+    assert result.release.launch_day_dlc_count == 1
+    assert result.release.post_launch_dlc_count == 0
+
+
+def test_long_dlc_lists_are_capped_and_reported(session):
+    # A live-service title can list dozens; one outlier must not dominate a
+    # backfill, and the truncation has to be visible.
+    client = dlc_client({900 + i: "Mar 1, 2019" for i in range(MAX_DLC_LOOKUPS + 5)})
+
+    result = backfill_release(session, curated(), client)
+
+    assert result.release.dlc_count == MAX_DLC_LOOKUPS + 5
+    assert result.release.post_launch_dlc_count == MAX_DLC_LOOKUPS
+    assert any("dated only the first" in w for w in result.warnings)

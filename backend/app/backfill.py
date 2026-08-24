@@ -49,6 +49,16 @@ DAY_ONE_TOLERANCE_DAYS = 7
 # ambiguous, and a pre-launch feature must not lean on an ambiguous case.
 DEMO_LAUNCH_WINDOW_DAYS = 3
 
+# DLC dated within this many days of release counts as launch-day content —
+# season passes, deluxe-edition items, pre-order bonuses.
+DLC_LAUNCH_WINDOW_DAYS = 3
+
+# Dating every DLC costs one request each, and a long-running live-service
+# title can have dozens. Capped so one outlier cannot dominate a backfill —
+# requests are throttled at ~1.5s, so twenty lookups is half a minute on a
+# single game.
+MAX_DLC_LOOKUPS = 12
+
 
 @dataclass(slots=True)
 class CuratedRelease:
@@ -102,6 +112,41 @@ def derive_platform_launch_type(
     return PlatformLaunchType.UNKNOWN
 
 
+@dataclass(slots=True)
+class DlcSummary:
+    launch_day: int | None = None
+    post_launch: int | None = None
+    last_gap_days: int | None = None
+
+
+def _summarize_dlc(details: AppDetails, client: SteamClient, warnings: list[str]) -> DlcSummary:
+    """Split DLC into launch-day and post-launch by dating each one."""
+    if not details.dlc_appids:
+        return DlcSummary(launch_day=0, post_launch=0)
+    if details.release_date is None:
+        return DlcSummary()
+
+    lookups = details.dlc_appids[:MAX_DLC_LOOKUPS]
+    if len(details.dlc_appids) > MAX_DLC_LOOKUPS:
+        warnings.append(
+            f"{len(details.dlc_appids)} DLC listed; dated only the first {MAX_DLC_LOOKUPS}"
+        )
+
+    launch_day = post_launch = 0
+    last_gap: int | None = None
+    for dlc_appid in lookups:
+        dlc_release = client.get_release_date_of(dlc_appid)
+        if dlc_release is None:
+            continue
+        gap = (dlc_release - details.release_date).days
+        if abs(gap) <= DLC_LAUNCH_WINDOW_DAYS:
+            launch_day += 1
+        elif gap > DLC_LAUNCH_WINDOW_DAYS:
+            post_launch += 1
+            last_gap = gap if last_gap is None else max(last_gap, gap)
+    return DlcSummary(launch_day=launch_day, post_launch=post_launch, last_gap_days=last_gap)
+
+
 def classify_demo_timing(
     game_release: date | None, demo_release: date | None, has_demo: bool
 ) -> DemoTiming:
@@ -146,6 +191,7 @@ def backfill_release(
     # One extra request, and only for the minority of titles that list a demo.
     demo_appid = details.demo_appids[0] if details.demo_appids else None
     demo_release = client.get_demo_release_date(demo_appid) if demo_appid else None
+    dlc = _summarize_dlc(details, client, warnings)
 
     if not _names_match(details.name, curated.game_name):
         warnings.append(
@@ -164,6 +210,11 @@ def backfill_release(
     release.demo_timing = classify_demo_timing(
         details.release_date, demo_release, has_demo=demo_appid is not None
     )
+    release.dlc_count = len(details.dlc_appids)
+    release.has_in_app_purchases = details.has_in_app_purchases
+    release.launch_day_dlc_count = dlc.launch_day
+    release.post_launch_dlc_count = dlc.post_launch
+    release.last_dlc_days_after_launch = dlc.last_gap_days
     _apply_curated_fields(release, curated, details)
     release.backfilled_at = utcnow()
     session.flush()

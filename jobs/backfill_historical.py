@@ -36,9 +36,9 @@ from app.steam import SteamClient, SteamError  # noqa: E402
 
 DEFAULT_CSV = REPO_ROOT / "data" / "historical_releases.csv"
 
-# Each game costs four Steam requests (details plus three review windows), so
-# this is deliberately more conservative than the daily-refresh job's pacing.
-DELAY_BETWEEN_GAMES_SECONDS = 2.0
+# SteamClient paces every request itself now, so no extra spacing is needed
+# between games. Kept as a knob for backing further off if Steam tightens up.
+DELAY_BETWEEN_GAMES_SECONDS = 0.0
 
 logger = logging.getLogger("backfill_historical")
 

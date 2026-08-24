@@ -126,6 +126,12 @@ excluded from rubric validation.
   own release date, and only `pre_launch` is safe as a pre-launch feature.
   `none_listed` means no demo is listed now, never that none existed: Next
   Fest demos are routinely delisted.
+- **`dlc_count` counts Steam apps, not content.** Helldivers 2 reads zero
+  because Warbonds are bought with in-game currency. Read it together with
+  `has_in_app_purchases`. The useful split is `launch_day_dlc_count` (a
+  pre-launch monetization decision, safe to forecast on) versus
+  `post_launch_dlc_count` and `last_dlc_days_after_launch` (support duration,
+  outcome-contaminated).
 - **Counts aren't comparable across years.** The Witcher 3 drew 7,519 launch
   reviews in 2015; Black Myth: Wukong drew 689,276 in 2024. That's Steam's
   growth, not a 90x difference in success. `cohort_year` is stored so

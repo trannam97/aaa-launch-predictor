@@ -455,6 +455,20 @@ class HistoricalRelease(Base):
     demo_timing: Mapped[DemoTiming] = mapped_column(
         DemoTimingType, nullable=False, default=DemoTiming.UNKNOWN
     )
+    # Add-on content. `dlc_count` counts only content sold as separate Steam
+    # apps — Helldivers 2 shows zero because Warbonds are bought with in-game
+    # currency, so this is not a measure of content volume. Read it with
+    # `has_in_app_purchases`, which catches the models it misses.
+    #
+    # The split by timing is the useful part. Launch-day DLC is a pre-launch
+    # monetization decision and is safe as a forecasting feature; DLC shipped
+    # later is a post-launch support signal and is outcome-contaminated.
+    dlc_count: Mapped[int | None] = mapped_column(Integer)
+    launch_day_dlc_count: Mapped[int | None] = mapped_column(Integer)
+    post_launch_dlc_count: Mapped[int | None] = mapped_column(Integer)
+    last_dlc_days_after_launch: Mapped[int | None] = mapped_column(Integer)
+    has_in_app_purchases: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+
     # Grouping key for cohort normalization: raw counts are not comparable
     # across years, so every count-based feature is ranked within its cohort.
     cohort_year: Mapped[int | None] = mapped_column(Integer, index=True)

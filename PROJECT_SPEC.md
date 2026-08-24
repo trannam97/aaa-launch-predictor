@@ -323,6 +323,45 @@ Two further limits, both stated rather than worked around:
   Public Reception Signal guardrail against adjudicating *why* a reaction
   happened.
 
+#### Add-on Content, and the Day-1 Patch Dead End
+**Resolved in Phase 1.**
+
+**Add-on content, split by when it shipped.** Steam's `dlc` field lists DLC
+sold as separate apps, and each carries its own release date — so the same
+date check used for demos splits it in two. **Launch-day DLC** (season
+passes, deluxe-edition items, pre-order bonuses, dated within 3 days of
+release) is a *pre-launch* monetization decision and is safe to forecast on:
+Star Wars Outlaws shipped with 6, Elden Ring with 0. **Post-launch DLC** and
+the gap to the most recent one describe support duration, which is a
+post-launch signal and outcome-contaminated — usable for resolving an
+outcome, never for predicting one.
+
+**`dlc_count` is not a measure of content.** It counts only what is sold as a
+separate Steam app. Helldivers 2 reads zero because its Warbonds are bought
+with in-game currency, despite being among the most actively supported games
+in the corpus; Concord also reads zero, having shipped nothing. The
+`has_in_app_purchases` flag is stored alongside precisely to catch the
+models the DLC list cannot see, and the two must be read together.
+
+**Day-1 patches: investigated and rejected.** `ISteamNews/GetNewsForApp`
+(public, no key, `feeds=steam_community_announcements`) reaches back past
+release, so a patch announcement near launch day is detectable in principle.
+Checked against known launches, it measures the wrong thing:
+
+| Game | Launch reputation | Day-1 patch posts |
+|---|---|---|
+| Cyberpunk 2077 | notoriously broken | 0 |
+| Redfall | notoriously broken | 0 |
+| Starfield | mixed | 0 |
+| Elden Ring | strong | 2 |
+| Baldur's Gate 3 | strong | 1 |
+
+The signal tracks **how communicative a studio is**, not how broken the game
+was — studios having a bad launch tend to go quiet, and both infamous cases
+posted nothing. Feed coverage is also inconsistent (Battlefield 2042's
+history is truncated before its own release). Patch *size*, which is what
+would actually discriminate, is not public. Not implemented.
+
 #### Cohort Normalization
 Raw counts (review counts, concurrent player peaks) are not comparable
 across years — Steam's install base and review-leaving culture have grown
