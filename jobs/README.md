@@ -62,6 +62,24 @@ rubric is still wrong. Delayed ports are excluded from scoring: their label
 describes a launch that happened on another platform, so scoring them against
 a Steam window measures nothing.
 
+### `refresh_company_tiers.py`
+
+Quarterly. Writes `publisher_stats` aggregates always; writes cluster tiers
+only if the clustering passes a stability check, which it currently does not.
+Prints the cluster table either way for the hand-review the spec asks for.
+Needs `ml/requirements.txt`. See `ml/README.md` for why tiers are empty.
+
+### `evaluate_baseline.py`
+
+Scores the *pre-launch* baseline against the labeled set, leave-one-out.
+Distinct from `validate_rubric.py`, which scores the *post-launch* rubric —
+they solve different problems and must not be compared to each other.
+
+Currently reports the baseline at 32.3% against 35.5% for always guessing the
+most common outcome: structural pre-launch features carry little signal at
+this sample size. That constant, not the baseline, is the bar Phase 2 has to
+clear.
+
 ## Planned
 
 Per `PROJECT_SPEC.md`:

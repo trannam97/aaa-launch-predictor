@@ -420,6 +420,45 @@ WindowKeyType = Enum(
 )
 
 
+class PublisherStats(Base):
+    """Aggregate release profile per normalized publisher, refreshed quarterly.
+
+    The spec's plan was to cluster these into a categorical `company_tier`,
+    standing in for budget figures that aren't public. Measured on the real
+    corpus that clustering proved unstable and, worse, split companies by how
+    well their games performed rather than how big they are — so `tier` is
+    left null unless the clustering job's stability check passes.
+
+    The aggregates themselves are kept regardless. They carry strictly more
+    information than a three-way bucket would, and a tree model can use them
+    directly. What they are *not* is a budget estimate: a publisher with a
+    large catalog of modest releases and one with a small catalog of huge
+    ones are different companies, and nothing here separates them from money.
+    """
+
+    __tablename__ = "publisher_stats"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String(255), nullable=False, unique=True, index=True)
+
+    title_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    mean_volume_percentile: Mapped[float | None] = mapped_column(Float)
+    mean_positive_pct: Mapped[float | None] = mapped_column(Float)
+    mean_platform_breadth: Mapped[float | None] = mapped_column(Float)
+    first_year: Mapped[int | None] = mapped_column(Integer)
+    last_year: Mapped[int | None] = mapped_column(Integer)
+
+    # Null whenever the clustering failed its stability check, which as of
+    # the Phase 2 groundwork is always. Never fabricate a tier to fill it.
+    tier: Mapped[int | None] = mapped_column(Integer)
+    tier_label: Mapped[str | None] = mapped_column(String(32))
+
+    computed_at: Mapped[datetime] = mapped_column(UtcDateTime, nullable=False, default=utcnow)
+
+    def __repr__(self) -> str:  # pragma: no cover - debug helper
+        return f"<PublisherStats {self.name!r} n={self.title_count} tier={self.tier}>"
+
+
 class ReleaseDateChange(Base):
     """One observed change to a tracked game's announced release date.
 

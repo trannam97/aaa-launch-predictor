@@ -439,6 +439,18 @@ categorical tier per publisher/developer via **unsupervised clustering**
 - Revenue or market-cap bracket for public companies (used as a coarse,
   slow-changing category — **not** live stock price, which is too noisy
   and driven by unrelated business lines and market conditions).
+- **Phase 2 groundwork result: the clustering does not work on the available
+  data, and the job refuses to write tiers.** Across 26 publishers, k-means
+  is unstable (seed agreement 0.33, silhouette 0.26) and splits companies by
+  how their games *performed* rather than how big they are — tier correlates
+  -0.67 with mean review score. Using that to predict performance would be
+  circular. Three of the six features below are unavailable, and they are the
+  ones carrying budget information: headcount, upcoming slate, and revenue
+  bracket. What is written instead is `publisher_stats`, the aggregates
+  themselves, which a tree model can use directly without the information
+  loss that bucketing into tiers imposes. A stability check re-tests this on
+  every quarterly run, so tiers begin appearing if the data ever supports
+  them. See `ml/README.md`.
 - Run this clustering quarterly (not per-prediction), store output as a
   `company_tier` lookup table, and hand-review the resulting clusters
   before trusting them — with only a few dozen AAA publishers/developers
