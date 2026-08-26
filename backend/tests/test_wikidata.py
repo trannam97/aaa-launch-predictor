@@ -14,18 +14,34 @@ from datetime import date
 
 import pytest
 
-from app.wikidata import ReleaseDates, WikidataClient, WikidataError
+from app.wikidata import ReleaseDates, WikidataClient, WikidataError, _query
+
+_QUERY_SOURCE = _query([1])
 
 
-def response(pairs: list[tuple[str, str]]):
-    """Build a SPARQL JSON payload the way the endpoint returns one."""
-    payload = {
-        "results": {
-            "bindings": [
-                {"appid": {"value": appid}, "date": {"value": value}} for appid, value in pairs
-            ]
-        }
-    }
+NORMAL = "http://wikiba.se/ontology#NormalRank"
+PREFERRED = "http://wikiba.se/ontology#PreferredRank"
+
+
+def response(pairs):
+    """Build a SPARQL JSON payload the way the endpoint returns one.
+
+    Each entry is (appid, date) or (appid, date, precision, rank).
+    """
+    bindings = []
+    for entry in pairs:
+        appid, value = entry[0], entry[1]
+        precision = entry[2] if len(entry) > 2 else 11
+        rank = entry[3] if len(entry) > 3 else NORMAL
+        bindings.append(
+            {
+                "appid": {"value": appid},
+                "date": {"value": value},
+                "precision": {"value": str(precision)},
+                "rank": {"value": rank},
+            }
+        )
+    payload = {"results": {"bindings": bindings}}
     body = json.dumps(payload).encode()
 
     class _Response(io.BytesIO):
@@ -61,17 +77,56 @@ def test_the_earliest_date_across_platforms_is_the_original_release():
 
 
 def test_a_year_precision_date_is_dropped_not_coerced():
-    # Wikidata renders year-only precision as 2016-00-00, which is not a date.
-    # Coercing it to January 1st could turn a same-year launch into a port.
-    opener = response([("1", "2016-00-00T00:00:00Z"), ("1", "2016-06-15T00:00:00Z")])
+    # Wikidata renders year-only precision as January 1st of that year — a
+    # real-looking date. Saints Row carries 2021-01-01 at precision 9 beside
+    # its actual 2022-08-23 launch; taking the former would invent a port.
+    opener = response(
+        [
+            ("1", "2021-01-01T00:00:00Z", 9, NORMAL),
+            ("1", "2022-08-23T00:00:00Z", 11, NORMAL),
+        ]
+    )
     found = client(opener).release_dates([1])
 
-    assert found[1].dates == [date(2016, 6, 15)]
+    assert found[1].dates == [date(2022, 8, 23)]
 
 
 def test_an_appid_with_only_an_unusable_date_is_absent_entirely():
-    opener = response([("1", "2016-00-00T00:00:00Z")])
+    opener = response([("1", "2016-01-01T00:00:00Z", 9, NORMAL)])
     assert client(opener).release_dates([1]) == {}
+
+
+def test_preferred_rank_wins_over_an_early_access_date():
+    # Baldur's Gate 3: Early Access 2020 at normal rank, every 1.0 platform
+    # date at preferred. The minimum across all of them would date the game
+    # three years early and reclassify its Steam launch as a delayed port.
+    opener = response(
+        [
+            ("1", "2020-10-06T00:00:00Z", 11, NORMAL),
+            ("1", "2023-08-03T00:00:00Z", 11, PREFERRED),
+            ("1", "2023-12-08T00:00:00Z", 11, PREFERRED),
+        ]
+    )
+    found = client(opener).release_dates([1])
+
+    assert found[1].earliest == date(2023, 8, 3)
+
+
+def test_without_a_preferred_statement_the_earliest_normal_one_wins():
+    opener = response(
+        [
+            ("1", "2017-02-28T00:00:00Z", 11, NORMAL),
+            ("1", "2020-08-07T00:00:00Z", 11, NORMAL),
+        ]
+    )
+    assert client(opener).release_dates([1])[1].earliest == date(2017, 2, 28)
+
+
+def test_a_deprecated_date_never_reaches_the_client():
+    # Forspoken's slipped dates are deprecated upstream, so the SPARQL filter
+    # excludes them. This guards the assumption rather than the parsing.
+    assert "DeprecatedRank" in _QUERY_SOURCE
+    assert "!=" in _QUERY_SOURCE
 
 
 def test_an_unmatched_appid_is_simply_missing_rather_than_an_error():
@@ -113,7 +168,14 @@ def test_lookups_are_batched():
 
 
 def test_release_dates_with_nothing_recorded_has_no_earliest():
-    assert ReleaseDates(steam_appid=1, dates=[]).earliest is None
+    assert ReleaseDates(steam_appid=1, statements=[]).earliest is None
+
+
+def test_the_query_follows_editions_back_to_the_base_game():
+    # Without the P629 hop, Horizon Zero Dawn Complete Edition reports only its
+    # 2020 PC date and reads as a day-one launch, when the game shipped on PS4
+    # in 2017. This is the single hop that gets re-releases right.
+    assert "P629" in _QUERY_SOURCE
 
 
 def test_the_client_identifies_itself_to_wikimedia():

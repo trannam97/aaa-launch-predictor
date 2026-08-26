@@ -49,34 +49,74 @@ class WikidataError(RuntimeError):
     """The lookup could not be completed."""
 
 
+# Wikibase time precision: 9 = year, 10 = month, 11 = day. Anything coarser
+# than a day is unusable here — a year-precision value is rendered as January
+# 1st of that year, which looks like a real date and would turn a same-year
+# launch into a spurious port.
+DAY_PRECISION = 11
+
+
+@dataclass(slots=True)
+class DatedStatement:
+    value: date
+    preferred: bool
+
+
 @dataclass(slots=True)
 class ReleaseDates:
-    """Every publication date Wikidata holds for one Steam app."""
+    """Publication dates Wikidata holds for one Steam app, with their rank."""
 
     steam_appid: int
-    dates: list[date]
+    statements: list[DatedStatement]
+
+    @property
+    def dates(self) -> list[date]:
+        return [s.value for s in self.statements]
 
     @property
     def earliest(self) -> date | None:
-        return min(self.dates) if self.dates else None
+        """The original release, preferring Wikidata's own preferred rank.
+
+        Rank is what separates a 1.0 release from an Early Access one.
+        Baldur's Gate 3 carries 2020-10-06 (Early Access) at normal rank and
+        every 1.0 platform date at preferred rank; taking the minimum across
+        all of them would date the game three years early and reclassify its
+        Steam launch. Where an item marks preferred statements, those are the
+        answer and the rest are history.
+        """
+        if not self.statements:
+            return None
+        preferred = [s.value for s in self.statements if s.preferred]
+        return min(preferred) if preferred else min(self.dates)
 
 
 def _query(appids: list[int]) -> str:
+    """Publication dates for each appid, following editions back to the base game.
+
+    The P629 hop is the difference between right and wrong on re-releases.
+    Wikidata often models a "Complete Edition" as its own item carrying only
+    that edition's date: Horizon Zero Dawn Complete Edition holds 2020-08-07
+    alone, while the game it is an edition of holds 2017-02-28, its PS4 launch.
+    Reading the edition in isolation turns a three-year-old console game
+    arriving on PC into a day-one release — exactly the misclassification the
+    Steam-scoped labeling rule exists to prevent.
+
+    So dates are gathered from the item itself *and* from whatever it is an
+    edition of, and the earliest across both wins.
+    """
     values = " ".join(f'"{appid}"' for appid in appids)
-    return f"""SELECT ?appid ?date WHERE {{
+    return f"""SELECT ?appid ?date ?precision ?rank WHERE {{
   VALUES ?appid {{ {values} }}
   ?item wdt:P1733 ?appid .
-  ?item p:P577 ?stmt . ?stmt ps:P577 ?date .
+  {{ ?item p:P577 ?stmt }} UNION {{ ?item wdt:P629 ?base . ?base p:P577 ?stmt }}
+  ?stmt psv:P577 ?node .
+  ?node wikibase:timeValue ?date ; wikibase:timePrecision ?precision .
+  ?stmt wikibase:rank ?rank .
+  FILTER(?rank != wikibase:DeprecatedRank)
 }}"""
 
 
 def _parse_date(raw: str) -> date | None:
-    """Wikidata returns ISO timestamps; some are precise only to a year.
-
-    A year-precision value arrives as `2016-00-00T00:00:00Z`, which is not a
-    real date. Those are dropped rather than coerced to January 1st — an
-    invented day could turn a same-year launch into a spurious delayed port.
-    """
     try:
         return date.fromisoformat(raw[:10])
     except ValueError:
@@ -133,5 +173,14 @@ class WikidataClient:
                 parsed = _parse_date(binding.get("date", {}).get("value", ""))
                 if parsed is None:
                     continue
-                found.setdefault(appid, ReleaseDates(appid, [])).dates.append(parsed)
+                try:
+                    precision = int(binding.get("precision", {}).get("value", 0))
+                except ValueError:
+                    continue
+                if precision < DAY_PRECISION:
+                    continue
+                rank = binding.get("rank", {}).get("value", "")
+                found.setdefault(appid, ReleaseDates(appid, [])).statements.append(
+                    DatedStatement(value=parsed, preferred=rank.endswith("PreferredRank"))
+                )
         return found

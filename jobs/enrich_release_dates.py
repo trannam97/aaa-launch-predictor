@@ -52,6 +52,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--dry-run", action="store_true", help="Report what would change without writing."
     )
+    parser.add_argument(
+        "--refresh",
+        action="store_true",
+        help="Re-query rows that already have a date, and report what changed.",
+    )
     parser.add_argument("--verbose", action="store_true", help="Show every row.")
     return parser.parse_args(argv)
 
@@ -73,7 +78,13 @@ def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
 
     curated = load_curated_csv(args.csv)
-    wanted = [row for row in curated if row.original_release_date is None]
+    if args.refresh:
+        # The lookup itself improves — following P629 to a base game corrected
+        # every re-release at once. When it does, existing dates need
+        # re-deriving, not just the empty ones.
+        wanted = list(curated)
+    else:
+        wanted = [row for row in curated if row.original_release_date is None]
     if not wanted:
         logger.info("Every row already carries an original_release_date.")
         return 0
@@ -96,6 +107,7 @@ def main(argv: list[str] | None = None) -> int:
     updates: dict[int, date] = {}
     counts = {"day_one_steam": 0, "delayed_port": 0, "suspect": 0, "not yet backfilled": 0}
     unmatched: list[str] = []
+    changed: list[str] = []
 
     for row in wanted:
         record = found.get(row.steam_appid)
@@ -114,7 +126,17 @@ def main(argv: list[str] | None = None) -> int:
                 earliest,
             )
             continue
-        updates[row.steam_appid] = earliest
+        if row.original_release_date and earliest != row.original_release_date:
+            logger.warning(
+                "%s (%s): %s -> %s",
+                row.game_name[:40],
+                row.steam_appid,
+                row.original_release_date,
+                earliest,
+            )
+            changed.append(row.game_name)
+        if earliest != row.original_release_date:
+            updates[row.steam_appid] = earliest
         if args.verbose:
             logger.info("%-42s %s  %s", row.game_name[:42], earliest, verdict)
 
@@ -124,6 +146,8 @@ def main(argv: list[str] | None = None) -> int:
     for key, value in counts.items():
         if value:
             print(f"    {key:<16} {value}")
+    if changed:
+        print(f"  CHANGED            {len(changed)}")
     print(f"  no Wikidata match  {len(unmatched)}")
     for entry in unmatched:
         print(f"    {entry}")

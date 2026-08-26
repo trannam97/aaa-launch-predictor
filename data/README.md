@@ -142,10 +142,29 @@ Coverage on this corpus: **164 of 166**, resolving to 102 day-one launches and
 Warfare III, whose Wikidata items don't carry a Steam appid; they stay
 `unknown` rather than being guessed.
 
-Three things the job refuses to write rather than approximate:
+Three Wikidata conventions have to be honoured or the dates come out wrong,
+and each was found the hard way by a date that changed when it shouldn't have:
 
-- **Year-precision dates.** Wikidata renders these as `2016-00-00`. Coercing
-  one to January 1st could turn a same-year launch into a spurious port.
+- **Time precision.** Wikidata renders a year-precision value as **January 1st
+  of that year** — a real-looking date, not an obviously-broken one. Saints Row
+  carried `2021-01-01` at precision 9 beside its actual 2022-08-23 launch.
+  Only day precision (11) is accepted.
+- **Statement rank.** A superseded or slipped date is marked deprecated:
+  Forspoken holds `2022-05-24` and `2022-10-11` that way beside its real
+  2023-01-24 release. Deprecated statements are filtered out in the query.
+- **Preferred rank versus Early Access.** Baldur's Gate 3 holds its 2020-10-06
+  Early Access date at normal rank and every 1.0 platform date at preferred.
+  Taking the plain minimum dates the game three years early. Where an item
+  marks preferred statements, those win — which also correctly gives Hades
+  2020-09-17 rather than its 2018 Early Access launch.
+- **Editions are separate items.** Wikidata models *Horizon Zero Dawn Complete
+  Edition* as its own item carrying only 2020-08-07, while the game it is an
+  edition of carries 2017-02-28, its PS4 launch. Without following P629
+  ("edition or translation of") back to the base game, a three-year-old
+  console title reads as a day-one PC launch. This is the case the whole hop
+  exists for.
+
+Two further things the job refuses to write rather than approximate:
 - **Rows where Steam predates the earliest known release** by more than the
   seven-day tolerance. That means one of the two sources is wrong, and
   classifying it anyway would bury the problem. None occurred on this corpus.
