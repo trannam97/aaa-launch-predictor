@@ -60,6 +60,27 @@ writes no artifact unless it passes, and deletes a stale one that no longer
 does. Until then `/games/{appid}/prediction` serves the baseline, tagged
 `rule_based_baseline_v1` so a reader can tell.
 
+### Measured, Aug 2026: it does not clear the bar
+
+On 31 labeled day-one releases, 5-fold × 20 repeats:
+
+| | Model | Constant |
+|---|---|---|
+| Accuracy | **39.8%** | 35.5% (modal tier) |
+| Mean ordinal distance | **0.96** | 0.90 (median tier) |
+
+Ahead on accuracy, behind on ordinal distance: it calls more games exactly
+right, and its misses land further from the truth than naming the middle tier
+every time. The distance improvement is −0.06 tiers with a 95% interval
+reaching −0.34, so **no artifact is written**.
+
+Its worst errors are the ones that matter most. Space Marine 2, Hogwarts
+Legacy, Black Myth: Wukong and Elden Ring are all breakouts it usually calls
+flop or underperform; Concord is a flop it usually calls success. What it
+reliably gets right is the middle of the distribution — which is what a
+constant guess gets right too. See
+[the Phase 2 report](../reports/phase-2-model-evaluation.html).
+
 ## Company tiering — currently produces no tiers, on purpose
 
 The spec's plan: budget figures aren't public, so cluster publishers on

@@ -1,0 +1,712 @@
+<title>Ordinal Model Evaluation</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;450;600&display=swap">
+<style>
+:root {
+  color-scheme: light;
+  --ground:      #fbfbfa;
+  --surface:     #ffffff;
+  --surface-2:   #f4f3f1;
+  --ink:         #1f1e1c;
+  --ink-2:       #56544f;
+  --ink-3:       #85837c;
+  --rule:        #e3e2df;
+  --rule-strong: #cfcdc8;
+  --accent:      #2a78d6;
+  --warm:        #eb6834;
+  --ord-1:       #86b6ef;
+  --ord-2:       #3987e5;
+  --ord-3:       #1c5cab;
+  --ord-4:       #0d366b;
+  --dot-idle:    #c8c6c0;
+
+  --sans: "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --serif: "Newsreader", ui-serif, Georgia, "Times New Roman", serif;
+  --mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --ground:      #161513;
+    --surface:     #201f1d;
+    --surface-2:   #2a2926;
+    --ink:         #ecebe8;
+    --ink-2:       #adaba4;
+    --ink-3:       #85837c;
+    --rule:        #35332f;
+    --rule-strong: #4a4842;
+    --accent:      #3987e5;
+    --warm:        #d95926;
+    --ord-1:       #cde2fb;
+    --ord-2:       #86b6ef;
+    --ord-3:       #3987e5;
+    --ord-4:       #1c5cab;
+    --dot-idle:    #4d4b45;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --ground:      #161513;
+  --surface:     #201f1d;
+  --surface-2:   #2a2926;
+  --ink:         #ecebe8;
+  --ink-2:       #adaba4;
+  --ink-3:       #85837c;
+  --rule:        #35332f;
+  --rule-strong: #4a4842;
+  --accent:      #3987e5;
+  --warm:        #d95926;
+  --ord-1:       #cde2fb;
+  --ord-2:       #86b6ef;
+  --ord-3:       #3987e5;
+  --ord-4:       #1c5cab;
+  --dot-idle:    #4d4b45;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--ground);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 16px;
+  line-height: 1.62;
+  -webkit-font-smoothing: antialiased;
+}
+
+.page {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: clamp(2rem, 5vw, 4.5rem) clamp(1.1rem, 4vw, 3rem) 6rem;
+}
+
+/* ---------- masthead ---------- */
+.masthead { border-bottom: 2px solid var(--ink); padding-bottom: 1.6rem; }
+.eyebrow {
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  font-weight: 500;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  margin: 0 0 1.1rem;
+}
+h1 {
+  font-family: var(--serif);
+  font-size: clamp(2.4rem, 6.5vw, 4rem);
+  font-weight: 500;
+  line-height: 1.02;
+  letter-spacing: -0.02em;
+  margin: 0 0 0.7rem;
+  text-wrap: balance;
+}
+.standfirst {
+  font-family: var(--serif);
+  font-size: clamp(1.05rem, 2.1vw, 1.28rem);
+  line-height: 1.5;
+  color: var(--ink-2);
+  max-width: 40ch;
+  margin: 0;
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+  gap: 1px;
+  background: var(--rule);
+  border: 1px solid var(--rule);
+  margin: 2rem 0 0;
+}
+.stat { background: var(--ground); padding: 0.95rem 1.05rem; }
+.stat dt {
+  font-family: var(--mono);
+  font-size: 0.63rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  margin: 0 0 0.3rem;
+}
+.stat dd {
+  margin: 0;
+  font-family: var(--serif);
+  font-size: 1.85rem;
+  font-weight: 500;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.stat dd small {
+  font-family: var(--sans);
+  font-size: 0.78rem;
+  font-weight: 400;
+  color: var(--ink-3);
+  margin-left: 0.28rem;
+}
+
+/* ---------- sections ---------- */
+section { margin-top: 3.6rem; }
+.sec-head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.9rem;
+  border-bottom: 1px solid var(--rule);
+  padding-bottom: 0.5rem;
+  margin-bottom: 1.5rem;
+}
+.sec-label {
+  font-family: var(--mono);
+  font-size: 0.66rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--accent);
+  white-space: nowrap;
+}
+h2 {
+  font-family: var(--serif);
+  font-size: clamp(1.5rem, 3vw, 1.95rem);
+  font-weight: 500;
+  letter-spacing: -0.012em;
+  margin: 0;
+  line-height: 1.15;
+  text-wrap: balance;
+}
+h3 {
+  font-family: var(--sans);
+  font-size: 0.94rem;
+  font-weight: 600;
+  letter-spacing: 0.005em;
+  margin: 0 0 0.35rem;
+}
+p { margin: 0 0 1rem; max-width: 66ch; }
+p.wide { max-width: 78ch; }
+strong { font-weight: 600; }
+a { color: var(--accent); text-underline-offset: 2px; }
+a:focus-visible, summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: 2px;
+}
+code {
+  font-family: var(--mono);
+  font-size: 0.85em;
+  background: var(--surface-2);
+  padding: 0.08em 0.34em;
+  border-radius: 3px;
+  border: 1px solid var(--rule);
+}
+
+/* ---------- cards ---------- */
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1rem; }
+.card {
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  padding: 1.1rem 1.2rem 1.25rem;
+}
+.card p { font-size: 0.895rem; color: var(--ink-2); margin: 0; max-width: none; }
+.card .tag {
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  display: block;
+  margin-bottom: 0.55rem;
+}
+
+/* ---------- pull quote / callout ---------- */
+.callout {
+  border-left: 3px solid var(--accent);
+  background: var(--surface);
+  padding: 1.15rem 1.35rem;
+  margin: 1.6rem 0;
+}
+.callout p { margin: 0; max-width: 68ch; }
+.callout p + p { margin-top: 0.7rem; }
+.callout .kicker {
+  font-family: var(--mono);
+  font-size: 0.63rem;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  color: var(--accent);
+  display: block;
+  margin-bottom: 0.5rem;
+}
+
+/* ---------- figures ---------- */
+figure { margin: 1.8rem 0 0; }
+.figbox {
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  padding: 1.25rem 1.3rem 1rem;
+  overflow-x: auto;
+}
+figcaption {
+  font-size: 0.8rem;
+  color: var(--ink-3);
+  margin-top: 0.75rem;
+  max-width: 74ch;
+  line-height: 1.5;
+}
+.fig-title {
+  font-family: var(--sans);
+  font-size: 0.9rem;
+  font-weight: 600;
+  margin: 0 0 0.2rem;
+}
+.fig-sub {
+  font-size: 0.78rem;
+  color: var(--ink-3);
+  margin: 0 0 1rem;
+}
+svg { display: block; overflow: visible; }
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem 1.15rem;
+  margin: 0 0 0.95rem;
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.04em;
+  color: var(--ink-2);
+}
+.legend span { display: inline-flex; align-items: center; gap: 0.4rem; }
+.swatch { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+.swatch.sq { border-radius: 2px; }
+
+.tick { font-family: var(--mono); font-size: 10px; fill: var(--ink-3); }
+.rowlabel { font-family: var(--sans); font-size: 12px; fill: var(--ink); }
+.delta { font-family: var(--mono); font-size: 11px; font-weight: 600; fill: var(--ink-2); }
+.gridline { stroke: var(--rule); stroke-width: 1; }
+.axisline { stroke: var(--rule-strong); stroke-width: 1; }
+.annot { font-family: var(--sans); font-size: 11px; fill: var(--ink-2); }
+.annot-strong { font-weight: 600; fill: var(--ink); }
+
+/* ---------- tooltip ---------- */
+.tip {
+  position: fixed;
+  z-index: 20;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.09s ease;
+  background: var(--ink);
+  color: var(--ground);
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  line-height: 1.5;
+  padding: 0.42rem 0.6rem;
+  border-radius: 4px;
+  max-width: 260px;
+}
+.tip b { font-family: var(--sans); font-size: 0.75rem; display: block; margin-bottom: 0.15rem; }
+
+/* ---------- table ---------- */
+details { margin-top: 0.9rem; border-top: 1px solid var(--rule); padding-top: 0.7rem; }
+summary {
+  cursor: pointer;
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+}
+.tablewrap { overflow-x: auto; margin-top: 0.85rem; }
+table { border-collapse: collapse; width: 100%; font-size: 0.82rem; }
+th, td {
+  text-align: left;
+  padding: 0.38rem 0.7rem 0.38rem 0;
+  border-bottom: 1px solid var(--rule);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+th {
+  font-family: var(--mono);
+  font-size: 0.63rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  font-weight: 500;
+}
+td.num, th.num { text-align: right; font-family: var(--mono); }
+
+/* ---------- gap list ---------- */
+.gaps { list-style: none; padding: 0; margin: 0; display: grid; gap: 0.9rem; }
+.gaps li {
+  display: grid;
+  grid-template-columns: 116px 1fr;
+  gap: 1rem;
+  align-items: start;
+  border-bottom: 1px solid var(--rule);
+  padding-bottom: 0.9rem;
+  max-width: 82ch;
+}
+.gaps li:last-child { border-bottom: 0; }
+.gaps .who {
+  font-family: var(--mono);
+  font-size: 0.63rem;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  padding-top: 0.22rem;
+}
+.gaps .what { font-size: 0.9rem; color: var(--ink-2); }
+.gaps .what b { color: var(--ink); font-weight: 600; }
+@media (max-width: 560px) {
+  .gaps li { grid-template-columns: 1fr; gap: 0.25rem; }
+}
+
+footer {
+  margin-top: 4rem;
+  border-top: 1px solid var(--rule);
+  padding-top: 1.1rem;
+  font-size: 0.78rem;
+  color: var(--ink-3);
+  max-width: 74ch;
+}
+footer p { max-width: none; margin: 0 0 0.5rem; }
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+}
+</style><style>
+/* Phase 2 additions to the shared report stylesheet. */
+.panels { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.8rem; }
+.panel { min-width: 0; }
+
+.verdict {
+  border: 1px solid var(--rule-strong);
+  background: var(--surface);
+  padding: 1.3rem 1.45rem;
+  margin: 2rem 0 0;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0 1.3rem;
+  align-items: start;
+}
+.verdict .mark {
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  color: var(--ground);
+  background: var(--ink);
+  padding: 0.3rem 0.55rem;
+  border-radius: 3px;
+  white-space: nowrap;
+}
+.verdict p { margin: 0; max-width: 62ch; }
+.verdict p + p { margin-top: 0.6rem; }
+@media (max-width: 560px) {
+  .verdict { grid-template-columns: 1fr; gap: 0.8rem; }
+}
+
+.metricrow {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 1px;
+  background: var(--rule);
+  border: 1px solid var(--rule);
+  margin: 1.5rem 0 0;
+}
+.metric { background: var(--surface); padding: 1rem 1.15rem; }
+.metric .k {
+  font-family: var(--mono); font-size: 0.63rem; letter-spacing: 0.09em;
+  text-transform: uppercase; color: var(--ink-3); display: block; margin-bottom: 0.35rem;
+}
+.metric .v {
+  font-family: var(--serif); font-size: 2rem; line-height: 1; font-weight: 500;
+  font-variant-numeric: tabular-nums; display: block;
+}
+.metric .n { font-size: 0.76rem; color: var(--ink-3); display: block; margin-top: 0.4rem; }
+.metric--lead { background: var(--surface-2); }
+
+.fieldlist { list-style: none; padding: 0; margin: 1rem 0 0; display: flex;
+             flex-wrap: wrap; gap: 0.4rem; }
+.fieldlist li {
+  font-family: var(--mono); font-size: 0.7rem; color: var(--ink-2);
+  background: var(--surface-2); border: 1px solid var(--rule);
+  padding: 0.2rem 0.45rem; border-radius: 3px;
+}
+.scroller { max-height: 640px; overflow-y: auto; overflow-x: auto; }
+</style>
+<div class="page">
+
+<header class="masthead">
+  <p class="eyebrow">Phase 2 · Report · 49eb899</p>
+  <h1>Ordinal Model Evaluation</h1>
+  <p class="standfirst">The pre-launch model was built, measured against a
+  constant guess, and refused. This is what it scored and why that is the
+  correct outcome.</p>
+  <dl class="stats">
+    <div class="stat"><dt>Corpus</dt><dd>204 <small>releases</small></dd></div>
+    <div class="stat"><dt>Labeled</dt><dd>34</dd></div>
+    <div class="stat"><dt>Trainable</dt><dd>31 <small>day-one</small></dd></div>
+    <div class="stat"><dt>Features</dt><dd>12 <small>pre-launch</small></dd></div>
+    <div class="stat"><dt>Protocol</dt><dd>5×20 <small>fold×rep</small></dd></div>
+    <div class="stat"><dt>Verdict</dt><dd>Refused</dd></div>
+  </dl>
+</header>
+
+<div class="verdict">
+  <span class="mark">No artifact written</span>
+  <div>
+    <p>The model calls <strong>39.8%</strong> of held-out
+    games exactly right against <strong>35.5%</strong>
+    for always guessing the most common tier, and sits
+    <strong>0.96</strong> tiers from the truth on average
+    against <strong>0.90</strong> for always guessing
+    the median tier.</p>
+    <p>It does not clear the bar, so
+    <code>jobs/train_model.py</code>
+    wrote no artifact and
+    <code>/games/{appid}/prediction</code>
+    keeps serving the rule-based baseline,
+    tagged so a reader can tell which produced a number.</p>
+  </div>
+</div>
+
+<section>
+  <div class="sec-head"><span class="sec-label">01 / What shipped</span>
+    <h2>A pipeline, deliberately not an accuracy claim</h2></div>
+
+  <p class="wide">Phase 2 was scoped to the infrastructure rather than the
+  result, because the two are separable and only one of them was achievable at
+  31 labeled rows. The training script, the feature contract, the
+  evaluation protocol, the serving path and the retraining job all exist and
+  are tested. Whether the model is any good is a question about the data, and
+  the data currently answers no.</p>
+
+  <p class="wide">The model is a <strong>Frank &amp; Hall ordinal
+  decomposition</strong> over gradient-boosted trees: three binary classifiers
+  — is this above <em>Flop</em>, above <em>Underperform</em>, above
+  <em>Success</em> — recombined into a distribution over the four tiers. The
+  tiers are an ordered scale, so mistaking a breakout for a success is a small
+  error and mistaking it for a flop is a large one. A plain four-way classifier
+  scores both as simply wrong and optimises accordingly.</p>
+
+  <figure><div class="figbox">
+    <p class="fig-title">The labeled set</p>
+    <p class="fig-sub">Day-one Steam releases with a resolved outcome, the only
+    rows the model can learn from</p>
+    <svg viewBox="0 0 760 46" width="100%" height="46" role="img" aria-label="Label distribution across the four outcome tiers"><g><title>Flop: 7 of 31</title><rect x="0.0" y="0" width="169.6" height="26" fill="var(--ord-1)"/><text class="tick" x="2.0" y="40" style="fill:var(--ink-2)">Flop 7</text></g><g><title>Underperform: 11 of 31</title><rect x="171.6" y="0" width="267.7" height="26" fill="var(--ord-2)"/><text class="tick" x="173.6" y="40" style="fill:var(--ink-2)">Underperform 11</text></g><g><title>Success: 5 of 31</title><rect x="441.3" y="0" width="120.6" height="26" fill="var(--ord-3)"/><text class="tick" x="443.3" y="40" style="fill:var(--ink-2)">Success 5</text></g><g><title>Breakout: 8 of 31</title><rect x="563.9" y="0" width="194.1" height="26" fill="var(--ord-4)"/><text class="tick" x="565.9" y="40" style="fill:var(--ink-2)">Breakout 8</text></g></svg>
+  </div>
+  <figcaption>Delayed ports and former exclusives are excluded for the same
+  reason the rubric validation excludes them: their label describes a launch
+  that happened on another platform, so the features and the label are about
+  different events.</figcaption></figure>
+</section>
+
+<section>
+  <div class="sec-head"><span class="sec-label">02 / Discipline</span>
+    <h2>Everything that would have made it look good</h2></div>
+
+  <p class="wide">The corpus is mostly post-launch data. Launch review volume,
+  launch sentiment, retention, peak concurrents, how the studio fared
+  afterwards — all of it is sitting in the same tables, and all of it would
+  raise measured accuracy while destroying the model's purpose. A forecaster
+  that reads launch sentiment is not forecasting. <strong>The failure would be
+  invisible in the accuracy number</strong>, which is exactly why it is
+  enforced in code rather than left to discipline.</p>
+
+  <p class="wide">17 fields are named forbidden,
+  and an assertion fires if one reaches the feature matrix:</p>
+  <ul class="fieldlist">
+    <li>label_confidence</li><li>last_dlc_days_after_launch</li><li>metacritic_score</li><li>peak_concurrent_players</li><li>positive_pct</li><li>post_launch_dlc_count</li><li>post_launch_support</li><li>resolved_outcome</li><li>retention_ratio</li><li>review_negative</li><li>review_positive</li><li>review_score_desc</li><li>review_total</li><li>studio_outcome</li><li>studio_signal</li><li>support_signal</li><li>volume_percentile</li>
+  </ul>
+
+  <div class="callout">
+    <span class="kicker">Found during the build</span>
+    <p><strong>The publisher aggregate was leaking, twice.</strong> The feature
+    matrix originally read a stored <code>publisher_stats</code> table. That
+    aggregate includes the game being predicted — so a title's own launch
+    sentiment reached its own feature vector through its publisher's average,
+    and launch sentiment is most of what the label is derived from.</p>
+    <p>It also includes releases that came <em>after</em> the game. Predicting
+    a 2019 launch from a publisher's 2024 track record is not a forecast; it is
+    hindsight wearing a feature's clothes.</p>
+    <p>The record is now recomputed per row with both excluded, which no cached
+    table can express. A publisher's debut correctly gets no history at all
+    rather than an average of its own future — which is why only
+    <strong>26 of 31</strong>
+    rows carry any publisher history at all.</p>
+  </div>
+
+  <p class="wide">Metacritic is on the forbidden list for a reason worth
+  stating: critic scores land <em>at</em> launch under embargo, not before it.
+  A field being available in the row does not make it available in time.</p>
+</section>
+
+<section>
+  <div class="sec-head"><span class="sec-label">03 / Protocol</span>
+    <h2>How it was scored, and why not the obvious way</h2></div>
+
+  <p class="wide">At 31 rows, how the model is measured matters
+  more than how it is trained. A single 25% holdout leaves a test set small
+  enough that each individual game moves the headline accuracy by double
+  digits — the number would describe the fold assignment, not the model. None
+  is reported here.</p>
+
+  <p class="wide">Instead: <strong>repeated stratified k-fold</strong>,
+  5 folds × 20 repeats. Every game is scored only
+  while held out, and every game is held out many times, so the figures average
+  over fold luck rather than inheriting it. Stratified because the rarest tier
+  has few enough members that an unstratified fold can miss it entirely — which
+  is also what caps the fold count at 5.</p>
+
+  <div class="cards">
+    <div class="card"><span class="tag">The bar</span><p>A constant guess, not
+    the rule-based baseline. The baseline does not clear the constant either
+    (32.3% against 35.5%), so beating it would prove nothing.</p></div>
+    <div class="card"><span class="tag">Two constants</span><p>The modal tier
+    is the strongest trivial guess for accuracy; the median tier is the
+    strongest for ordinal distance. Each metric faces its own, not one
+    convenient straw man.</p></div>
+    <div class="card"><span class="tag">Computed inside the fold</span><p>Both
+    constants are recomputed from each training split. A constant derived from
+    the full labeled set already knows the answer distribution of the rows it
+    is scored on.</p></div>
+    <div class="card"><span class="tag">No tuning</span><p>Hyperparameters are
+    fixed a priori and never searched. At this sample size a search finds the
+    split that flatters the model, and the reported figure quietly becomes a
+    training score.</p></div>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head"><span class="sec-label">04 / Result</span>
+    <h2>Better at being exactly right, worse at being close</h2></div>
+
+  <figure><div class="figbox">
+    <div class="panels"><div class="panel"><p class="fig-title">Accuracy</p><p class="fig-sub">Share of held-out games called exactly right — higher is better</p><svg viewBox="0 0 300 94" width="100%" height="94" role="img" aria-label="Accuracy: model 39.8%, modal tier 35.5%"><line class="axisline" x1="112" y1="0" x2="112" y2="68"/><g><title>Model: 39.8%</title><text class="rowlabel" x="0" y="18">Model</text><rect x="112" y="0" width="134.8" height="26" rx="4" fill="var(--accent)"/><text class="delta" x="254.8" y="18" style="fill:var(--ink)">39.8%</text></g><g><title>Modal tier: 35.5%</title><text class="rowlabel" x="0" y="60">Modal tier</text><rect x="112" y="42" width="120.1" height="26" rx="4" fill="var(--warm)"/><text class="delta" x="240.1" y="60" style="fill:var(--ink)">35.5%</text></g></svg></div><div class="panel"><p class="fig-title">Mean ordinal distance</p><p class="fig-sub">Average tiers between the call and the truth — lower is better</p><svg viewBox="0 0 300 94" width="100%" height="94" role="img" aria-label="Mean ordinal distance: model 0.96, median tier 0.90"><line class="axisline" x1="112" y1="0" x2="112" y2="68"/><g><title>Model: 0.96</title><text class="rowlabel" x="0" y="18">Model</text><rect x="112" y="0" width="134.8" height="26" rx="4" fill="var(--accent)"/><text class="delta" x="254.8" y="18" style="fill:var(--ink)">0.96</text></g><g><title>Median tier: 0.90</title><text class="rowlabel" x="0" y="60">Median tier</text><rect x="112" y="42" width="126.2" height="26" rx="4" fill="var(--warm)"/><text class="delta" x="246.2" y="60" style="fill:var(--ink)">0.90</text></g></svg></div></div>
+  </div>
+  <figcaption>Two measures on two scales, so two charts — never one pair of
+  axes. The model and the constant are the same two series in both.</figcaption>
+  </figure>
+
+  <p class="wide" style="margin-top:1.6rem">The split verdict is the whole finding. The model is <strong>ahead on accuracy</strong> and <strong>behind on ordinal distance</strong>: it gets more calls exactly right, and its wrong calls are further from the truth than simply naming the middle tier every time.</p>
+
+  <div class="metricrow">
+    <div class="metric metric--lead"><span class="k">Distance improvement</span><span class="v">-0.06</span><span class="n">tiers, model minus constant</span></div>
+    <div class="metric"><span class="k">95% interval, low end</span><span class="v">-0.34</span><span class="n">paired over held-out rows</span></div>
+    <div class="metric"><span class="k">Standard error</span><span class="v">0.14</span><span class="n">across 31 rows</span></div>
+    <div class="metric"><span class="k">Gate</span><span class="v">Fails</span><span class="n">distance CI must clear zero</span></div>
+  </div>
+
+  <p class="wide" style="margin-top:1.5rem">The gate asks for the
+  ordinal-distance improvement to clear <em>its own</em> uncertainty, not
+  merely to be positive. Being ahead on a mean is not evidence when the
+  interval straddles zero, and at this sample size the interval is wide enough
+  to swallow most effects. Here it does not even need to: the improvement is negative before the interval is applied.</p>
+
+  <div class="callout">
+    <span class="kicker">Why this is the right outcome</span>
+    <p>A model that cannot beat a constant guess has learned nothing. Serving
+    it anyway would attach a probability distribution and a confidence label to
+    noise, and the dashboard would present that with the same furniture it uses
+    for real forecasts. Refusing costs a feature; shipping costs the reader's
+    ability to trust any number on the page.</p>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head"><span class="sec-label">05 / Failures</span>
+    <h2>Where it goes wrong, game by game</h2></div>
+
+  <p class="wide">Each row is one game, scored only on the repeats that held it
+  out. The two dots are how far the model's call sat from the truth and how far
+  the constant's did; the further right, the worse. Rows are sorted by which
+  method did better, so everything the model helped is at the top.</p>
+
+  <figure><div class="figbox scroller">
+    <div class="legend"><span><i class="swatch" style="background:var(--accent)"></i>Model</span><span><i class="swatch" style="background:var(--warm)"></i>Constant guess</span></div><svg viewBox="0 0 760 627" width="100%" height="627" role="img" aria-label="Per-game ordinal error, model against a constant guess"><line class="gridline" x1="178.0" y1="4" x2="178.0" y2="597"/><text class="tick" x="178.0" y="613" text-anchor="middle">0</text><line class="gridline" x1="365.7" y1="4" x2="365.7" y2="597"/><text class="tick" x="365.7" y="613" text-anchor="middle">1</text><line class="gridline" x1="553.4" y1="4" x2="553.4" y2="597"/><text class="tick" x="553.4" y="613" text-anchor="middle">2</text><g><title>Clair Obscur: Expedition 33 — actual Breakout; usually called Breakout. Model 0.00 tiers off, constant 2.00.</title><text class="rowlabel" x="168" y="21.5" text-anchor="end" style="font-size:11px">Clair Obscur: Expedition …</text><line x1="178.0" y1="17.5" x2="553.4" y2="17.5" stroke="var(--rule-strong)" stroke-width="2"/><circle cx="553.4" cy="17.5" r="4.5" fill="var(--warm)" stroke="var(--surface)" stroke-width="2"/><circle cx="178.0" cy="17.5" r="4.5" fill="var(--accent)" stroke="var(--surface)" stroke-width="2"/></g><g><title>Baldur&#x27;s Gate 3 — actual Breakout; usually called Breakout. Model 0.25 tiers off, constant 2.00.</title><text class="rowlabel" x="168" y="40.5" text-anchor="end" style="font-size:11px">Baldur&#x27;s Gate 3</text><line x1="224.9" y1="36.5" x2="553.4" y2="36.5" stroke="var(--rule-strong)" stroke-width="2"/><circle cx="553.4" cy="36.5" r="4.5" fill="var(--warm)" stroke="var(--surface)" stroke-width="2"/><circle cx="224.9" cy="36.5" r="4.5" fill="var(--accent)" stroke="var(--surface)" stroke-width="2"/></g><g><title>HELLDIVERS™ 2 — actual Breakout; usually called Breakout. Model 0.75 tiers off, constant 2.00.</title><text class="rowlabel" x="168" y="59.5" text-anchor="end" style="font-size:11px">HELLDIVERS™ 2</text><line x1="318.8" y1="55.5" x2="553.4" y2="55.5" stroke="var(--rule-strong)" stroke-width="2"/><circle cx="553.4" cy="55.5" r="4.5" fill="var(--warm)" stroke="var(--surface)" stroke-width="2"/><circle cx="318.8" cy="55.5" r="4.5" fill="var(--accent)" stroke="var(--surface)" stroke-width="2"/></g><g><title>S.T.A.L.K.E.R. 2: Heart of Chornobyl — actual Success; usually called Success. Model 0.40 tiers off, constant 1.00.</title><text class="rowlabel" x="168" y="78.5" text-anchor="end" style="font-size:11px">S.T.A.L.K.E.R. 2: Heart o…</text><line x1="253.1" y1="74.5" x2="365.7" y2="74.5" stroke="var(--rule-strong)" stroke-width="2"/><circle cx="365.7" cy="74.5" r="4.5" fill="var(--warm)" stroke="var(--surface)" stroke-width="2"/><circle cx="253.1" cy="74.5" r="4.5" fill="var(--accent)" stroke="var(--surface)" stroke-width="2"/></g><g><title>ARMORED CORE™ VI FIRES OF RUBICON™ — actual Success; usually called Success. Model 0.50 tiers off, constant 1.00.</title><text class="rowlabel" x="168" y="97.5" text-anchor="end" style="font-size:11px">ARMORED CORE™ VI FIRES OF…</text><line x1="271.8" y1="93.5" x2="365.7" y2="93.5" stroke="var(--rule-strong)" stroke-width="2"/><circle cx="365.7" cy="93.5" r="4.5" fill="var(--warm)" stroke="var(--surface)" stroke-width="2"/><circle cx="271.8" cy="93.5" r="4.5" fill="var(--accent)" stroke="var(--surface)" stroke-width="2"/></g><g><title>Suicide Squad: Kill the Justice League — actual Flop; usually called Flop. Model 0.55 tiers off, constant 1.00.</title><text class="rowlabel" x="168" y="116.5" text-anchor="end" style="font-size:11px">Suicide Squad: Kill the J…</text><line x1="281.2" y1="112.5" x2="365.7" y2="112.5" stroke="var(--rule-strong)" stroke-width="2"/><circle cx="365.7" cy="112.5" r="4.5" fill="var(--warm)" stroke="var(--surface)" stroke-width="2"/><circle cx="281.2" cy="112.5" r="4.5" fill="var(--accent)" stroke="var(--surface)" stroke-width="2"/></g><g><title>Redfall — actual Flop; usually called Underperform. Model 0.60 tiers off, constant 1.00.</title><text class="rowlabel" x="168" y="135.5" text-anchor="end" style="font-size:11px">Redfall</text><line x1="290.6" y1="131.5" x2="365.7" y2="131.5" stroke="var(--rule-strong)" stroke-width="2"/><circle cx="365.7" cy="131.5" r="4.5" fill="var(--warm)" stroke="var(--surface)" stroke-width="2"/><circle cx="290.6" cy="131.5" r="4.5" fill="var(--accent)" stroke="var(--surface)" stroke-width="2"/></g><g><title>SILENT HILL 2 — actual Success; usually called Breakout. Model 0.60 tiers off, constant 1.00.</title><text class="rowlabel" x="168" y="154.5" text-anchor="end" style="font-size:11px">SILENT HILL 2</text><line x1="290.6" y1="150.5" x2="365.7" y2="150.5" stroke="var(--rule-strong)" stroke-width="2"/><circle cx="365.7" cy="150.5" r="4.5" fill="var(--warm)" stroke="var(--surface)" stroke-width="2"/><circle cx="290.6" cy="150.5" r="4.5" fill="var(--accent)" stroke="var(--surface)" stroke-width="2"/></g><g><title>Cyberpunk 2077 — actual Breakout; usually called Underperform. Model 1.80 tiers off, constant 2.00.</title><text class="rowlabel" x="168" y="173.5" text-anchor="end" style="font-size:11px">Cyberpunk 2077</text><line x1="515.8" y1="169.5" x2="553.4" y2="169.5" stroke="var(--rule-strong)" stroke-width="2"/><circle cx="553.4" cy="169.5" r="4.5" fill="var(--warm)" stroke="var(--surface)" stroke-width="2"/><circle cx="515.8" cy="169.5" r="4.5" fill="var(--accent)" stroke="var(--surface)" stroke-width="2"/></g><g><title>ELDEN RING — actual Breakout; usually called Underperform. Model 1.80 tiers off, constant 2.00.</title><text class="rowlabel" x="168" y="192.5" text-anchor="end" style="font-size:11px">ELDEN RING</text><line x1="515.8" y1="188.5" x2="553.4" y2="188.5" stroke="var(--rule-strong)" stroke-width="2"/><circle cx="553.4" cy="188.5" r="4.5" fill="var(--warm)" stroke="var(--surface)" stroke-width="2"/><circle cx="515.8" cy="188.5" r="4.5" fill="var(--accent)" stroke="var(--surface)" stroke-width="2"/></g><g><title>Black Myth: Wukong — actual Breakout; usually called Underperform. Model 1.95 tiers off, constant 2.00.</title><text class="rowlabel" x="168" y="211.5" text-anchor="end" style="font-size:11px">Black Myth: Wukong</text><line x1="544.0" y1="207.5" x2="553.4" y2="207.5" stroke="var(--rule-strong)" stroke-width="2"/><circle cx="553.4" cy="207.5" r="4.5" fill="var(--warm)" stroke="var(--surface)" stroke-width="2"/><circle cx="544.0" cy="207.5" r="4.5" fill="var(--accent)" stroke="var(--surface)" stroke-width="2"/></g><g><title>Dragon Age™: The Veilguard — actual Flop; usually called Underperform. Model 1.00 tiers off, constant 1.00.</title><text class="rowlabel" x="168" y="230.5" text-anchor="end" style="font-size:11px">Dragon Age™: The Veilguard</text><line x1="365.7" y1="226.5" x2="365.7" y2="226.5" stroke="var(--rule-strong)" stroke-width="2"/><circle cx="365.7" cy="226.5" r="4.5" fill="var(--warm)" stroke="var(--surface)" stroke-width="2"/><circle cx="365.7" cy="226.5" r="4.5" fill="var(--accent)" stroke="var(--surface)" stroke-width="2"/></g><g><title>No Man&#x27;s Sky — actual Underperform; usually called Underperform. Model 0.00 tiers off, constant 0.00.</title><text class="rowlabel" x="168" y="249.5" text-anchor="end" style="font-size:11px">No Man&#x27;s Sky</text><line x1="178.0" y1="245.5" x2="178.0" y2="245.5" stroke="var(--rule-strong)" stroke-width="2"/><circle cx="178.0" cy="245.5" r="4.5" fill="var(--warm)" stroke="var(--surface)" stroke-width="2"/><circle cx="178.0" cy="245.5" r="4.5" fill="var(--accent)" stroke="var(--surface)" stroke-width="2"/></g><g><title>Deus Ex: Mankind Divided — actual Underperform; usually called Underperform. Model 0.00 tiers off, constant 0.00.</title><text class="rowlabel" x="168" y="268.5" text-anchor="end" style="font-size:11px">Deus Ex: Mankind Divided</text><line x1="178.0" y1="264.5" x2="178.0" y2="264.5" stroke="var(--rule-strong)" stroke-width="2"/><circle cx="178.0" cy="264.5" r="4.5" fill="var(--warm)" stroke="var(--surface)" stroke-width="2"/><circle cx="178.0" cy="264.5" r="4.5" fill="var(--accent)" stroke="var(--surface)" stroke-width="2"/></g><g><title>Back 4 Blood — actual Underperform; usually called Underperform. Model 0.00 tiers off, constant 0.00.</title><text class="rowlabel" x="168" y="287.5" text-anchor="end" style="font-size:11px">Back 4 Blood</text><line x1="178.0" y1="283.5" x2="178.0" y2="283.5" stroke="var(--rule-strong)" stroke-width="2"/><circle cx="178.0" cy="283.5" r="4.5" fill="var(--warm)" stroke="var(--surface)" stroke-width="2"/><circle cx="178.0" cy="283.5" r="4.5" fill="var(--accent)" stroke="var(--surface)" stroke-width="2"/></g><g><title>The Callisto Protocol™ — actual Underperform; usually called Underperform. Model 0.00 tiers off, constant 0.00.</title><text class="rowlabel" x="168" y="306.5" text-anchor="end" style="font-size:11px">The Callisto Protocol™</text><line x1="178.0" y1="302.5" x2="178.0" y2="302.5" stroke="var(--rule-strong)" stroke-width="2"/><circle cx="178.0" cy="302.5" r="4.5" fill="var(--warm)" stroke="var(--surface)" stroke-width="2"/><circle cx="178.0" cy="302.5" r="4.5" fill="var(--accent)" stroke="var(--surface)" stroke-width="2"/></g><g><title>Resident Evil 4 — actual Success; usually called Breakout. Model 1.10 tiers off, constant 1.00.</title><text class="rowlabel" x="168" y="325.5" text-anchor="end" style="font-size:11px">Resident Evil 4</text><line x1="365.7" y1="321.5" x2="384.4" y2="321.5" stroke="var(--rule-strong)" stroke-width="2"/><circle cx="365.7" cy="321.5" r="4.5" fill="var(--warm)" stroke="var(--surface)" stroke-width="2"/><circle cx="384.4" cy="321.5" r="4.5" fill="var(--accent)" stroke="var(--surface)" stroke-width="2"/></g><g><title>Marvel&#x27;s Avengers - The Definitive Edition — actual Flop; usually called Underperform. Model 1.20 tiers off, constant 1.00.</title><text class="rowlabel" x="168" y="344.5" text-anchor="end" style="font-size:11px">Marvel&#x27;s Avengers - The D…</text><line x1="365.7" y1="340.5" x2="403.2" y2="340.5" stroke="var(--rule-strong)" stroke-width="2"/><circle cx="365.7" cy="340.5" r="4.5" fill="var(--warm)" stroke="var(--surface)" stroke-width="2"/><circle cx="403.2" cy="340.5" r="4.5" fill="var(--accent)" stroke="var(--surface)" stroke-width="2"/></g><g><title>Metaphor: ReFantazio — actual Success; usually called Flop. Model 1.20 tiers off, constant 1.00.</title><text class="rowlabel" x="168" y="363.5" text-anchor="end" style="font-size:11px">Metaphor: ReFantazio</text><line x1="365.7" y1="359.5" x2="403.2" y2="359.5" stroke="var(--rule-strong)" stroke-width="2"/><circle cx="365.7" cy="359.5" r="4.5" fill="var(--warm)" stroke="var(--surface)" stroke-width="2"/><circle cx="403.2" cy="359.5" r="4.5" fill="var(--accent)" stroke="var(--surface)" stroke-width="2"/></g><g><title>Gotham Knights — actual Underperform; usually called Underperform. Model 0.25 tiers off, constant 0.00.</title><text class="rowlabel" x="168" y="382.5" text-anchor="end" style="font-size:11px">Gotham Knights</text><line x1="178.0" y1="378.5" x2="224.9" y2="378.5" stroke="var(--rule-strong)" stroke-width="2"/><circle cx="178.0" cy="378.5" r="4.5" fill="var(--warm)" stroke="var(--surface)" stroke-width="2"/><circle cx="224.9" cy="378.5" r="4.5" fill="var(--accent)" stroke="var(--surface)" stroke-width="2"/></g><g><title>Halo Infinite — actual Underperform; usually called Underperform. Model 0.35 tiers off, constant 0.00.</title><text class="rowlabel" x="168" y="401.5" text-anchor="end" style="font-size:11px">Halo Infinite</text><line x1="178.0" y1="397.5" x2="243.7" y2="397.5" stroke="var(--rule-strong)" stroke-width="2"/><circle cx="178.0" cy="397.5" r="4.5" fill="var(--warm)" stroke="var(--surface)" stroke-width="2"/><circle cx="243.7" cy="397.5" r="4.5" fill="var(--accent)" stroke="var(--surface)" stroke-width="2"/></g><g><title>Battlefield™ 2042 — actual Underperform; usually called Underperform. Model 0.35 tiers off, constant 0.00.</title><text class="rowlabel" x="168" y="420.5" text-anchor="end" style="font-size:11px">Battlefield™ 2042</text><line x1="178.0" y1="416.5" x2="243.7" y2="416.5" stroke="var(--rule-strong)" stroke-width="2"/><circle cx="178.0" cy="416.5" r="4.5" fill="var(--warm)" stroke="var(--surface)" stroke-width="2"/><circle cx="243.7" cy="416.5" r="4.5" fill="var(--accent)" stroke="var(--surface)" stroke-width="2"/></g><g><title>Hogwarts Legacy — actual Breakout; usually called Underperform. Model 2.45 tiers off, constant 2.00.</title><text class="rowlabel" x="168" y="439.5" text-anchor="end" style="font-size:11px">Hogwarts Legacy</text><line x1="553.4" y1="435.5" x2="637.8" y2="435.5" stroke="var(--rule-strong)" stroke-width="2"/><circle cx="553.4" cy="435.5" r="4.5" fill="var(--warm)" stroke="var(--surface)" stroke-width="2"/><circle cx="637.8" cy="435.5" r="4.5" fill="var(--accent)" stroke="var(--surface)" stroke-width="2"/></g><g><title>Warhammer 40,000: Space Marine 2 — actual Breakout; usually called Flop. Model 2.55 tiers off, constant 2.00.</title><text class="rowlabel" x="168" y="458.5" text-anchor="end" style="font-size:11px">Warhammer 40,000: Space M…</text><line x1="553.4" y1="454.5" x2="656.6" y2="454.5" stroke="var(--rule-strong)" stroke-width="2"/><circle cx="553.4" cy="454.5" r="4.5" fill="var(--warm)" stroke="var(--surface)" stroke-width="2"/><circle cx="656.6" cy="454.5" r="4.5" fill="var(--accent)" stroke="var(--surface)" stroke-width="2"/></g><g><title>Forspoken — actual Flop; usually called Underperform. Model 1.60 tiers off, constant 1.00.</title><text class="rowlabel" x="168" y="477.5" text-anchor="end" style="font-size:11px">Forspoken</text><line x1="365.7" y1="473.5" x2="478.3" y2="473.5" stroke="var(--rule-strong)" stroke-width="2"/><circle cx="365.7" cy="473.5" r="4.5" fill="var(--warm)" stroke="var(--surface)" stroke-width="2"/><circle cx="478.3" cy="473.5" r="4.5" fill="var(--accent)" stroke="var(--surface)" stroke-width="2"/></g><g><title>Immortals of Aveum™ — actual Flop; usually called Success. Model 1.75 tiers off, constant 1.00.</title><text class="rowlabel" x="168" y="496.5" text-anchor="end" style="font-size:11px">Immortals of Aveum™</text><line x1="365.7" y1="492.5" x2="506.4" y2="492.5" stroke="var(--rule-strong)" stroke-width="2"/><circle cx="365.7" cy="492.5" r="4.5" fill="var(--warm)" stroke="var(--surface)" stroke-width="2"/><circle cx="506.4" cy="492.5" r="4.5" fill="var(--accent)" stroke="var(--surface)" stroke-width="2"/></g><g><title>Starfield — actual Underperform; usually called Flop. Model 1.00 tiers off, constant 0.00.</title><text class="rowlabel" x="168" y="515.5" text-anchor="end" style="font-size:11px">Starfield</text><line x1="178.0" y1="511.5" x2="365.7" y2="511.5" stroke="var(--rule-strong)" stroke-width="2"/><circle cx="178.0" cy="511.5" r="4.5" fill="var(--warm)" stroke="var(--surface)" stroke-width="2"/><circle cx="365.7" cy="511.5" r="4.5" fill="var(--accent)" stroke="var(--surface)" stroke-width="2"/></g><text class="delta" x="375.7" y="515.5" style="fill:var(--ink-2)">+1.0</text><g><title>Hellblade II: Senua’s Saga — actual Underperform; usually called Flop. Model 1.00 tiers off, constant 0.00.</title><text class="rowlabel" x="168" y="534.5" text-anchor="end" style="font-size:11px">Hellblade II: Senua’s Saga</text><line x1="178.0" y1="530.5" x2="365.7" y2="530.5" stroke="var(--rule-strong)" stroke-width="2"/><circle cx="178.0" cy="530.5" r="4.5" fill="var(--warm)" stroke="var(--surface)" stroke-width="2"/><circle cx="365.7" cy="530.5" r="4.5" fill="var(--accent)" stroke="var(--surface)" stroke-width="2"/></g><text class="delta" x="375.7" y="534.5" style="fill:var(--ink-2)">+1.0</text><g><title>Concord™ — actual Flop; usually called Success. Model 2.10 tiers off, constant 1.00.</title><text class="rowlabel" x="168" y="553.5" text-anchor="end" style="font-size:11px">Concord™</text><line x1="365.7" y1="549.5" x2="572.1" y2="549.5" stroke="var(--rule-strong)" stroke-width="2"/><circle cx="365.7" cy="549.5" r="4.5" fill="var(--warm)" stroke="var(--surface)" stroke-width="2"/><circle cx="572.1" cy="549.5" r="4.5" fill="var(--accent)" stroke="var(--surface)" stroke-width="2"/></g><text class="delta" x="582.1" y="553.5" style="fill:var(--ink-2)">+1.1</text><g><title>Batman™: Arkham Knight — actual Underperform; usually called Breakout. Model 1.40 tiers off, constant 0.00.</title><text class="rowlabel" x="168" y="572.5" text-anchor="end" style="font-size:11px">Batman™: Arkham Knight</text><line x1="178.0" y1="568.5" x2="440.7" y2="568.5" stroke="var(--rule-strong)" stroke-width="2"/><circle cx="178.0" cy="568.5" r="4.5" fill="var(--warm)" stroke="var(--surface)" stroke-width="2"/><circle cx="440.7" cy="568.5" r="4.5" fill="var(--accent)" stroke="var(--surface)" stroke-width="2"/></g><text class="delta" x="450.7" y="572.5" style="fill:var(--ink-2)">+1.4</text><g><title>PAYDAY 3 — actual Underperform; usually called Breakout. Model 1.40 tiers off, constant 0.00.</title><text class="rowlabel" x="168" y="591.5" text-anchor="end" style="font-size:11px">PAYDAY 3</text><line x1="178.0" y1="587.5" x2="440.7" y2="587.5" stroke="var(--rule-strong)" stroke-width="2"/><circle cx="178.0" cy="587.5" r="4.5" fill="var(--warm)" stroke="var(--surface)" stroke-width="2"/><circle cx="440.7" cy="587.5" r="4.5" fill="var(--accent)" stroke="var(--surface)" stroke-width="2"/></g><text class="delta" x="450.7" y="591.5" style="fill:var(--ink-2)">+1.4</text><text class="tick" x="446" y="625" text-anchor="middle">tiers away from the true outcome</text></svg>
+  </div>
+  <figcaption>The model beat the constant on 11 of 31
+  games and lost on 15. 10 games it never once called
+  correctly.</figcaption></figure>
+
+  <div class="callout">
+    <span class="kicker">The clearest case</span>
+    <p><strong>Warhammer 40,000: Space Marine 2</strong> is
+    breakout and the model usually calls it
+    <strong>flop</strong> — sitting
+    2.5 tiers away against the constant's
+    2.0. Here is everything it had to go on:</p>
+    <div class="tablewrap"><table>
+      <thead><tr><th>Feature</th><th class="num">Value</th></tr></thead>
+      <tbody><tr><td>publisher_mean_volume_pct</td><td class="num">36.47</td></tr><tr><td>publisher_mean_positive_pct</td><td class="num">80.4</td></tr><tr><td>publisher_title_count</td><td class="num">3</td></tr><tr><td>publisher_known</td><td class="num">1</td></tr><tr><td>price_vs_going_rate</td><td class="num">0.857</td></tr><tr><td>launch_price_usd</td><td class="num">60</td></tr><tr><td>budget_tier_aaa</td><td class="num">0</td></tr><tr><td>platform_count</td><td class="num">1</td></tr><tr><td>has_prelaunch_demo</td><td class="num">0</td></tr><tr><td>launch_day_dlc_count</td><td class="num">0</td></tr><tr><td>release_month</td><td class="num">9</td></tr><tr><td>cohort_year</td><td class="num">2024</td></tr></tbody>
+    </table></div>
+    <p style="margin-top:0.9rem">The model saw a publisher whose 3 prior launches in this corpus averaged the 36th volume percentile, a launch price 14% under its cohort's going rate, no AAA budget tag and Windows only. Nothing in that says what actually happened, and the pieces that point anywhere point the wrong way. This is the shape of the whole problem: the signals that separated the corpus's outcomes were visible only after release.</p>
+  </div>
+
+  <details>
+    <summary>Every scored game</summary>
+    <div class="tablewrap"><table>
+      <thead><tr><th>Game</th><th>Actual</th><th>Usually called</th>
+      <th class="num">Hit rate</th><th class="num">Model dist.</th>
+      <th class="num">Constant dist.</th></tr></thead>
+      <tbody><tr><td>Warhammer 40,000: Space Marine 2</td><td>Breakout</td><td>Flop</td><td class="num">0.0%</td><td class="num">2.55</td><td class="num">2.00</td></tr><tr><td>Hogwarts Legacy</td><td>Breakout</td><td>Underperform</td><td class="num">0.0%</td><td class="num">2.45</td><td class="num">2.00</td></tr><tr><td>Concord™</td><td>Flop</td><td>Success</td><td class="num">0.0%</td><td class="num">2.10</td><td class="num">1.00</td></tr><tr><td>Black Myth: Wukong</td><td>Breakout</td><td>Underperform</td><td class="num">0.0%</td><td class="num">1.95</td><td class="num">2.00</td></tr><tr><td>Cyberpunk 2077</td><td>Breakout</td><td>Underperform</td><td class="num">5.0%</td><td class="num">1.80</td><td class="num">2.00</td></tr><tr><td>ELDEN RING</td><td>Breakout</td><td>Underperform</td><td class="num">0.0%</td><td class="num">1.80</td><td class="num">2.00</td></tr><tr><td>Immortals of Aveum™</td><td>Flop</td><td>Success</td><td class="num">0.0%</td><td class="num">1.75</td><td class="num">1.00</td></tr><tr><td>Forspoken</td><td>Flop</td><td>Underperform</td><td class="num">0.0%</td><td class="num">1.60</td><td class="num">1.00</td></tr><tr><td>Batman™: Arkham Knight</td><td>Underperform</td><td>Breakout</td><td class="num">15.0%</td><td class="num">1.40</td><td class="num">0.00</td></tr><tr><td>PAYDAY 3</td><td>Underperform</td><td>Breakout</td><td class="num">30.0%</td><td class="num">1.40</td><td class="num">0.00</td></tr><tr><td>Marvel&#x27;s Avengers - The Definitive Edition</td><td>Flop</td><td>Underperform</td><td class="num">0.0%</td><td class="num">1.20</td><td class="num">1.00</td></tr><tr><td>Metaphor: ReFantazio</td><td>Success</td><td>Flop</td><td class="num">20.0%</td><td class="num">1.20</td><td class="num">1.00</td></tr><tr><td>Resident Evil 4</td><td>Success</td><td>Breakout</td><td class="num">10.0%</td><td class="num">1.10</td><td class="num">1.00</td></tr><tr><td>Starfield</td><td>Underperform</td><td>Flop</td><td class="num">0.0%</td><td class="num">1.00</td><td class="num">0.00</td></tr><tr><td>Dragon Age™: The Veilguard</td><td>Flop</td><td>Underperform</td><td class="num">0.0%</td><td class="num">1.00</td><td class="num">1.00</td></tr><tr><td>Hellblade II: Senua’s Saga</td><td>Underperform</td><td>Flop</td><td class="num">5.0%</td><td class="num">1.00</td><td class="num">0.00</td></tr><tr><td>HELLDIVERS™ 2</td><td>Breakout</td><td>Breakout</td><td class="num">70.0%</td><td class="num">0.75</td><td class="num">2.00</td></tr><tr><td>Redfall</td><td>Flop</td><td>Underperform</td><td class="num">40.0%</td><td class="num">0.60</td><td class="num">1.00</td></tr><tr><td>SILENT HILL 2</td><td>Success</td><td>Breakout</td><td class="num">40.0%</td><td class="num">0.60</td><td class="num">1.00</td></tr><tr><td>Suicide Squad: Kill the Justice League</td><td>Flop</td><td>Flop</td><td class="num">80.0%</td><td class="num">0.55</td><td class="num">1.00</td></tr><tr><td>ARMORED CORE™ VI FIRES OF RUBICON™</td><td>Success</td><td>Success</td><td class="num">60.0%</td><td class="num">0.50</td><td class="num">1.00</td></tr><tr><td>S.T.A.L.K.E.R. 2: Heart of Chornobyl</td><td>Success</td><td>Success</td><td class="num">70.0%</td><td class="num">0.40</td><td class="num">1.00</td></tr><tr><td>Halo Infinite</td><td>Underperform</td><td>Underperform</td><td class="num">65.0%</td><td class="num">0.35</td><td class="num">0.00</td></tr><tr><td>Battlefield™ 2042</td><td>Underperform</td><td>Underperform</td><td class="num">65.0%</td><td class="num">0.35</td><td class="num">0.00</td></tr><tr><td>Baldur&#x27;s Gate 3</td><td>Breakout</td><td>Breakout</td><td class="num">85.0%</td><td class="num">0.25</td><td class="num">2.00</td></tr><tr><td>Gotham Knights</td><td>Underperform</td><td>Underperform</td><td class="num">75.0%</td><td class="num">0.25</td><td class="num">0.00</td></tr><tr><td>No Man&#x27;s Sky</td><td>Underperform</td><td>Underperform</td><td class="num">100.0%</td><td class="num">0.00</td><td class="num">0.00</td></tr><tr><td>Deus Ex: Mankind Divided</td><td>Underperform</td><td>Underperform</td><td class="num">100.0%</td><td class="num">0.00</td><td class="num">0.00</td></tr><tr><td>Back 4 Blood</td><td>Underperform</td><td>Underperform</td><td class="num">100.0%</td><td class="num">0.00</td><td class="num">0.00</td></tr><tr><td>The Callisto Protocol™</td><td>Underperform</td><td>Underperform</td><td class="num">100.0%</td><td class="num">0.00</td><td class="num">0.00</td></tr><tr><td>Clair Obscur: Expedition 33</td><td>Breakout</td><td>Breakout</td><td class="num">100.0%</td><td class="num">0.00</td><td class="num">2.00</td></tr></tbody>
+    </table></div>
+  </details>
+</section>
+
+<section>
+  <div class="sec-head"><span class="sec-label">06 / Reading</span>
+    <h2>What this does and does not establish</h2></div>
+
+  <ul class="gaps">
+    <li><span class="who">Established</span><span class="what"><b>The pipeline
+    works.</b> Features, leakage guard, ordinal model, cross-validation, the
+    gate, serving with fallback, and a retraining job that skips unchanged
+    labels — all built and tested. None of it needs revisiting when the corpus
+    grows.</span></li>
+    <li><span class="who">Established</span><span class="what"><b>Structural
+    pre-launch features do not separate these outcomes at this sample
+    size.</b> Publisher record, price against the cohort's going rate,
+    platform reach, release timing — measured together, they lose to naming
+    the middle tier.</span></li>
+    <li><span class="who">Not established</span><span class="what"><b>That
+    pre-launch forecasting is impossible.</b> 31 rows cannot
+    distinguish a data-volume problem from a feature problem from a genuine
+    ceiling. Nothing here decides that, and any claim that it does is reading
+    past the evidence.</span></li>
+    <li><span class="who">Not established</span><span class="what"><b>That the
+    model would fail with better features.</b> Wishlist rank, marketing spend,
+    franchise history and pre-launch buzz are all absent — not tested and
+    found wanting, simply absent.</span></li>
+  </ul>
+</section>
+
+<section>
+  <div class="sec-head"><span class="sec-label">07 / Next</span>
+    <h2>What would move this</h2></div>
+
+  <p class="wide"><strong>Labels, mostly.</strong> The corpus holds
+  204 games and 34 labels. Roughly 150
+  labeled rows is where cross-validation stops being the limiting factor and a
+  held-out test set becomes affordable. That is research time, not engineering
+  time.</p>
+
+  <p class="wide">Auto-labeling the remaining games with the Phase 1 rubric
+  would be fast and worthless: a model trained on rubric labels learns the
+  rubric, not the outcome. The informative labels are precisely the ones the
+  rubric cannot settle on its own.</p>
+
+  <p class="wide">The retraining job runs on the 1st and 15th, skips when no
+  new labels have landed, and re-runs this same evaluation each time. If the
+  corpus ever grows enough for the model to clear the bar, an artifact gets
+  written and the endpoint switches over on its own. Nothing needs to be
+  flipped by hand.</p>
+</section>
+
+<footer>
+  <p>Generated from commit <code>49eb899</code> against the
+  204-release corpus. Every figure is read out of the
+  populated database at generation time.</p>
+  <p>Outcome tiers describe commercial performance relative to budget-tier
+  expectations — never creative quality, and never a judgment of the people who
+  made these games. All four tiers carry the same neutral visual weight
+  throughout.</p>
+  <p>Not affiliated with, endorsed by, or connected to Valve Corporation.</p>
+</footer>
+
+</div>

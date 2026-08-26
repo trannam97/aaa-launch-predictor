@@ -99,6 +99,10 @@ neither moves the label digest. **The model loses to a constant**: no artifact
 is written, any stale one is removed, and `/games/{appid}/prediction` keeps
 serving the rule-based baseline tagged as such.
 
+Currently reports the model at 39.8% against 35.5% for a constant guess, and
+ordinal distance 0.96 against 0.90 — so it writes nothing, and the baseline
+keeps serving.
+
 Needs `ml/requirements.txt`. See `ml/README.md` for the evaluation protocol
 and why the bar is a constant rather than the baseline.
 

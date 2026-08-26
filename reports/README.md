@@ -7,6 +7,7 @@ turned out to say, and what's still open. One file per report.
 |---|---|---|
 | [`phase-0.5-launch-window-backfill.html`](./phase-0.5-launch-window-backfill.html) | 0.5 | Historical backfill of 126 AAA Steam releases with windowed launch metrics |
 | [`phase-1-rubric-validation.html`](./phase-1-rubric-validation.html) | 1 | 34 games labeled from sourced research; the outcome rubric encoded and scored against them |
+| [`phase-2-model-evaluation.html`](./phase-2-model-evaluation.html) | 2 | The ordinal pre-launch model built, cross-validated against a constant guess, and refused |
 
 ## Naming
 
