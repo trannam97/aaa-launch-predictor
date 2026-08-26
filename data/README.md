@@ -125,6 +125,38 @@ does to a score. Filtering the training set until the numbers improve, on a
 corpus this size, finds noise and calls it a finding — see the Evaluation
 Protocol notes in `ml/README.md`.
 
+## Original release dates come from Wikidata
+
+`original_release_date` is what separates a day-one Steam launch from a port
+that arrived years after the console release — and Steam cannot supply it,
+since it only knows its own date. Without it `derive_platform_launch_type`
+has nothing to compare against and every row falls to `unknown`, which is
+where 166 of these rows sat.
+
+`jobs/enrich_release_dates.py` fills it from **Wikidata**, joining on P1733
+(Steam application ID) — a structured lookup, not scraping. The earliest P577
+publication date across all platforms is taken as the original release.
+
+Coverage on this corpus: **164 of 166**, resolving to 102 day-one launches and
+61 delayed ports. The two misses are Call of Duty: Black Ops 6 and Modern
+Warfare III, whose Wikidata items don't carry a Steam appid; they stay
+`unknown` rather than being guessed.
+
+Three things the job refuses to write rather than approximate:
+
+- **Year-precision dates.** Wikidata renders these as `2016-00-00`. Coercing
+  one to January 1st could turn a same-year launch into a spurious port.
+- **Rows where Steam predates the earliest known release** by more than the
+  seven-day tolerance. That means one of the two sources is wrong, and
+  classifying it anyway would bury the problem. None occurred on this corpus.
+- **`platform_launch_type` itself.** The job writes only the date;
+  `app/backfill.py` stays the single place that decides day-one versus port.
+
+Per-platform qualifiers (P400) exist but are inconsistently populated, so they
+are deliberately unused — the minimum publication date is sufficient. A 2014
+console launch against a 2019 Steam date identifies a port whether or not
+either statement names its platform.
+
 ## Known caveats
 
 - **Concurrent players can't be backfilled.** Steam publishes only a live
