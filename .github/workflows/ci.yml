@@ -43,8 +43,20 @@ jobs:
           assert rows, 'curated CSV is empty'
           "
 
+      - name: Rubric agrees with the hand labels
+        run: |
+          python -c "
+          import sys; sys.path.insert(0, 'backend')
+          from app.backfill import load_curated_csv
+          rows = load_curated_csv('data/historical_releases.csv')
+          labeled = [r for r in rows if r.resolved_outcome]
+          missing = [r.game_name for r in labeled if r.studio_signal.value == 'unknown']
+          assert not missing, f'labeled rows without a studio signal: {missing}'
+          print(f'{len(labeled)} labeled rows, all carrying structured signals')
+          "
+
       - name: Migrations match the models
-        working-directory: data
+        working-directory: backend
         env:
           # A throwaway SQLite file: `alembic check` needs somewhere to apply
           # the migrations before diffing them against the models.
@@ -52,6 +64,31 @@ jobs:
         run: |
           alembic upgrade head
           alembic check
+
+  ml:
+    # Separate from the backend job on purpose. That one installs no
+    # scientific stack, which is what proves the API still starts and still
+    # serves baseline forecasts when scikit-learn is absent. This one installs
+    # everything, so the model tests and the sklearn-gated serving tests
+    # actually execute.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install
+        run: pip install -e './backend[dev,ml]' -r ml/requirements.txt
+
+      - name: Model and evaluation tests
+        run: pytest ml/tests -q
+
+      - name: Backend tests, with the model stack present
+        working-directory: backend
+        run: pytest -q
 
   frontend:
     runs-on: ubuntu-latest

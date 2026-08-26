@@ -190,6 +190,11 @@ class Game(Base):
         cascade="all, delete-orphan",
         order_by="GameSnapshot.captured_at.desc()",
     )
+    release_date_changes: Mapped[list[ReleaseDateChange]] = relationship(
+        back_populates="game",
+        cascade="all, delete-orphan",
+        order_by="ReleaseDateChange.observed_at",
+    )
 
     def __repr__(self) -> str:  # pragma: no cover - debug helper
         return f"<Game appid={self.steam_appid} name={self.name!r}>"
@@ -283,6 +288,71 @@ class ResearchStatus(enum.StrEnum):
     UNRESOLVABLE = "unresolvable"
 
 
+class StudioSignal(enum.StrEnum):
+    """What happened to the studio after launch, worst signal wins.
+
+    Ordered by severity so a rule can compare them. This is the axis the spec
+    says launch-window numbers cannot supply — peak players and review scores
+    will not tell you whether a studio survived.
+    """
+
+    GREW = "grew"
+    CONTINUED = "continued"
+    SEVERE_LAYOFFS = "severe_layoffs"
+    CLOSED = "closed"
+    UNKNOWN = "unknown"
+
+    @property
+    def severity(self) -> int:
+        return _STUDIO_SEVERITY[self]
+
+
+_STUDIO_SEVERITY = {
+    StudioSignal.GREW: 0,
+    StudioSignal.CONTINUED: 1,
+    StudioSignal.SEVERE_LAYOFFS: 2,
+    StudioSignal.CLOSED: 3,
+    StudioSignal.UNKNOWN: -1,
+}
+
+
+class SupportSignal(enum.StrEnum):
+    """How post-launch support for the game itself played out.
+
+    Separate from the studio's fate on purpose: a studio can be gutted and
+    still finish the season pass (The Callisto Protocol), and a healthy studio
+    can walk away from a title (Marvel's Avengers). Distinguishing Flop from
+    Underperform needs both.
+    """
+
+    SUSTAINED = "sustained"
+    CURTAILED = "curtailed"
+    ABANDONED = "abandoned"
+    UNKNOWN = "unknown"
+
+
+class DemoTiming(enum.StrEnum):
+    """When a demo appeared relative to the game's Steam release.
+
+    The distinction is the whole point. Of the corpus games that list a demo
+    today, most got it *after* launch — publishers add one to convert
+    holdouts when sales disappoint. So a bare "has a demo" flag correlates
+    with commercial disappointment rather than predicting success, and only
+    `PRE_LAUNCH` is usable as a pre-launch feature.
+
+    `NONE_LISTED` means no demo is listed *now*, which is not the same as no
+    demo ever existing: Steam Next Fest demos are routinely taken down after
+    the event. Absence is not evidence of absence here — the same rule the
+    spec already applies to wishlist figures.
+    """
+
+    PRE_LAUNCH = "pre_launch"
+    LAUNCH_WINDOW = "launch_window"
+    POST_LAUNCH = "post_launch"
+    NONE_LISTED = "none_listed"
+    UNKNOWN = "unknown"
+
+
 class WindowKey(enum.StrEnum):
     """Named capture windows, measured from the Steam release date."""
 
@@ -320,6 +390,27 @@ ResearchStatusType = Enum(
     length=32,
     values_callable=lambda cls: [m.value for m in cls],
 )
+StudioSignalType = Enum(
+    StudioSignal,
+    name="studio_signal",
+    native_enum=False,
+    length=32,
+    values_callable=lambda cls: [m.value for m in cls],
+)
+SupportSignalType = Enum(
+    SupportSignal,
+    name="support_signal",
+    native_enum=False,
+    length=32,
+    values_callable=lambda cls: [m.value for m in cls],
+)
+DemoTimingType = Enum(
+    DemoTiming,
+    name="demo_timing",
+    native_enum=False,
+    length=32,
+    values_callable=lambda cls: [m.value for m in cls],
+)
 WindowKeyType = Enum(
     WindowKey,
     name="window_key",
@@ -327,6 +418,93 @@ WindowKeyType = Enum(
     length=16,
     values_callable=lambda cls: [m.value for m in cls],
 )
+
+
+class PublisherStats(Base):
+    """Aggregate release profile per normalized publisher, refreshed quarterly.
+
+    The spec's plan was to cluster these into a categorical `company_tier`,
+    standing in for budget figures that aren't public. Measured on the real
+    corpus that clustering proved unstable and, worse, split companies by how
+    well their games performed rather than how big they are — so `tier` is
+    left null unless the clustering job's stability check passes.
+
+    The aggregates themselves are kept regardless. They carry strictly more
+    information than a three-way bucket would, and a tree model can use them
+    directly. What they are *not* is a budget estimate: a publisher with a
+    large catalog of modest releases and one with a small catalog of huge
+    ones are different companies, and nothing here separates them from money.
+    """
+
+    __tablename__ = "publisher_stats"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String(255), nullable=False, unique=True, index=True)
+
+    title_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    mean_volume_percentile: Mapped[float | None] = mapped_column(Float)
+    mean_positive_pct: Mapped[float | None] = mapped_column(Float)
+    mean_platform_breadth: Mapped[float | None] = mapped_column(Float)
+    first_year: Mapped[int | None] = mapped_column(Integer)
+    last_year: Mapped[int | None] = mapped_column(Integer)
+
+    # Null whenever the clustering failed its stability check, which as of
+    # the Phase 2 groundwork is always. Never fabricate a tier to fill it.
+    tier: Mapped[int | None] = mapped_column(Integer)
+    tier_label: Mapped[str | None] = mapped_column(String(32))
+
+    computed_at: Mapped[datetime] = mapped_column(UtcDateTime, nullable=False, default=utcnow)
+
+    def __repr__(self) -> str:  # pragma: no cover - debug helper
+        return f"<PublisherStats {self.name!r} n={self.title_count} tier={self.tier}>"
+
+
+class ReleaseDateChange(Base):
+    """One observed change to a tracked game's announced release date.
+
+    Steam publishes only the *current* date, with no history — so a delay is
+    invisible unless it is caught as it happens. Every refresh compares what
+    Steam now says against what we last recorded, and appends a row when they
+    differ. Nothing recovers a delay that happened before a game was tracked.
+
+    Deliberately captured without assuming a direction. Repeated delays are
+    commonly read as production trouble, but the counter-examples are strong:
+    Elden Ring slipped once and was a breakout, while Cyberpunk 2077 slipped
+    three times and shipped broken anyway. Whether slippage predicts anything,
+    and with what sign, is for Phase 2 to determine from data rather than for
+    this table to presume.
+    """
+
+    __tablename__ = "release_date_changes"
+    __table_args__ = (Index("ix_release_date_changes_game_observed", "game_id", "observed_at"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    game_id: Mapped[int] = mapped_column(ForeignKey("games.id", ondelete="CASCADE"), nullable=False)
+    observed_at: Mapped[datetime] = mapped_column(UtcDateTime, nullable=False, default=utcnow)
+
+    previous_date: Mapped[date | None] = mapped_column(Date)
+    previous_raw: Mapped[str | None] = mapped_column(String(64))
+    new_date: Mapped[date | None] = mapped_column(Date)
+    new_raw: Mapped[str | None] = mapped_column(String(64))
+
+    # Positive = pushed back, negative = brought forward. Null when either
+    # side could not be parsed to a real date.
+    days_moved: Mapped[int | None] = mapped_column(Integer)
+
+    # True when the previous date was a coarse window ("Q4 2026", "2026").
+    # Narrowing "Q4 2026" to "Nov 12, 2026" is a precision increase, not a
+    # delay, and counting it as slippage would inflate every such game.
+    from_coarse_estimate: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+
+    game: Mapped[Game] = relationship(back_populates="release_date_changes")
+
+    @property
+    def is_delay(self) -> bool:
+        """A real push-back, excluding mere precision increases."""
+        return not self.from_coarse_estimate and self.days_moved is not None and self.days_moved > 0
+
+    def __repr__(self) -> str:  # pragma: no cover - debug helper
+        return f"<ReleaseDateChange game_id={self.game_id} {self.previous_raw!r}->{self.new_raw!r}>"
 
 
 class HistoricalRelease(Base):
@@ -362,6 +540,27 @@ class HistoricalRelease(Base):
     on_linux: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     metacritic_score: Mapped[int | None] = mapped_column(Integer)
     metacritic_url: Mapped[str | None] = mapped_column(String(512))
+    # Demo, if Steam currently lists one. Timing is what carries the signal;
+    # see DemoTiming for why a bare presence flag would mislead.
+    demo_appid: Mapped[int | None] = mapped_column(Integer)
+    demo_release_date: Mapped[date | None] = mapped_column(Date)
+    demo_timing: Mapped[DemoTiming] = mapped_column(
+        DemoTimingType, nullable=False, default=DemoTiming.UNKNOWN
+    )
+    # Add-on content. `dlc_count` counts only content sold as separate Steam
+    # apps — Helldivers 2 shows zero because Warbonds are bought with in-game
+    # currency, so this is not a measure of content volume. Read it with
+    # `has_in_app_purchases`, which catches the models it misses.
+    #
+    # The split by timing is the useful part. Launch-day DLC is a pre-launch
+    # monetization decision and is safe as a forecasting feature; DLC shipped
+    # later is a post-launch support signal and is outcome-contaminated.
+    dlc_count: Mapped[int | None] = mapped_column(Integer)
+    launch_day_dlc_count: Mapped[int | None] = mapped_column(Integer)
+    post_launch_dlc_count: Mapped[int | None] = mapped_column(Integer)
+    last_dlc_days_after_launch: Mapped[int | None] = mapped_column(Integer)
+    has_in_app_purchases: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+
     # Grouping key for cohort normalization: raw counts are not comparable
     # across years, so every count-based feature is ranked within its cohort.
     cohort_year: Mapped[int | None] = mapped_column(Integer, index=True)
@@ -378,6 +577,14 @@ class HistoricalRelease(Base):
     )
     post_launch_support: Mapped[str | None] = mapped_column(Text)
     studio_outcome: Mapped[str | None] = mapped_column(Text)
+    # Structured counterparts to the two prose fields above — the rubric runs
+    # on these; the prose stays for a human reading the row.
+    studio_signal: Mapped[StudioSignal] = mapped_column(
+        StudioSignalType, nullable=False, default=StudioSignal.UNKNOWN
+    )
+    support_signal: Mapped[SupportSignal] = mapped_column(
+        SupportSignalType, nullable=False, default=SupportSignal.UNKNOWN
+    )
     resolved_outcome: Mapped[Outcome | None] = mapped_column(OutcomeType)
     label_confidence: Mapped[LabelConfidence | None] = mapped_column(LabelConfidenceType)
     research_status: Mapped[ResearchStatus] = mapped_column(

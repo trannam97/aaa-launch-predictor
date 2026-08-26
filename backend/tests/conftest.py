@@ -94,7 +94,9 @@ def steam_client_factory():
         # fixture holds onto the injected one and closes it at teardown.
         http_client = httpx.Client(transport=steam_transport(**kwargs))
         http_clients.append(http_client)
-        return SteamClient(http_client)
+        # No throttling against a stubbed transport — there is nothing to
+        # rate-limit, and sleeping would make the suite crawl.
+        return SteamClient(http_client, min_request_interval=0)
 
     yield make
     for http_client in http_clients:

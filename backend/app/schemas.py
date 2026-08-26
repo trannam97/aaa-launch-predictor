@@ -11,7 +11,9 @@ from datetime import date, datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.baseline import BaselineForecast
 from app.ingest import split_list
+from app.model_forecast import ModelForecast
 from app.models import Game, GameSnapshot, LifecycleStatus, Outcome
 
 OUTCOME_LABELS: dict[Outcome, str] = {
@@ -123,6 +125,15 @@ class GameSummary(BaseModel):
         )
 
 
+class ReleaseDateChangeOut(BaseModel):
+    observed_at: datetime
+    previous_raw: str | None = None
+    new_raw: str | None = None
+    days_moved: int | None = None
+    from_coarse_estimate: bool = False
+    is_delay: bool = False
+
+
 class GameDetail(GameSummary):
     short_description: str | None = None
     metacritic_url: str | None = None
@@ -130,6 +141,11 @@ class GameDetail(GameSummary):
     on_mac: bool = False
     on_linux: bool = False
     snapshots: list[SnapshotOut] = Field(default_factory=list)
+    # Announced-date slippage observed since tracking began. Empty for a game
+    # added after it shipped — Steam keeps no history to backfill from.
+    release_date_changes: list[ReleaseDateChangeOut] = Field(default_factory=list)
+    delay_count: int = 0
+    total_days_delayed: int = 0
 
     @classmethod
     def from_model(cls, game: Game, snapshots: list[GameSnapshot] | None = None) -> GameDetail:
@@ -137,8 +153,23 @@ class GameDetail(GameSummary):
         # from the relationship's own ordering.
         history = snapshots if snapshots is not None else list(game.snapshots)
         base = GameSummary.from_model(game, history[0] if history else None).model_dump()
+        changes = list(game.release_date_changes)
+        delays = [c for c in changes if c.is_delay]
         return cls(
             **base,
+            release_date_changes=[
+                ReleaseDateChangeOut(
+                    observed_at=c.observed_at,
+                    previous_raw=c.previous_raw,
+                    new_raw=c.new_raw,
+                    days_moved=c.days_moved,
+                    from_coarse_estimate=c.from_coarse_estimate,
+                    is_delay=c.is_delay,
+                )
+                for c in changes
+            ],
+            delay_count=len(delays),
+            total_days_delayed=sum(c.days_moved or 0 for c in delays),
             short_description=game.short_description,
             metacritic_url=game.metacritic_url,
             on_windows=game.on_windows,
@@ -209,3 +240,55 @@ def status_badge(game: Game) -> StatusBadge:
         provisional=True,
         note="Marked resolved but no outcome is recorded.",
     )
+
+
+class PredictionOut(BaseModel):
+    """A pre-launch forecast for one game, from whichever method produced it.
+
+    `method` is the point of this shape. Two things can answer this endpoint
+    — the trained ordinal model when one has cleared its evaluation gate, and
+    the rule-based baseline when none has — and the two are not equally
+    informative. A reader should never have to guess which they are looking
+    at, so the tag travels with every forecast rather than being inferred
+    from how confident the numbers look.
+    """
+
+    steam_appid: int
+    method: str = "rule_based_baseline_v1"
+    predicted_outcome: Outcome
+    predicted_label: str
+    confidence: str
+    probabilities: dict[str, float]
+    rationale: str
+    basis: list[str] = Field(default_factory=list)
+
+    @classmethod
+    def from_forecast(cls, appid: int, forecast: BaselineForecast) -> PredictionOut:
+        return cls(
+            steam_appid=appid,
+            predicted_outcome=forecast.predicted,
+            predicted_label=OUTCOME_LABELS[forecast.predicted],
+            confidence=forecast.confidence,
+            probabilities={
+                outcome.value: probability
+                for outcome, probability in forecast.probabilities.items()
+            },
+            rationale=forecast.rationale,
+            basis=forecast.basis,
+        )
+
+    @classmethod
+    def from_model_forecast(cls, appid: int, forecast: ModelForecast) -> PredictionOut:
+        return cls(
+            steam_appid=appid,
+            method=forecast.method,
+            predicted_outcome=forecast.predicted,
+            predicted_label=OUTCOME_LABELS[forecast.predicted],
+            confidence=forecast.confidence,
+            probabilities={
+                outcome.value: probability
+                for outcome, probability in forecast.probabilities.items()
+            },
+            rationale=forecast.rationale,
+            basis=forecast.basis,
+        )

@@ -6,9 +6,14 @@ whether each will land as a **Flop**, **Underperform**, **Success**, or
 factors with an LLM reasoning layer on live signals (reviews, buzz, public
 reception).
 
-> **Status:** Phase 0.5 — Steam ingestion works end-to-end (API → database →
-> dashboard), and 126 historical releases are backfilled with launch-window
-> metrics. No ML model or LLM reasoning layer yet; see the roadmap below.
+> **Status:** Phase 2 — the training pipeline is built, tested and measured.
+> On 31 labeled releases the ordinal model scores 39.8% against 35.5% for a
+> constant guess, does not clear its evaluation gate, and is therefore **not
+> served**: predictions still come from the rule-based baseline, tagged so you
+> can tell which produced a number. That is a data-volume problem rather than
+> an engineering one — see the
+> [Phase 2 report](./reports/phase-2-model-evaluation.html). No LLM reasoning
+> layer yet.
 
 ## Disclaimer
 
@@ -57,11 +62,11 @@ LightGBM (ML model) · Claude (LLM reasoning layer) · GitHub Actions
 
 | Folder | What |
 |---|---|
-| `/backend` | FastAPI app — Steam client, ingestion pipeline, API |
+| `/backend` | FastAPI app — Steam client, ingestion pipeline, API, DB migrations |
 | `/frontend` | Next.js dashboard |
-| `/data` | Alembic migrations, seed dataset |
+| `/data` | Curated datasets shared by the backend, jobs and ML code |
 | `/jobs` | Scripts GitHub Actions runs on a schedule |
-| `/ml` | Model training and company-tiering clustering (Phase 2) |
+| `/ml` | Model fitting, cross-validation and company-tiering clustering |
 | `/reports` | Per-phase reports on what shipped and what the data showed |
 
 Each folder has its own README with details.
@@ -78,7 +83,7 @@ python -m venv .venv && source .venv/bin/activate
 pip install -e '.[dev]'
 
 # 2. Schema
-cd ../data && alembic upgrade head && cd ../backend
+alembic upgrade head
 
 # 3. API on :8000
 uvicorn app.main:app --reload
@@ -99,9 +104,9 @@ For a hosted database, copy `.env.example` to `.env` and set `DATABASE_URL`.
 | Phase | Status | What |
 |---|---|---|
 | 0 | **Done** | Steam ingestion end-to-end: one game's data into the DB and onto a page |
-| 0.5 | **Done** | Historical backfill — 126 releases (2015–2025) with windowed launch metrics; 12 labeled, 114 awaiting the research pass |
-| 1 | Next | Label 30–50 of them, rule-based baseline prediction to validate the rubric |
-| 2 | | Train the ordinal gradient-boosted model, replace the baseline |
+| 0.5 | **Done** | Historical backfill — now 204 releases (2014–2025) with windowed launch metrics |
+| 1 | **Done** | 34 games labeled from sourced research; rubric encoded and reproducing all 31 scored labels on its falsifiable axis; rule-based baseline wired to the API |
+| 2 | **Done** | Ordinal model, leakage guard, k-fold evaluation, serving path, retraining job; measured at 39.8% against a 35.5% constant, so the gate refuses it and the baseline keeps serving |
 | 3 | | Claude reasoning layer on top of model output for live titles |
 | 4 | | Dashboard polish, refresh scheduling, historical accuracy tracking |
 

@@ -10,6 +10,8 @@ Nothing here scrapes SteamDB — see the Data Layer section of PROJECT_SPEC.md.
 
 from __future__ import annotations
 
+import re
+import time
 from dataclasses import dataclass, field
 from datetime import date, datetime
 from typing import Self
@@ -21,10 +23,24 @@ from app.config import get_settings
 STORE_BASE_URL = "https://store.steampowered.com"
 API_BASE_URL = "https://api.steampowered.com"
 
+# Steam tolerates roughly 200 store requests per 5 minutes per IP — about one
+# every 1.5s. Pacing lives here rather than in each caller because callers
+# cannot see the whole request stream: dating a title's DLC can fire twenty
+# requests in a burst on top of the four every game already costs, which is
+# exactly how this limit got hit in practice.
+MIN_REQUEST_INTERVAL_SECONDS = 1.5
+
 # Steam's own English date strings, in the order we try them. The store API
 # switches between the middle-endian and little-endian forms depending on the
 # country code, and unreleased titles use coarse windows ("Q4 2026", "2026").
 _DATE_FORMATS = ("%b %d, %Y", "%d %b, %Y", "%B %d, %Y", "%d %B %Y", "%b %Y", "%B %Y", "%Y")
+
+# Release-date strings that name a window rather than a day. Narrowing one of
+# these ("Q4 2026" -> "Nov 12, 2026") is a gain in precision, not a delay.
+COARSE_DATE_PATTERN = re.compile(
+    r"^(Q[1-4]\s*\d{4}|\d{4}|[A-Za-z]+\s+\d{4}|coming\s+soon|to\s+be\s+announced|TBA|TBD)$",
+    re.IGNORECASE,
+)
 
 
 class SteamError(RuntimeError):
@@ -64,6 +80,16 @@ class AppDetails:
     on_linux: bool = False
     metacritic_score: int | None = None
     metacritic_url: str | None = None
+    # Demo apps Steam currently lists for this title. Current state only —
+    # a demo taken down after Steam Next Fest leaves no trace here.
+    demo_appids: list[int] = field(default_factory=list)
+    # DLC sold as separate Steam apps. Note what this does NOT count:
+    # content bought with in-game currency (Helldivers 2's Warbonds, battle
+    # passes) is invisible here, so a zero means "nothing sold as a Steam
+    # app", never "no add-on content". `has_in_app_purchases` is the
+    # complement that catches those models.
+    dlc_appids: list[int] = field(default_factory=list)
+    has_in_app_purchases: bool = False
 
 
 @dataclass(slots=True)
@@ -108,10 +134,16 @@ def parse_release_date(raw: str | None) -> date | None:
 class SteamClient:
     """Synchronous Steam client. Pass a client in tests to stub the network."""
 
-    def __init__(self, client: httpx.Client | None = None) -> None:
+    def __init__(
+        self,
+        client: httpx.Client | None = None,
+        min_request_interval: float = MIN_REQUEST_INTERVAL_SECONDS,
+    ) -> None:
         settings = get_settings()
         self._country_code = settings.steam_country_code
         self._language = settings.steam_language
+        self._min_interval = min_request_interval
+        self._last_request_at: float | None = None
         self._owns_client = client is None
         self._client = client or httpx.Client(
             timeout=settings.steam_timeout_seconds,
@@ -131,7 +163,18 @@ class SteamClient:
 
     # --- requests -----------------------------------------------------
 
+    def _throttle(self) -> None:
+        """Space requests out so a burst cannot trip Steam's rate limit."""
+        if self._min_interval <= 0:
+            return
+        if self._last_request_at is not None:
+            elapsed = time.monotonic() - self._last_request_at
+            if elapsed < self._min_interval:
+                time.sleep(self._min_interval - elapsed)
+        self._last_request_at = time.monotonic()
+
     def _get_json(self, url: str, params: dict) -> dict:
+        self._throttle()
         try:
             response = self._client.get(url, params=params)
         except httpx.HTTPError as exc:
@@ -221,6 +264,32 @@ class SteamClient:
             score_desc=summary.get("review_score_desc") or None,
         )
 
+    def get_demo_release_date(self, demo_appid: int) -> date | None:
+        """When a demo app itself released. See `get_release_date_of`."""
+        return self.get_release_date_of(demo_appid)
+
+    def get_release_date_of(self, appid: int) -> date | None:
+        """Release date of any app — used for demo and DLC apps.
+
+        The parent game's `demos` and `dlc` lists say only what exists now.
+        Dating each child app is what separates content shipped at launch
+        from content added afterwards, which are different signals: one is a
+        pre-launch monetization decision, the other a response to how the
+        launch went.
+        """
+        payload = self._get_json(
+            f"{STORE_BASE_URL}/api/appdetails",
+            {"appids": appid, "cc": self._country_code, "l": self._language},
+        )
+        entry = payload.get(str(appid))
+        if not isinstance(entry, dict) or not entry.get("success"):
+            return None
+        data = entry.get("data")
+        if not isinstance(data, dict):
+            return None
+        release = data.get("release_date") if isinstance(data.get("release_date"), dict) else {}
+        return parse_release_date(release.get("date"))
+
     def get_current_players(self, appid: int) -> int | None:
         """Current concurrent players, or None if Steam won't report it.
 
@@ -284,4 +353,15 @@ def _parse_app_details(appid: int, data: dict) -> AppDetails:
         on_linux=bool(platforms.get("linux")),
         metacritic_score=_as_int(metacritic.get("score")),
         metacritic_url=metacritic.get("url") or None,
+        demo_appids=[
+            demo_id
+            for demo in data.get("demos") or []
+            if isinstance(demo, dict) and (demo_id := _as_int(demo.get("appid")))
+        ],
+        dlc_appids=[dlc_id for raw in data.get("dlc") or [] if (dlc_id := _as_int(raw))],
+        has_in_app_purchases=any(
+            category.get("description") == "In-App Purchases"
+            for category in data.get("categories") or []
+            if isinstance(category, dict)
+        ),
     )

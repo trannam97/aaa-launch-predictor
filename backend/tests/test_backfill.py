@@ -9,20 +9,25 @@ import pytest
 from sqlalchemy import select
 
 from app.backfill import (
+    MAX_DLC_LOOKUPS,
     CuratedCsvError,
     CuratedRelease,
     backfill_release,
+    classify_demo_timing,
     derive_platform_launch_type,
     load_curated_csv,
 )
 from app.models import (
     BudgetTier,
+    DemoTiming,
     HistoricalRelease,
     LabelConfidence,
     Outcome,
     PlatformLaunchType,
     ReleaseWindow,
     ResearchStatus,
+    StudioSignal,
+    SupportSignal,
     WindowKey,
 )
 from app.steam import SteamClient
@@ -30,8 +35,8 @@ from tests.conftest import RELEASED_APPID, load_fixture
 
 CSV_HEADER = (
     "steam_appid,game_name,original_release_date,platform_launch_type,platform_reach,"
-    "budget_tier,launch_price_usd,post_launch_support,studio_outcome,resolved_outcome,"
-    "label_confidence,research_status,notes,sources\n"
+    "budget_tier,launch_price_usd,post_launch_support,studio_outcome,studio_signal,"
+    "support_signal,resolved_outcome,label_confidence,research_status,notes,sources\n"
 )
 
 
@@ -68,9 +73,9 @@ def write_csv(tmp_path, body: str):
 def test_load_curated_csv(tmp_path):
     path = write_csv(
         tmp_path,
-        "2443720,Concord,2024-08-23,,PC+PS5,aaa,40,Shut down,Studio closed,flop,high,"
-        "researched,Lowest peak CCU tracked,bo3.gg\n"
-        "1245620,ELDEN RING,,,,unknown,,,,,,not_researched,,\n",
+        "2443720,Concord,2024-08-23,,PC+PS5,aaa,40,Shut down,Studio closed,closed,"
+        "abandoned,flop,high,researched,Lowest peak CCU tracked,bo3.gg\n"
+        "1245620,ELDEN RING,,,,unknown,,,,,,,,not_researched,,\n",
     )
 
     rows = load_curated_csv(path)
@@ -84,6 +89,8 @@ def test_load_curated_csv(tmp_path):
     assert concord.resolved_outcome is Outcome.FLOP
     assert concord.label_confidence is LabelConfidence.HIGH
     assert concord.research_status is ResearchStatus.RESEARCHED
+    assert concord.studio_signal is StudioSignal.CLOSED
+    assert concord.support_signal is SupportSignal.ABANDONED
     assert elden.resolved_outcome is None
     assert elden.research_status is ResearchStatus.NOT_RESEARCHED
     assert elden.launch_price_cents is None
@@ -98,7 +105,7 @@ def test_load_curated_csv_rejects_missing_columns(tmp_path):
 
 
 def test_load_curated_csv_rejects_unknown_enum(tmp_path):
-    path = write_csv(tmp_path, "1,Example,,,,,,,,,,disaster,,\n")
+    path = write_csv(tmp_path, "1,Example,,,,,,,,,,,,disaster,,\n")
 
     with pytest.raises(CuratedCsvError, match="research_status"):
         load_curated_csv(path)
@@ -107,8 +114,8 @@ def test_load_curated_csv_rejects_unknown_enum(tmp_path):
 def test_load_curated_csv_rejects_duplicate_appid(tmp_path):
     path = write_csv(
         tmp_path,
-        "1,Example,,,,unknown,,,,,,not_researched,,\n"
-        "1,Example Again,,,,unknown,,,,,,not_researched,,\n",
+        "1,Example,,,,unknown,,,,,,,,not_researched,,\n"
+        "1,Example Again,,,,unknown,,,,,,,,not_researched,,\n",
     )
 
     with pytest.raises(CuratedCsvError, match="already used"):
@@ -117,14 +124,14 @@ def test_load_curated_csv_rejects_duplicate_appid(tmp_path):
 
 def test_load_curated_csv_rejects_label_without_research(tmp_path):
     # A label with no research behind it must not enter ground truth.
-    path = write_csv(tmp_path, "1,Example,,,,unknown,,,,flop,high,not_researched,,\n")
+    path = write_csv(tmp_path, "1,Example,,,,unknown,,,,,,flop,high,not_researched,,\n")
 
     with pytest.raises(CuratedCsvError, match="research_status is not_researched"):
         load_curated_csv(path)
 
 
 def test_load_curated_csv_rejects_research_without_label(tmp_path):
-    path = write_csv(tmp_path, "1,Example,,,,unknown,,,,,,researched,,\n")
+    path = write_csv(tmp_path, "1,Example,,,,unknown,,,,,,,,researched,,\n")
 
     with pytest.raises(CuratedCsvError, match="resolved_outcome is empty"):
         load_curated_csv(path)
@@ -160,7 +167,7 @@ def windowed_steam_client(window_totals: dict[str, int] | None = None) -> SteamC
             return httpx.Response(200, json=payload)
         return httpx.Response(200, json=load_fixture("currentplayers.json"))
 
-    return SteamClient(httpx.Client(transport=httpx.MockTransport(handler)))
+    return SteamClient(httpx.Client(transport=httpx.MockTransport(handler)), min_request_interval=0)
 
 
 @pytest.fixture
@@ -319,7 +326,8 @@ def test_windows_that_have_not_elapsed_are_skipped(session, monkeypatch):
         return httpx.Response(200, json=load_fixture("appreviews_released.json"))
 
     with httpx.Client(transport=httpx.MockTransport(handler)) as http_client:
-        result = backfill_release(session, curated(), SteamClient(http_client))
+        client = SteamClient(http_client, min_request_interval=0)
+        result = backfill_release(session, curated(), client)
         session.commit()
 
     written = set(result.windows_written)
@@ -341,7 +349,180 @@ def test_future_release_date_skips_all_launch_windows(session):
         return httpx.Response(200, json=load_fixture("appreviews_released.json"))
 
     with httpx.Client(transport=httpx.MockTransport(handler)) as http_client:
-        result = backfill_release(session, curated(), SteamClient(http_client))
+        client = SteamClient(http_client, min_request_interval=0)
+        result = backfill_release(session, curated(), client)
 
     assert result.windows_written == [WindowKey.LIFETIME]
     assert any("in the future" in w for w in result.warnings)
+
+
+# --- demo timing ----------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("game", "demo", "has_demo", "expected"),
+    [
+        # Metaphor: ReFantazio — a genuine pre-launch demo.
+        (date(2024, 10, 10), date(2024, 9, 25), True, DemoTiming.PRE_LAUNCH),
+        # Dragon Age: The Veilguard — demo added a month AFTER a weak launch.
+        (date(2024, 10, 31), date(2024, 12, 4), True, DemoTiming.POST_LAUNCH),
+        # Forspoken — demo dated the same day; too ambiguous to lean on.
+        (date(2023, 1, 24), date(2023, 1, 24), True, DemoTiming.LAUNCH_WINDOW),
+        (date(2023, 1, 24), date(2023, 1, 26), True, DemoTiming.LAUNCH_WINDOW),
+        (date(2023, 1, 24), date(2023, 1, 20), True, DemoTiming.PRE_LAUNCH),
+        (date(2024, 1, 1), None, True, DemoTiming.UNKNOWN),
+        (None, date(2024, 1, 1), True, DemoTiming.UNKNOWN),
+        (date(2024, 1, 1), None, False, DemoTiming.NONE_LISTED),
+    ],
+)
+def test_classify_demo_timing(game, demo, has_demo, expected):
+    assert classify_demo_timing(game, demo, has_demo=has_demo) is expected
+
+
+def test_no_demo_listed_is_not_a_claim_that_none_existed():
+    # Next Fest demos are routinely delisted, so absence is not evidence.
+    # The enum name has to keep saying that.
+    assert DemoTiming.NONE_LISTED.value == "none_listed"
+
+
+def test_backfill_records_a_pre_launch_demo(session):
+    details = load_fixture("appdetails_released.json")
+    details["1174180"]["data"]["demos"] = [{"appid": 999001, "description": ""}]
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/api/appdetails"):
+            if request.url.params.get("appids") == "999001":
+                return httpx.Response(
+                    200,
+                    json={
+                        "999001": {
+                            "success": True,
+                            "data": {
+                                "name": "Example Demo",
+                                "type": "demo",
+                                "release_date": {"coming_soon": False, "date": "Oct 1, 2018"},
+                            },
+                        }
+                    },
+                )
+            return httpx.Response(200, json=details)
+        return httpx.Response(200, json=load_fixture("appreviews_released.json"))
+
+    with httpx.Client(transport=httpx.MockTransport(handler)) as http_client:
+        client = SteamClient(http_client, min_request_interval=0)
+        result = backfill_release(session, curated(), client)
+        session.commit()
+
+    assert result.release.demo_appid == 999001
+    assert result.release.demo_release_date == date(2018, 10, 1)
+    # Game released 2018-10-26, so the demo predates it.
+    assert result.release.demo_timing is DemoTiming.PRE_LAUNCH
+
+
+def test_backfill_records_absence_of_a_demo(session, steam):
+    result = backfill_release(session, curated(), steam)
+    session.commit()
+
+    assert result.release.demo_appid is None
+    assert result.release.demo_timing is DemoTiming.NONE_LISTED
+
+
+# --- DLC timing -----------------------------------------------------------
+
+
+def dlc_client(dlc_dates: dict[int, str | None], *, in_app: bool = False) -> SteamClient:
+    """Steam stub whose DLC apps each report their own release date."""
+    details = load_fixture("appdetails_released.json")
+    details["1174180"]["data"]["dlc"] = list(dlc_dates)
+    if in_app:
+        details["1174180"]["data"]["categories"] = [{"id": 35, "description": "In-App Purchases"}]
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/api/appdetails"):
+            appid = int(request.url.params.get("appids"))
+            if appid in dlc_dates:
+                raw = dlc_dates[appid]
+                if raw is None:
+                    return httpx.Response(200, json={str(appid): {"success": False}})
+                return httpx.Response(
+                    200,
+                    json={
+                        str(appid): {
+                            "success": True,
+                            "data": {
+                                "name": f"DLC {appid}",
+                                "type": "dlc",
+                                "release_date": {"coming_soon": False, "date": raw},
+                            },
+                        }
+                    },
+                )
+            return httpx.Response(200, json=details)
+        return httpx.Response(200, json=load_fixture("appreviews_released.json"))
+
+    return SteamClient(httpx.Client(transport=httpx.MockTransport(handler)), min_request_interval=0)
+
+
+def test_dlc_split_by_launch_timing(session):
+    # Game releases 2018-10-26. Two launch-day items, two shipped later.
+    client = dlc_client(
+        {
+            901: "Oct 26, 2018",  # season pass, day one
+            902: "Oct 27, 2018",  # within the launch window
+            903: "Mar 1, 2019",  # post-launch
+            904: "Sep 1, 2020",  # post-launch, the latest
+        }
+    )
+    result = backfill_release(session, curated(), client)
+    session.commit()
+
+    r = result.release
+    assert r.dlc_count == 4
+    assert r.launch_day_dlc_count == 2
+    assert r.post_launch_dlc_count == 2
+    # Days from release to the most recent DLC — a support-duration signal.
+    assert r.last_dlc_days_after_launch == (date(2020, 9, 1) - date(2018, 10, 26)).days
+
+
+def test_no_dlc_is_recorded_as_zero_not_unknown(session, steam):
+    result = backfill_release(session, curated(), steam)
+    session.commit()
+
+    assert result.release.dlc_count == 0
+    assert result.release.launch_day_dlc_count == 0
+    assert result.release.post_launch_dlc_count == 0
+    assert result.release.last_dlc_days_after_launch is None
+
+
+def test_in_app_purchases_flag_catches_what_dlc_count_misses(session):
+    # Helldivers 2's shape: no DLC sold as Steam apps, all content bought
+    # with in-game currency. A zero DLC count must not read as "no content".
+    client = dlc_client({}, in_app=True)
+
+    result = backfill_release(session, curated(), client)
+    session.commit()
+
+    assert result.release.dlc_count == 0
+    assert result.release.has_in_app_purchases is True
+
+
+def test_undated_dlc_is_skipped_rather_than_bucketed(session):
+    client = dlc_client({901: "Oct 26, 2018", 902: None})
+
+    result = backfill_release(session, curated(), client)
+
+    assert result.release.dlc_count == 2
+    assert result.release.launch_day_dlc_count == 1
+    assert result.release.post_launch_dlc_count == 0
+
+
+def test_long_dlc_lists_are_capped_and_reported(session):
+    # A live-service title can list dozens; one outlier must not dominate a
+    # backfill, and the truncation has to be visible.
+    client = dlc_client({900 + i: "Mar 1, 2019" for i in range(MAX_DLC_LOOKUPS + 5)})
+
+    result = backfill_release(session, curated(), client)
+
+    assert result.release.dlc_count == MAX_DLC_LOOKUPS + 5
+    assert result.release.post_launch_dlc_count == MAX_DLC_LOOKUPS
+    assert any("dated only the first" in w for w in result.warnings)

@@ -19,12 +19,15 @@ from sqlalchemy.orm import Session
 
 from app.models import (
     BudgetTier,
+    DemoTiming,
     HistoricalRelease,
     LabelConfidence,
     Outcome,
     PlatformLaunchType,
     ReleaseWindow,
     ResearchStatus,
+    StudioSignal,
+    SupportSignal,
     WindowKey,
     utcnow,
 )
@@ -41,6 +44,21 @@ WINDOW_DAYS: dict[WindowKey, int] = {
 # Wide enough to absorb timezone and staggered-regional-rollout noise.
 DAY_ONE_TOLERANCE_DAYS = 7
 
+# A demo dated within this many days either side of release is treated as a
+# launch-window demo rather than a genuine pre-launch one — same-day demos are
+# ambiguous, and a pre-launch feature must not lean on an ambiguous case.
+DEMO_LAUNCH_WINDOW_DAYS = 3
+
+# DLC dated within this many days of release counts as launch-day content —
+# season passes, deluxe-edition items, pre-order bonuses.
+DLC_LAUNCH_WINDOW_DAYS = 3
+
+# Dating every DLC costs one request each, and a long-running live-service
+# title can have dozens. Capped so one outlier cannot dominate a backfill —
+# requests are throttled at ~1.5s, so twenty lookups is half a minute on a
+# single game.
+MAX_DLC_LOOKUPS = 12
+
 
 @dataclass(slots=True)
 class CuratedRelease:
@@ -55,6 +73,8 @@ class CuratedRelease:
     launch_price_cents: int | None = None
     post_launch_support: str | None = None
     studio_outcome: str | None = None
+    studio_signal: StudioSignal = StudioSignal.UNKNOWN
+    support_signal: SupportSignal = SupportSignal.UNKNOWN
     resolved_outcome: Outcome | None = None
     label_confidence: LabelConfidence | None = None
     research_status: ResearchStatus = ResearchStatus.NOT_RESEARCHED
@@ -92,6 +112,64 @@ def derive_platform_launch_type(
     return PlatformLaunchType.UNKNOWN
 
 
+@dataclass(slots=True)
+class DlcSummary:
+    launch_day: int | None = None
+    post_launch: int | None = None
+    last_gap_days: int | None = None
+
+
+def _summarize_dlc(details: AppDetails, client: SteamClient, warnings: list[str]) -> DlcSummary:
+    """Split DLC into launch-day and post-launch by dating each one."""
+    if not details.dlc_appids:
+        return DlcSummary(launch_day=0, post_launch=0)
+    if details.release_date is None:
+        return DlcSummary()
+
+    lookups = details.dlc_appids[:MAX_DLC_LOOKUPS]
+    if len(details.dlc_appids) > MAX_DLC_LOOKUPS:
+        warnings.append(
+            f"{len(details.dlc_appids)} DLC listed; dated only the first {MAX_DLC_LOOKUPS}"
+        )
+
+    launch_day = post_launch = 0
+    last_gap: int | None = None
+    for dlc_appid in lookups:
+        dlc_release = client.get_release_date_of(dlc_appid)
+        if dlc_release is None:
+            continue
+        gap = (dlc_release - details.release_date).days
+        if abs(gap) <= DLC_LAUNCH_WINDOW_DAYS:
+            launch_day += 1
+        elif gap > DLC_LAUNCH_WINDOW_DAYS:
+            post_launch += 1
+            last_gap = gap if last_gap is None else max(last_gap, gap)
+    return DlcSummary(launch_day=launch_day, post_launch=post_launch, last_gap_days=last_gap)
+
+
+def classify_demo_timing(
+    game_release: date | None, demo_release: date | None, has_demo: bool
+) -> DemoTiming:
+    """Place a demo relative to the game's Steam release.
+
+    Only `PRE_LAUNCH` is safe to use as a pre-launch feature. A post-launch
+    demo is a response to how the launch went, so feeding it to a forecaster
+    leaks the outcome backwards into the prediction.
+    """
+    if not has_demo:
+        # No demo listed today. Not the same as none ever existing — Next Fest
+        # demos are routinely delisted after the event.
+        return DemoTiming.NONE_LISTED
+    if game_release is None or demo_release is None:
+        return DemoTiming.UNKNOWN
+    gap_days = (demo_release - game_release).days
+    if gap_days < -DEMO_LAUNCH_WINDOW_DAYS:
+        return DemoTiming.PRE_LAUNCH
+    if gap_days > DEMO_LAUNCH_WINDOW_DAYS:
+        return DemoTiming.POST_LAUNCH
+    return DemoTiming.LAUNCH_WINDOW
+
+
 def _as_utc_datetime(day: date) -> datetime:
     return datetime.combine(day, time.min, tzinfo=UTC)
 
@@ -110,6 +188,11 @@ def backfill_release(
     details = client.get_app_details(curated.steam_appid)
     warnings: list[str] = []
 
+    # One extra request, and only for the minority of titles that list a demo.
+    demo_appid = details.demo_appids[0] if details.demo_appids else None
+    demo_release = client.get_demo_release_date(demo_appid) if demo_appid else None
+    dlc = _summarize_dlc(details, client, warnings)
+
     if not _names_match(details.name, curated.game_name):
         warnings.append(
             f"name mismatch: CSV says {curated.game_name!r}, Steam says {details.name!r}"
@@ -122,6 +205,16 @@ def backfill_release(
         session.add(release)
 
     _apply_api_fields(release, details)
+    release.demo_appid = demo_appid
+    release.demo_release_date = demo_release
+    release.demo_timing = classify_demo_timing(
+        details.release_date, demo_release, has_demo=demo_appid is not None
+    )
+    release.dlc_count = len(details.dlc_appids)
+    release.has_in_app_purchases = details.has_in_app_purchases
+    release.launch_day_dlc_count = dlc.launch_day
+    release.post_launch_dlc_count = dlc.post_launch
+    release.last_dlc_days_after_launch = dlc.last_gap_days
     _apply_curated_fields(release, curated, details)
     release.backfilled_at = utcnow()
     session.flush()
@@ -160,6 +253,8 @@ def _apply_curated_fields(
     release.launch_price_cents = curated.launch_price_cents
     release.post_launch_support = curated.post_launch_support
     release.studio_outcome = curated.studio_outcome
+    release.studio_signal = curated.studio_signal
+    release.support_signal = curated.support_signal
     release.resolved_outcome = curated.resolved_outcome
     release.label_confidence = curated.label_confidence
     release.research_status = curated.research_status
@@ -261,6 +356,8 @@ CSV_COLUMNS = (
     "launch_price_usd",
     "post_launch_support",
     "studio_outcome",
+    "studio_signal",
+    "support_signal",
     "resolved_outcome",
     "label_confidence",
     "research_status",
@@ -330,6 +427,10 @@ def _parse_row(raw: dict) -> CuratedRelease:
         launch_price_cents=round(float(price) * 100) if price else None,
         post_launch_support=_text(raw["post_launch_support"]),
         studio_outcome=_text(raw["studio_outcome"]),
+        studio_signal=_enum_or_none(StudioSignal, _text(raw["studio_signal"]), "studio_signal")
+        or StudioSignal.UNKNOWN,
+        support_signal=_enum_or_none(SupportSignal, _text(raw["support_signal"]), "support_signal")
+        or SupportSignal.UNKNOWN,
         resolved_outcome=outcome,
         label_confidence=_enum_or_none(
             LabelConfidence, _text(raw["label_confidence"]), "label_confidence"

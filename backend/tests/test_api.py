@@ -202,3 +202,30 @@ def test_resolved_status_is_not_provisional(client: TestClient, engine):
     assert status["label"] == "Underperform"
     assert status["provisional"] is False
     assert status["kind"] == "resolved"
+
+
+def test_detail_reports_release_date_slippage(client_factory):
+    def upcoming(raw: str):
+        payload = load_fixture("appdetails_upcoming.json")
+        payload["2000950"]["data"]["release_date"] = {"coming_soon": True, "date": raw}
+        return payload
+
+    for raw in ("Nov 12, 2026", "Mar 4, 2027", "Sep 9, 2027"):
+        c = client_factory(details=upcoming(raw), reviews=load_fixture("appreviews_empty.json"))
+        c.post("/games", json={"steam_appid": UPCOMING_APPID})
+
+    body = c.get(f"/games/{UPCOMING_APPID}").json()
+
+    assert body["delay_count"] == 2
+    assert body["total_days_delayed"] == 301
+    assert [x["new_raw"] for x in body["release_date_changes"]] == ["Mar 4, 2027", "Sep 9, 2027"]
+
+
+def test_detail_reports_no_slippage_for_a_game_tracked_after_release(client: TestClient):
+    # Steam keeps no history, so a game added post-launch has nothing to show.
+    client.post("/games", json={"steam_appid": RELEASED_APPID})
+
+    body = client.get(f"/games/{RELEASED_APPID}").json()
+
+    assert body["delay_count"] == 0
+    assert body["release_date_changes"] == []

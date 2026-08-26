@@ -1,15 +1,19 @@
 # Data
 
-Alembic migrations, the curated historical dataset, and the seed research it
-grew from.
+The curated historical dataset and the seed research it grew from.
+
+Datasets live here rather than under `/backend` because three top-level
+components read them: the backend, the scheduled jobs in `/jobs`, and (from
+Phase 2) the training code in `/ml`. Schema **migrations** used to live here
+too, but they now sit in `/backend/migrations`, beside the models they
+migrate — see that folder's notes in `backend/README.md`.
 
 ## Files
 
 | File | What |
 |---|---|
-| `historical_releases.csv` | **Curated input** for the Phase 0.5 backfill — one row per game, holding only what Steam cannot answer. |
+| `historical_releases.csv` | **Curated input** for the backfill — one row per game, holding only what Steam cannot answer. |
 | `historical_releases_seed.csv` | The original 13-game research batch, kept as provenance. Superseded by the file above; not read by any code. |
-| `migrations/` | Alembic revisions. Models live in `/backend/app/models.py`. |
 
 ## The curated CSV
 
@@ -24,6 +28,15 @@ The backfill splits every row in two, and the split is the point:
 
 Re-running the backfill therefore refreshes the machine half in place
 without ever overwriting research.
+
+Two of the curated fields exist in both prose and structured form.
+`studio_outcome` and `post_launch_support` are for a human reading the row;
+`studio_signal` (`grew`/`continued`/`severe_layoffs`/`closed`) and
+`support_signal` (`sustained`/`curtailed`/`abandoned`) are what the rubric
+runs on, because a rule cannot read prose. They are deliberately separate
+axes: a studio can be gutted and still finish the season pass (The Callisto
+Protocol), and a healthy studio can walk away from a title (Marvel's
+Avengers). Telling Flop from Underperform needs both.
 
 `research_status` tracks the qualitative pass: `not_researched` (API data
 only), `researched` (a label is set), `unresolvable` (someone looked and the
@@ -53,6 +66,27 @@ lifetime:
 A model trained on lifetime numbers would see Arkham Knight's broken PC
 launch as a well-received release.
 
+## Labels
+
+34 of 204 rows carry an outcome label, each with a confidence level and cited
+sources. Distribution: 7 flop, 13 underperform, 6 success, 8 breakout.
+
+**Labels describe the launch, not the eventual outcome.** No Man's Sky is
+`underperform` — 61.3% positive over its first two weeks — despite a ten-year
+recovery to 85.0% lifetime. The features are launch-window features, so
+labeling against a decade-long outcome would train them to predict something
+they cannot contain. Recovery is out of scope for now.
+
+**Labels are Steam-scoped.** Per the spec's Release Date Handling, outcome
+tiers measure Steam-specific performance, so only day-one Steam releases are
+labeled. A delayed port's commercial story happened on another platform
+months or years earlier, and labeling it would teach a model backwards —
+Titanfall 2's Steam launch reviews at 96% positive while its "underperform"
+outcome belongs to a 2016 Origin release. Ports carry
+`original_release_date` and `platform_launch_type` but no label, and three
+seed rows whose labels predate this rule are flagged in their notes and
+excluded from rubric validation.
+
 ## Known caveats
 
 - **Concurrent players can't be backfilled.** Steam publishes only a live
@@ -78,36 +112,50 @@ launch as a well-received release.
   but store *search* won't surface them, and `GetAppList` now requires a
   Steam Web API key. Babylon's Fall is the one seed game left out for this
   reason.
+- **Nominal prices aren't comparable across years either.** $60 was the
+  standard AAA price through 2022 and $70 from 2023, and $60 in 2015 is worth
+  roughly $80 in 2025 terms — so the industry's price rise was a real-terms
+  cut. `launch_price_cents` stores the nominal figure; `PriceIndex` in
+  `app/cohort.py` expresses it relative to the modal price of its cohort.
+  That index only produces a rate for cohorts with enough curated prices,
+  which today means the recent years — it improves as more rows get labeled.
+- **A demo listed today usually wasn't there at launch.** Steam's `demos`
+  field reports current state, and across this corpus roughly two-thirds of
+  listed demos were added *after* release — publishers converting holdouts
+  when sales disappoint. `demo_timing` classifies each against the demo app's
+  own release date, and only `pre_launch` is safe as a pre-launch feature.
+  `none_listed` means no demo is listed now, never that none existed: Next
+  Fest demos are routinely delisted.
+- **`dlc_count` counts Steam apps, not content.** Helldivers 2 reads zero
+  because Warbonds are bought with in-game currency. Read it together with
+  `has_in_app_purchases`. The useful split is `launch_day_dlc_count` (a
+  pre-launch monetization decision, safe to forecast on) versus
+  `post_launch_dlc_count` and `last_dlc_days_after_launch` (support duration,
+  outcome-contaminated).
 - **Counts aren't comparable across years.** The Witcher 3 drew 7,519 launch
   reviews in 2015; Black Myth: Wukong drew 689,276 in 2024. That's Steam's
   growth, not a 90x difference in success. `cohort_year` is stored so
   count-based features can be ranked within a same-year cohort; the
   normalization itself is Phase 2 work.
 
-## Migrations
+## Schema
 
-The database URL comes from `DATABASE_URL` (or the backend's SQLite
-default) — never from `alembic.ini`, which is committed.
+The tables these CSVs load into are defined in `/backend/app/models.py` and
+migrated from `/backend/migrations`. Run migrations from `/backend`:
 
 ```bash
-cd data
-
-alembic upgrade head              # apply migrations
-alembic downgrade -1              # roll back one
-alembic check                     # do the models match the migrations?
-alembic revision --autogenerate -m "add company_tier"
-alembic upgrade head --sql        # print SQL instead of running it
+cd backend && alembic upgrade head
 ```
 
-Batch mode is on for SQLite so the same revision applies cleanly to both
-local SQLite and hosted Postgres. `migrations/env.py` renders the project's
-`UtcDateTime` as plain `sa.DateTime(timezone=True)`, so generated migrations
-never import from `app` and can't be broken by a later refactor.
-
-| Revision | Tables |
+| Revision | What it adds |
 |---|---|
 | `0001` | `games`, `game_snapshots` |
 | `0002` | `historical_releases`, `release_windows` |
+| `0003` | `studio_signal`, `support_signal` on `historical_releases` |
+| `0004` | demo presence and timing (`has_demo`, `demo_released_before_launch`) |
+| `0005` | add-on content by timing (`launch_day_dlc_count`, `post_launch_dlc_count`, `has_in_app_purchases`) |
+| `0006` | `release_date_changes` — announced-date slippage, observed forward only |
+| `0007` | `publisher_stats` — per-publisher aggregates; `tier` NULL until clustering is trustworthy |
 
 ## Planned
 

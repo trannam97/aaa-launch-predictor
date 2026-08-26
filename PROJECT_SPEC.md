@@ -248,6 +248,154 @@ Two traps this exposed, both handled in the backfill:
   released three weeks ago returns a real-looking number covering the wrong
   period. Such windows are skipped, not stored.
 
+#### Outcome Scope: Launch, Not Eventual Fate
+**Resolved in Phase 1.** Outcome tiers describe how a release *launched*, not
+what it eventually became. A title that recovers years later is labeled on
+its launch window: No Man's Sky is `underperform` (61.3% positive over its
+first two weeks) despite a ten-year recovery to 85.0% lifetime, 200M+
+revenue and forty free updates.
+
+The reasoning is that the features the model sees are launch-window
+features. Labeling against a decade-long outcome would train launch data to
+predict something it cannot contain, and would make accuracy tracking
+meaningless — a pre-launch forecast cannot be scored against an outcome that
+took ten years to settle. Recovery is real and worth tracking eventually,
+but as its own signal, not folded into the launch label.
+
+Flop vs. Underperform still uses post-launch studio and support evidence, as
+before; that evidence is about whether the shortfall was survivable, not
+about eventual redemption. No Man's Sky is `underperform` rather than `flop`
+because Hello Games kept operating and kept supporting the game.
+
+#### Price Normalization (inflation)
+Nominal launch price is not comparable across cohorts, for two compounding
+reasons:
+- **General inflation.** $60 in 2015 is worth roughly $80 in 2025 terms, so
+  the industry's 2023 move from $60 to $70 was a real-terms price *cut*.
+- **The industry's own pricing norm**, which matters more here. $60 was the
+  standard AAA price through 2022 and $70 from 2023, so the same $60 means
+  "at the going rate" in 2016 and "under it" in 2024.
+
+Rather than deflate by a CPI series, price is expressed **relative to the
+modal launch price of its cohort** — the same rolling-window machinery that
+normalizes review counts. That answers the question actually being asked
+(was this priced at, above, or below the going rate for its tier?), needs no
+external data or annual maintenance, and avoids assuming game prices track
+consumer inflation, which they demonstrably do not.
+
+Development *cost* inflation is a separate matter, currently absorbed by
+`budget_tier` being categorical rather than a dollar figure. AAA budgets have
+risen faster than CPI, so if dollar figures are ever attached, they will need
+their own deflator rather than reusing this one.
+
+#### Demo Timing (and why a bare "has a demo" flag is harmful)
+**Resolved in Phase 1.** A pre-launch demo plausibly moves perception —
+players who try the game form a view before buying — so it is worth
+capturing. But the obvious implementation is actively wrong.
+
+Steam's `appdetails` exposes a `demos` field, which says a demo exists
+*now*. Checking the demo app's own release date against the game's, across
+the corpus, shows why that is not the same question: **of the titles listing
+a demo, roughly two-thirds got it after launch, not before.** Publishers add
+a demo to convert holdouts when sales disappoint — Immortals of Aveum 87 days
+post-launch, Dragon Age: The Veilguard 34 days, Skull and Bones 279 days,
+Star Wars Outlaws 147 days, all of them commercial disappointments. The
+pre-launch demos skew the other way (Metaphor: ReFantazio, Resident Evil 4,
+Tekken 8, Street Fighter 6).
+
+A naive `has_demo` boolean would therefore teach a model that demos predict
+failure, when what it is really seeing is a *response* to failure. Only
+`demo_timing == pre_launch` may be used as a pre-launch feature. A
+post-launch demo is outcome-contaminated and must be excluded from anything
+forecasting a launch, though it stays recorded as a post-launch marketing
+signal.
+
+Two further limits, both stated rather than worked around:
+- **Absence is not evidence.** A demo delisted after Steam Next Fest leaves
+  no trace in the API, so `none_listed` means "no demo listed today", never
+  "no demo existed". This is the same rule the spec already applies to
+  wishlist figures.
+- **Same-day demos are ambiguous** and are recorded as `launch_window` rather
+  than forced into either bucket.
+- **Selection effect.** Studios choose whether to demo, and that choice
+  correlates with budget tier, genre and confidence in the product. Any
+  association found here is descriptive, not causal — consistent with the
+  Public Reception Signal guardrail against adjudicating *why* a reaction
+  happened.
+
+#### Add-on Content, and the Day-1 Patch Dead End
+**Resolved in Phase 1.**
+
+**Add-on content, split by when it shipped.** Steam's `dlc` field lists DLC
+sold as separate apps, and each carries its own release date — so the same
+date check used for demos splits it in two. **Launch-day DLC** (season
+passes, deluxe-edition items, pre-order bonuses, dated within 3 days of
+release) is a *pre-launch* monetization decision and is safe to forecast on:
+Star Wars Outlaws shipped with 6, Elden Ring with 0. **Post-launch DLC** and
+the gap to the most recent one describe support duration, which is a
+post-launch signal and outcome-contaminated — usable for resolving an
+outcome, never for predicting one.
+
+**`dlc_count` is not a measure of content.** It counts only what is sold as a
+separate Steam app. Helldivers 2 reads zero because its Warbonds are bought
+with in-game currency, despite being among the most actively supported games
+in the corpus; Concord also reads zero, having shipped nothing. The
+`has_in_app_purchases` flag is stored alongside precisely to catch the
+models the DLC list cannot see, and the two must be read together.
+
+**Day-1 patches: investigated and rejected.** `ISteamNews/GetNewsForApp`
+(public, no key, `feeds=steam_community_announcements`) reaches back past
+release, so a patch announcement near launch day is detectable in principle.
+Checked against known launches, it measures the wrong thing:
+
+| Game | Launch reputation | Day-1 patch posts |
+|---|---|---|
+| Cyberpunk 2077 | notoriously broken | 0 |
+| Redfall | notoriously broken | 0 |
+| Starfield | mixed | 0 |
+| Elden Ring | strong | 2 |
+| Baldur's Gate 3 | strong | 1 |
+
+The signal tracks **how communicative a studio is**, not how broken the game
+was — studios having a bad launch tend to go quiet, and both infamous cases
+posted nothing. Feed coverage is also inconsistent (Battlefield 2042's
+history is truncated before its own release). Patch *size*, which is what
+would actually discriminate, is not public. Not implemented.
+
+#### Release Date Slippage (pre-launch signal, captured forward only)
+Announced release dates move, sometimes repeatedly, and slippage is a
+plausible pre-launch signal — one of the few available *before* a game
+ships, and so one of the few usable for an actual forecast rather than a
+post-hoc explanation.
+
+**Steam publishes only the current date and no history.** A delay therefore
+exists in this project's data only if it was observed between two refreshes.
+`release_date_changes` records each observed move for tracked games. Nothing
+recovers slippage that happened before a game was tracked, so historical rows
+have none and never will — for those, delay history would have to come from
+press coverage via the LLM layer, as it is heavily reported.
+
+Two design notes:
+- **Direction is not assumed.** Repeated delays are commonly read as
+  production trouble, but the counter-examples are strong: Elden Ring slipped
+  once and was a breakout; Cyberpunk 2077 slipped three times and shipped
+  broken anyway. Whether slippage predicts anything, and with what sign, is
+  for the model to determine. The table records the fact, not a judgment.
+- **Precision increases are not delays.** "Q4 2026" parses to 2026-10-01, so
+  pinning it to "Nov 12, 2026" looks like a 42-day slip when it is a gain in
+  precision. Changes from a coarse window are flagged and excluded from delay
+  counts; otherwise every game that ever announced a quarter would read as
+  having slipped.
+
+#### Day-One Patch (investigated, rejected)
+Detectable in principle — `ISteamNews` is public and reaches back past
+release — but measured against known launches it tracks how communicative a
+studio is rather than how broken the game was. The two most infamous launches
+in the corpus, Cyberpunk 2077 and Redfall, posted no launch-window patch
+notes at all, while Elden Ring and Baldur's Gate 3 did. Feed coverage is
+inconsistent, and patch *size* — the discriminating quantity — is not public.
+Not pursued.
+
 #### Cohort Normalization
 Raw counts (review counts, concurrent player peaks) are not comparable
 across years — Steam's install base and review-leaving culture have grown
@@ -291,6 +439,18 @@ categorical tier per publisher/developer via **unsupervised clustering**
 - Revenue or market-cap bracket for public companies (used as a coarse,
   slow-changing category — **not** live stock price, which is too noisy
   and driven by unrelated business lines and market conditions).
+- **Phase 2 groundwork result: the clustering does not work on the available
+  data, and the job refuses to write tiers.** Across 26 publishers, k-means
+  is unstable (seed agreement 0.33, silhouette 0.26) and splits companies by
+  how their games *performed* rather than how big they are — tier correlates
+  -0.67 with mean review score. Using that to predict performance would be
+  circular. Three of the six features below are unavailable, and they are the
+  ones carrying budget information: headcount, upcoming slate, and revenue
+  bracket. What is written instead is `publisher_stats`, the aggregates
+  themselves, which a tree model can use directly without the information
+  loss that bucketing into tiers imposes. A stability check re-tests this on
+  every quarterly run, so tiers begin appearing if the data ever supports
+  them. See `ml/README.md`.
 - Run this clustering quarterly (not per-prediction), store output as a
   `company_tier` lookup table, and hand-review the resulting clusters
   before trusting them — with only a few dozen AAA publishers/developers
@@ -459,8 +619,14 @@ scope limit:
    than one simple app: `/frontend` (Next.js), `/backend` (FastAPI),
    `/ml` (training scripts, model artifacts, company-tiering clustering),
    `/jobs` (the polling, retraining, resolution, and clustering scripts
-   that GitHub Actions triggers on schedule), `/data` (seed CSV, schema
-   migrations).
+   that GitHub Actions triggers on schedule), `/data` (curated datasets),
+   `/reports` (per-phase reports).
+   **Revised during Phase 1:** schema migrations were originally placed in
+   `/data` alongside the seed CSV. They now live in `/backend/migrations`,
+   beside the models they migrate — keeping them apart forced `env.py` to
+   reach across the tree to import `app.models`, and split the schema's
+   definition from its history. Datasets stay in `/data`, which `/backend`,
+   `/jobs` and `/ml` all read.
 3. Use a database migration tool (e.g. Alembic for Python + Postgres) from
    day one rather than hand-editing schema — the schema already has
    several moving pieces (`lifecycle_status`, `predicted_outcome`,

@@ -18,7 +18,5 @@ known-first-party = ["app", "tests"]
 
 [lint.per-file-ignores]
 # Alembic generates these; leave its formatting and import order alone.
-"data/migrations/versions/*.py" = ["E501", "I001"]
-# env.py has to extend sys.path before it can import the models.
-"data/migrations/env.py" = ["E402"]
+"backend/migrations/versions/*.py" = ["E501", "I001"]
 "jobs/*.py" = ["E402"]
