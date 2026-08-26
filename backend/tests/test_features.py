@@ -223,3 +223,87 @@ def test_build_rows_skips_delayed_ports(session):
     session.commit()
 
     assert [row.steam_appid for row in build_rows(session)] == [1]
+
+
+# --- scope: what the outcome tiers are not measuring -----------------------
+
+
+def test_an_mmo_is_kept_out_of_the_training_set(session):
+    premium = add_release(
+        session,
+        1,
+        publisher="Acme",
+        released=date(2022, 1, 1),
+        review_total=5000,
+        review_positive=4000,
+        outcome=Outcome.SUCCESS,
+    )
+    mmo = add_release(
+        session,
+        2,
+        publisher="Acme",
+        released=date(2022, 6, 1),
+        review_total=90000,
+        review_positive=50000,
+        outcome=Outcome.BREAKOUT,
+    )
+    # A free-to-play MMO's launch volume reflects install base, not sales, so
+    # ranking it against premium releases compares two different things.
+    mmo.genres = "Action\nMassively Multiplayer"
+    session.commit()
+
+    assert [r.steam_appid for r in build_rows(session)] == [premium.steam_appid]
+
+
+def test_the_free_to_play_tag_does_not_exclude_a_paid_release(session):
+    # Steam tags Halo Infinite free-to-play for its multiplayer client while the
+    # campaign — the thing being labeled — is paid. Excluding on this tag drops a
+    # real AAA release, so the tag is not a scope rule.
+    halo = add_release(
+        session,
+        1,
+        publisher="Acme",
+        released=date(2021, 12, 8),
+        review_total=40000,
+        review_positive=30000,
+        outcome=Outcome.UNDERPERFORM,
+    )
+    halo.genres = "Action\nFree To Play"
+    session.commit()
+
+    assert [r.steam_appid for r in build_rows(session)] == [halo.steam_appid]
+
+
+def test_a_premium_live_service_game_is_still_in_scope(session):
+    # Concord flopped and Helldivers 2 broke out on the same model. That is
+    # signal, not noise, and it stays in the training set.
+    live = add_release(
+        session,
+        1,
+        publisher="Acme",
+        released=date(2022, 1, 1),
+        review_total=300,
+        review_positive=110,
+        outcome=Outcome.FLOP,
+    )
+    live.genres = "Action"
+    live.has_in_app_purchases = True
+    session.commit()
+
+    assert [r.steam_appid for r in build_rows(session)] == [live.steam_appid]
+
+
+def test_a_release_with_no_genres_recorded_is_not_silently_dropped(session):
+    unknown = add_release(
+        session,
+        1,
+        publisher="Acme",
+        released=date(2022, 1, 1),
+        review_total=500,
+        review_positive=400,
+        outcome=Outcome.SUCCESS,
+    )
+    unknown.genres = None
+    session.commit()
+
+    assert [r.steam_appid for r in build_rows(session)] == [unknown.steam_appid]

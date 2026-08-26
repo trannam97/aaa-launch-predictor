@@ -105,6 +105,31 @@ class TrainingRow:
     outcome: Outcome
 
 
+# Steam genre tags that put a release outside what the outcome tiers measure.
+# Cohort normalization ranks raw launch review counts within a year, which only
+# compares like with like across titles sold the same way. A subscription or
+# free MMO has no price barrier, a launch designed to build over months, and a
+# review count that tracks install base rather than sales — so it would rank
+# high on the volume axis for reasons the tier is not about.
+#
+# This costs nothing today (no labeled row carries the tag) and exists so the
+# rule stays a decision rather than something noticed later. See data/README.md.
+#
+# **"Free To Play" is deliberately not on this list.** It looks like it belongs
+# and it does not: Steam tags Halo Infinite free-to-play because the multiplayer
+# client is free, while the paid campaign is the thing being labeled. The tag
+# describes the storefront listing, not the commercial model — the same reason
+# `dlc_count` and `has_in_app_purchases` can't be read as design categories.
+EXCLUDED_GENRES = frozenset({"Massively Multiplayer"})
+
+
+def is_out_of_scope(genres: str | None) -> bool:
+    """Whether a release's genres put it outside the labeled population."""
+    if not genres:
+        return False
+    return any(genre.strip() in EXCLUDED_GENRES for genre in genres.split("\n"))
+
+
 # What a publisher's record defaults to when they have none in the corpus.
 # Mid-scale rather than zero: an unknown publisher is not a bad publisher, and
 # `publisher_known` is a separate feature so the model can tell the two apart.
@@ -233,6 +258,8 @@ def build_rows(session: Session, *, labeled_only: bool = True) -> list[TrainingR
     rows: list[TrainingRow] = []
     for release in session.scalars(query):
         if release.platform_launch_type is not PlatformLaunchType.DAY_ONE_STEAM:
+            continue
+        if is_out_of_scope(release.genres):
             continue
 
         record = publishers.record(

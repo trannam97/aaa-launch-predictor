@@ -68,8 +68,8 @@ launch as a well-received release.
 
 ## Labels
 
-34 of 204 rows carry an outcome label, each with a confidence level and cited
-sources. Distribution: 7 flop, 13 underperform, 6 success, 8 breakout.
+35 of 205 rows carry an outcome label, each with a confidence level and cited
+sources. Distribution: 8 flop, 13 underperform, 6 success, 8 breakout.
 
 **Labels describe the launch, not the eventual outcome.** No Man's Sky is
 `underperform` — 61.3% positive over its first two weeks — despite a ten-year
@@ -86,6 +86,44 @@ outcome belongs to a 2016 Origin release. Ports carry
 `original_release_date` and `platform_launch_type` but no label, and three
 seed rows whose labels predate this rule are flagged in their notes and
 excluded from rubric validation.
+
+**MMOs and free-to-play titles are not labeled.** Cohort normalization ranks
+raw launch review counts within a release year, which only means the same
+thing across titles sold the same way. An F2P or subscription MMO has a
+different acquisition funnel entirely: no price barrier, a launch that is
+designed to build over months, and a review count that reflects install base
+rather than sales. Ranking one against premium releases would put it high on
+the volume axis for reasons unrelated to the thing the tier is measuring.
+
+Concretely, exclude a title from labeling when Steam tags it **Massively
+Multiplayer**. Four titles in the corpus carry that tag today — New World:
+Aeternum, Diablo IV, Dune: Awakening, Riders Republic — and all four are
+unlabeled, so the rule costs nothing at present. It is written down so it stays
+a decision rather than an accident, and `app/features.py` enforces it.
+
+Three things this rule deliberately does **not** cover:
+
+- **Live-service premium games are still labeled.** Concord, Suicide Squad and
+  Marvel's Avengers are flops; Helldivers 2 is a breakout. Same model, opposite
+  outcomes — that is signal, and removing it would remove the extremes the
+  corpus most needs.
+- **`has_in_app_purchases` is not a live-service marker.** Steam sets it for
+  Hogwarts Legacy, a premium single-player RPG with a purchasable deluxe
+  upgrade.
+- **The `Free To Play` tag is not a scope rule.** Steam tags Halo Infinite
+  free-to-play for its multiplayer client, while the paid campaign is the thing
+  being labeled. Excluding on it silently drops a real AAA release — which is
+  exactly what happened the first time this rule was written.
+
+That is three separate Steam fields — `dlc_count`, `has_in_app_purchases`, and
+the `Free To Play` genre — that each look like a design category and each turn
+out to describe a **storefront listing**. Treat any Steam flag as a statement
+about the store page until proven otherwise.
+
+An exclusion earns its place by what the label would mean, never by what it
+does to a score. Filtering the training set until the numbers improve, on a
+corpus this size, finds noise and calls it a finding — see the Evaluation
+Protocol notes in `ml/README.md`.
 
 ## Known caveats
 
