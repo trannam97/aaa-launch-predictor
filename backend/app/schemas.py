@@ -13,6 +13,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from app.baseline import BaselineForecast
 from app.ingest import split_list
+from app.model_forecast import ModelForecast
 from app.models import Game, GameSnapshot, LifecycleStatus, Outcome
 
 OUTCOME_LABELS: dict[Outcome, str] = {
@@ -242,11 +243,14 @@ def status_badge(game: Game) -> StatusBadge:
 
 
 class PredictionOut(BaseModel):
-    """A pre-launch baseline forecast for one game.
+    """A pre-launch forecast for one game, from whichever method produced it.
 
-    Explicitly labeled as the rule-based baseline: Phase 2 replaces the
-    method behind this endpoint with a trained model, and a reader should be
-    able to tell which one produced a given number.
+    `method` is the point of this shape. Two things can answer this endpoint
+    — the trained ordinal model when one has cleared its evaluation gate, and
+    the rule-based baseline when none has — and the two are not equally
+    informative. A reader should never have to guess which they are looking
+    at, so the tag travels with every forecast rather than being inferred
+    from how confident the numbers look.
     """
 
     steam_appid: int
@@ -262,6 +266,22 @@ class PredictionOut(BaseModel):
     def from_forecast(cls, appid: int, forecast: BaselineForecast) -> PredictionOut:
         return cls(
             steam_appid=appid,
+            predicted_outcome=forecast.predicted,
+            predicted_label=OUTCOME_LABELS[forecast.predicted],
+            confidence=forecast.confidence,
+            probabilities={
+                outcome.value: probability
+                for outcome, probability in forecast.probabilities.items()
+            },
+            rationale=forecast.rationale,
+            basis=forecast.basis,
+        )
+
+    @classmethod
+    def from_model_forecast(cls, appid: int, forecast: ModelForecast) -> PredictionOut:
+        return cls(
+            steam_appid=appid,
+            method=forecast.method,
             predicted_outcome=forecast.predicted,
             predicted_label=OUTCOME_LABELS[forecast.predicted],
             confidence=forecast.confidence,

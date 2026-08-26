@@ -1,14 +1,64 @@
 # ML
 
-Model training and the company-tiering pipeline. Requires `ml/requirements.txt`
-on top of the backend package; **the backend itself does not depend on
-scikit-learn** — it only reads the tables written here.
+Model *fitting* and *evaluation*. Requires `ml/requirements.txt` on top of the
+backend package; **the backend itself does not depend on scikit-learn** — it
+falls back to the rule-based baseline when the stack is absent.
 
 ```bash
-pip install -e ./backend '.[dev]' -r ml/requirements.txt
+pip install -e './backend[dev,ml]' -r ml/requirements.txt
+DATABASE_URL=... python jobs/train_model.py --report-only --verbose
 DATABASE_URL=... python jobs/refresh_company_tiers.py
 pytest ml/tests
 ```
+
+## What lives where
+
+The split follows one rule: **anything both training and serving need lives in
+the backend**, because two implementations of "the feature vector" would drift
+and the symptom would be a quietly wrong forecast rather than an error.
+
+| Module | Home | Why |
+|---|---|---|
+| `app/features.py` | backend | The pre-launch feature contract. Training builds a matrix from it; the API builds one row per request. Pure SQLAlchemy — no scikit-learn. |
+| `app/companies.py` | backend | Name normalization, used by both. Pure stdlib. |
+| `app/ordinal.py` | backend | The fitted model class. An artifact can only be unpickled where its classes are importable, and the API runs from `backend/`. |
+| `app/model_forecast.py` | backend | Loads an artifact if there is one; returns None if there isn't, which is the normal case. |
+| `ml/train.py` | here | Cross-validation, the comparison against a constant, and the gate. |
+| `ml/company_tiering.py` | here | Clustering and the stability check that gates it. |
+
+## The outcome model — measured, and gated on beating a constant
+
+Frank & Hall ordinal decomposition over gradient-boosted trees: three binary
+classifiers (`> flop`, `> underperform`, `> success`) recombined into a
+distribution. Ordinal because Flop < Underperform < Success < Breakout is an
+ordered scale — mistaking a breakout for a success is a small error and
+mistaking it for a flop is a large one, and a plain 4-way classifier scores
+both as simply wrong.
+
+**Twelve pre-launch features**, and the separation from post-launch data is
+enforced in code rather than by discipline. `FORBIDDEN_FIELDS` names the
+columns that describe what happened at or after launch — review volume, launch
+sentiment, retention, studio fate, Metacritic — and `assert_no_leakage()`
+raises if one reaches the matrix. This matters more than it sounds: every one
+of those fields would raise measured accuracy while destroying the model's
+purpose, and the failure would be invisible in the accuracy number.
+
+**Evaluation is repeated stratified k-fold, never a single holdout.** At this
+corpus size an eight-row test set moves ~12 points per row, so a single split
+reports its own fold assignment rather than the model. Every row is scored
+while held out, averaged over 20 repeats.
+
+**The bar is a constant guess, not the rule-based baseline.** The baseline does
+not clear the constant either (32.3% against 35.5%), so beating it would prove
+nothing. Two trivial guesses are used, each the strongest one for its metric:
+the modal tier for accuracy, the median tier for ordinal distance.
+
+`beats_constant()` requires the ordinal-distance improvement to clear its own
+95% interval — being ahead on the mean is not evidence when the interval
+straddles zero — and forbids an accuracy regression. `jobs/train_model.py`
+writes no artifact unless it passes, and deletes a stale one that no longer
+does. Until then `/games/{appid}/prediction` serves the baseline, tagged
+`rule_based_baseline_v1` so a reader can tell.
 
 ## Company tiering — currently produces no tiers, on purpose
 
@@ -64,11 +114,28 @@ companies, and nothing here separates either from money.
 
 | File | What |
 |---|---|
-| `companies.py` | Name normalization — Steam lists rights-holders per territory, so one company arrives under many spellings |
+| `train.py` | Cross-validation, the constant comparison, the gate, and the label digest the retraining job skips on |
 | `company_tiering.py` | Feature extraction, clustering, and the stability check that gates it |
 | `tests/` | `pytest ml/tests` |
 
+## Serving
+
+Three of the twelve features are recorded during historical backfill but are
+not ingested for an upcoming release: budget tier, whether a demo shipped
+before launch, and day-one DLC count. `build_live_features()` fills them with
+defaults and returns the list of what it assumed, which the forecast reports
+in its `basis`. A forecast resting mostly on defaults should not read the same
+as one resting on evidence.
+
+A stored model is refused rather than served when its `feature_names` no
+longer match the current contract — the columns would silently misalign and
+nothing about the output would look wrong.
+
 ## Planned
 
-- The ordinal outcome classifier (Phase 2 proper) — blocked on labels, not on
-  code. See `jobs/evaluate_baseline.py` for the bar it has to clear.
+- **More labels.** The corpus holds 204 games and 34 labels. Everything above
+  is in place and measured; what it needs is data, and no amount of modelling
+  substitutes for it.
+- **Artifact distribution.** `retrain.yml` measures on schedule but does not
+  deploy — the API reads a model from its own disk, and there is no deployment
+  target yet.

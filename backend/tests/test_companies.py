@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from ml.companies import normalize, normalize_all
+from app.companies import normalize, normalize_all
 
 
 @pytest.mark.parametrize(

@@ -80,6 +80,28 @@ most common outcome: structural pre-launch features carry little signal at
 this sample size. That constant, not the baseline, is the bar Phase 2 has to
 clear.
 
+### `train_model.py`
+
+Biweekly. Fits the ordinal outcome model, cross-validates it, and writes an
+artifact **only if it beats a constant guess on held-out data**.
+
+```bash
+DATABASE_URL=... python jobs/train_model.py
+DATABASE_URL=... python jobs/train_model.py --report-only --verbose
+DATABASE_URL=... python jobs/train_model.py --force     # after a feature change
+```
+
+Two early exits, both normal outcomes rather than failures. **No new labels**:
+the run compares a digest of (appid, outcome) pairs against the last run's and
+skips when it matches, per the spec's Retraining Cadence. `--force` overrides
+it, which is what you want after changing the feature set or the model, since
+neither moves the label digest. **The model loses to a constant**: no artifact
+is written, any stale one is removed, and `/games/{appid}/prediction` keeps
+serving the rule-based baseline tagged as such.
+
+Needs `ml/requirements.txt`. See `ml/README.md` for the evaluation protocol
+and why the bar is a constant rather than the baseline.
+
 ## Planned
 
 Per `PROJECT_SPEC.md`:
@@ -92,11 +114,9 @@ Per `PROJECT_SPEC.md`:
 - **FTME resolution** — monthly; resolves "Failed to Meet Expectations" into
   Flop or Underperform from post-launch support signals, or leaves it
   unresolved when the evidence isn't there.
-- **Retraining** — biweekly, skipped when no new resolved games have landed in
-  `historical_releases` since the last run.
 - **Company tiering** — quarterly clustering refresh, hand-reviewed before the
   new tiers are trusted.
 
-No GitHub Actions workflow schedules these yet — that lands with the hosted
-database, so scheduled runs don't start failing against a `DATABASE_URL` that
-doesn't exist.
+`retrain.yml` is the only scheduled workflow so far. The rest land with the
+hosted database, so scheduled runs don't start failing against a
+`DATABASE_URL` that doesn't exist.

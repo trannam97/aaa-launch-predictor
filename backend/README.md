@@ -44,7 +44,7 @@ curl localhost:8000/games/1174180 | jq
 | `POST` | `/games` | Start tracking an appid and ingest it now (200 if already tracked) |
 | `GET` | `/games/{appid}` | One game plus its snapshot history (`?history_limit=`) |
 | `POST` | `/games/{appid}/refresh` | Re-fetch from Steam, append a snapshot |
-| `GET` | `/games/{appid}/prediction` | Rule-based baseline forecast (Phase 1) |
+| `GET` | `/games/{appid}/prediction` | Pre-launch forecast — trained model if one exists, baseline otherwise; `method` says which |
 | `DELETE` | `/games/{appid}` | Stop tracking and delete its snapshots |
 
 Steam failures are mapped to HTTP: unknown appid → 404, rate limit or outage →
@@ -62,7 +62,11 @@ Steam failures are mapped to HTTP: unknown appid → 404, rate limit or outage �
 | `app/db.py` | Engine, request-scoped session, `session_scope()` for jobs |
 | `app/cohort.py` | Cohort-normalized percentiles for counts, and price relative to each year's going rate |
 | `app/rubric.py` | The outcome rubric as code: observed signals → one of four tiers |
-| `app/baseline.py` | Rule-based pre-launch forecast, replaced by the model in Phase 2 |
+| `app/baseline.py` | Rule-based pre-launch forecast; the fallback when no model has cleared its gate |
+| `app/features.py` | The pre-launch feature contract, and the leakage guard that enforces it |
+| `app/companies.py` | Company-name normalization across Steam's per-territory rights-holder spellings |
+| `app/ordinal.py` | The fitted ordinal model class — lives here so a stored artifact can be unpickled |
+| `app/model_forecast.py` | Serves a trained forecast when one is available; returns None when not |
 | `app/validation.py` | Scores the rubric against the hand-labeled set |
 | `migrations/` | Alembic revisions, beside the models they migrate |
 
@@ -101,19 +105,39 @@ The suite is hermetic: an in-memory SQLite database and a stubbed Steam
 transport replaying the recorded payloads in `tests/fixtures/`. No network,
 no local database file, no Steam key needed.
 
-## The two prediction paths
+## The prediction paths
 
-They answer different questions and must not be confused:
+Three pieces of code produce outcome tiers. They answer different questions
+and must not be confused:
 
 - **`app/rubric.py`** scores a game that has **already launched**, from its
   observed launch-window metrics plus post-launch studio and support signals.
   This is what validates the labeling rubric, and what the resolution job
   will eventually use to settle a "Failed to Meet Expectations" row.
-- **`app/baseline.py`** forecasts a game that **hasn't shipped**, from
-  structural signals only — how the same team's past day-one Steam releases
-  resolved, plus platform reach. It has none of the launch evidence the
-  rubric relies on, always reports `low` confidence, and exists so the
-  dashboard has an honest floor for the trained model to beat.
+- **`app/model_forecast.py`** forecasts a game that **hasn't shipped**, from
+  the trained ordinal model, when one exists.
+- **`app/baseline.py`** forecasts the same thing from structural signals only
+  — how the same team's past day-one Steam releases resolved, plus platform
+  reach. It always reports `low` confidence.
 
 Check which one produced a number before acting on it: the API response
 carries `method`.
+
+### Why the baseline is still here
+
+`jobs/train_model.py` refuses to write a model artifact until the model beats
+a constant guess on held-out data, and at the current corpus size it does not.
+So the endpoint serves `rule_based_baseline_v1` today, and starts serving
+`ordinal_gbt_v1` on its own once enough labels land for the model to clear the
+bar. Nothing needs to be switched over by hand.
+
+Serving a model needs scikit-learn, which is an optional extra:
+
+```bash
+pip install -e './backend[dev,ml]'
+```
+
+Without it, `app/model_forecast.py` treats the missing stack the same way it
+treats a missing artifact — no model, serve the baseline, say so in `method`.
+The CI backend job deliberately installs without it, so that path stays
+tested.

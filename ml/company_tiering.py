@@ -50,8 +50,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.cohort import CohortIndex
+from app.companies import normalize_all
 from app.models import HistoricalRelease, ReleaseWindow, WindowKey
-from ml.companies import normalize_all
 
 # A company needs at least this many titles before a mean over them says
 # anything. Below it the tier is left unassigned rather than guessed.

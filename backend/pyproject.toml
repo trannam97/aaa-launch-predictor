@@ -17,6 +17,11 @@ dependencies = [
 [project.optional-dependencies]
 postgres = ["psycopg[binary]>=3.2"]
 dev = ["pytest>=8.3", "ruff>=0.9"]
+# Only needed to *serve* a trained model. Without these the prediction
+# endpoint falls back to the rule-based baseline and says so, which is also
+# the current state of the project — no model has cleared its evaluation gate
+# yet. See app/model_forecast.py.
+ml = ["scikit-learn>=1.5", "numpy>=1.26", "joblib>=1.4"]
 
 [build-system]
 requires = ["setuptools>=68"]

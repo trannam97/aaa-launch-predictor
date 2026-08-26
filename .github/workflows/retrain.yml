@@ -1,0 +1,59 @@
+name: Retrain
+
+# Biweekly, per PROJECT_SPEC.md's Retraining Cadence. GitHub cron has no
+# "every two weeks", so this runs on the 1st and 15th — the spec's own
+# reasoning is that data velocity, not compute, is the limiting factor, and
+# the job skips itself when no new labels have landed since the last run.
+on:
+  schedule:
+    - cron: "0 6 1,15 * *"
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "Retrain even if the labels are unchanged"
+        type: boolean
+        default: false
+
+jobs:
+  retrain:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install
+        run: pip install -e './backend[postgres,ml]' -r ml/requirements.txt
+
+      # The run record is how the job knows whether the labels have moved
+      # since last time. Without persistence every scheduled run would look
+      # like a first run and retrain an unchanged corpus.
+      - name: Restore the previous run record
+        uses: actions/cache@v4
+        with:
+          path: ml/models
+          key: model-${{ github.run_id }}
+          restore-keys: model-
+
+      - name: Train
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          python jobs/train_model.py ${{ inputs.force && '--force' || '' }} \
+            | tee -a "$GITHUB_STEP_SUMMARY"
+
+      # Uploaded rather than deployed. The API loads a model from its own
+      # disk, and this project has no deployment target wired up yet — so
+      # what this workflow delivers today is the measurement: it tells you
+      # when the corpus has grown enough for a model to clear the bar.
+      - name: Keep the result
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: model
+          path: ml/models
+          if-no-files-found: ignore
+          retention-days: 90

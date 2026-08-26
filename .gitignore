@@ -45,3 +45,6 @@ Thumbs.db
 *.sqlite3
 /ml/models/*.joblib
 /ml/models/*.pkl
+# The training job's run record: local state about the last evaluation, not
+# something to share between checkouts.
+/ml/models/last_run.json
