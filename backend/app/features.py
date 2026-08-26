@@ -23,12 +23,13 @@ scikit-learn; only the code that fits models does.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
+from statistics import mean
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.cohort import PriceIndex
+from app.cohort import CohortIndex, PriceIndex
 from app.companies import normalize_all
 from app.models import (
     BudgetTier,
@@ -37,7 +38,8 @@ from app.models import (
     HistoricalRelease,
     Outcome,
     PlatformLaunchType,
-    PublisherStats,
+    ReleaseWindow,
+    WindowKey,
 )
 
 # Columns that describe what happened at or after launch. Never features.
@@ -103,8 +105,112 @@ class TrainingRow:
     outcome: Outcome
 
 
-def _publisher_lookup(session: Session) -> dict[str, PublisherStats]:
-    return {row.name: row for row in session.scalars(select(PublisherStats))}
+# What a publisher's record defaults to when they have none in the corpus.
+# Mid-scale rather than zero: an unknown publisher is not a bad publisher, and
+# `publisher_known` is a separate feature so the model can tell the two apart.
+UNKNOWN_PUBLISHER_VOLUME_PCT = 50.0
+UNKNOWN_PUBLISHER_POSITIVE_PCT = 75.0
+
+
+@dataclass(slots=True)
+class PublisherRecord:
+    mean_volume_pct: float
+    mean_positive_pct: float
+    title_count: int
+
+    @property
+    def known(self) -> bool:
+        return self.title_count > 0
+
+
+UNKNOWN_PUBLISHER = PublisherRecord(
+    mean_volume_pct=UNKNOWN_PUBLISHER_VOLUME_PCT,
+    mean_positive_pct=UNKNOWN_PUBLISHER_POSITIVE_PCT,
+    title_count=0,
+)
+
+
+class PublisherHistory:
+    """A publisher's track record *as of a given date*, excluding a given game.
+
+    Both qualifications matter, and the stored `publisher_stats` table can
+    provide neither — which is why this recomputes from the releases rather
+    than reading it.
+
+    **As of a date.** A publisher's later games had not happened when the game
+    being forecast shipped. Averaging them in lets a 2019 launch be predicted
+    from a 2024 track record, which is not a forecast.
+
+    **Excluding a given game.** A publisher's mean launch volume includes the
+    launch volume of the game being predicted, so without the exclusion the
+    row's own outcome leaks into its own features through the aggregate. This
+    is the leakage `ml/company_tiering.py` flagged and left for Phase 2.
+    """
+
+    def __init__(self, titles: dict[str, list[tuple[int, date, float | None, float | None]]]):
+        self._titles = titles
+
+    @classmethod
+    def from_db(cls, session: Session) -> PublisherHistory:
+        index = CohortIndex.from_db(session)
+        windows = {
+            w.release_id: w
+            for w in session.scalars(
+                select(ReleaseWindow).where(ReleaseWindow.window_key == WindowKey.LAUNCH_2W)
+            )
+        }
+
+        titles: dict[str, list[tuple[int, date, float | None, float | None]]] = {}
+        for release in session.scalars(select(HistoricalRelease)):
+            if release.steam_release_date is None:
+                continue
+            window = windows.get(release.id)
+            percentile = None
+            if window is not None and window.review_total is not None:
+                # The cohort this percentile is measured against includes the
+                # release itself. One row among a couple of hundred moves a
+                # percentile negligibly, and removing it would mean rebuilding
+                # the index per game.
+                percentile, _ = index.percentile(release.cohort_year, window.review_total)
+            positive = window.positive_pct if window is not None else None
+            entry = (release.id, release.steam_release_date, percentile, positive)
+            for company in normalize_all(release.publisher):
+                titles.setdefault(company, []).append(entry)
+        return cls(titles)
+
+    def record(
+        self, publisher: str | None, *, before: date | None, exclude_release_id: int | None = None
+    ) -> PublisherRecord:
+        percentiles: list[float] = []
+        sentiments: list[float] = []
+        count = 0
+        for name in normalize_all(publisher):
+            for release_id, released, percentile, positive in self._titles.get(name, []):
+                if release_id == exclude_release_id:
+                    continue
+                if before is not None and released >= before:
+                    continue
+                count += 1
+                if percentile is not None:
+                    percentiles.append(percentile)
+                if positive is not None:
+                    sentiments.append(positive)
+            if count:
+                # First matching normalization wins, as elsewhere: the
+                # alternates are spellings of the same company, not extra ones.
+                break
+
+        if not count:
+            return UNKNOWN_PUBLISHER
+        return PublisherRecord(
+            mean_volume_pct=(
+                round(mean(percentiles), 2) if percentiles else UNKNOWN_PUBLISHER_VOLUME_PCT
+            ),
+            mean_positive_pct=(
+                round(mean(sentiments), 2) if sentiments else UNKNOWN_PUBLISHER_POSITIVE_PCT
+            ),
+            title_count=count,
+        )
 
 
 def build_rows(session: Session, *, labeled_only: bool = True) -> list[TrainingRow]:
@@ -118,7 +224,7 @@ def build_rows(session: Session, *, labeled_only: bool = True) -> list[TrainingR
     assert_no_leakage()
 
     prices = PriceIndex.from_db(session)
-    publishers = _publisher_lookup(session)
+    publishers = PublisherHistory.from_db(session)
 
     query = select(HistoricalRelease)
     if labeled_only:
@@ -129,18 +235,18 @@ def build_rows(session: Session, *, labeled_only: bool = True) -> list[TrainingR
         if release.platform_launch_type is not PlatformLaunchType.DAY_ONE_STEAM:
             continue
 
-        stats = None
-        for name in normalize_all(release.publisher):
-            stats = publishers.get(name)
-            if stats is not None:
-                break
+        record = publishers.record(
+            release.publisher,
+            before=release.steam_release_date,
+            exclude_release_id=release.id,
+        )
 
         relative = prices.relative_price(release.cohort_year, release.launch_price_cents)
         features = [
-            stats.mean_volume_percentile if stats and stats.mean_volume_percentile else 50.0,
-            stats.mean_positive_pct if stats and stats.mean_positive_pct else 75.0,
-            float(stats.title_count) if stats else 0.0,
-            1.0 if stats else 0.0,
+            record.mean_volume_pct,
+            record.mean_positive_pct,
+            float(record.title_count),
+            1.0 if record.known else 0.0,
             relative if relative is not None else 1.0,
             (release.launch_price_cents or 0) / 100.0,
             1.0 if release.budget_tier is BudgetTier.AAA else 0.0,
@@ -206,15 +312,13 @@ def build_live_features(session: Session, game: Game) -> LiveFeatures:
     assert_no_leakage()
 
     prices = PriceIndex.from_db(session)
-    publishers = _publisher_lookup(session)
+    publishers = PublisherHistory.from_db(session)
     imputed: list[str] = []
 
-    stats = None
-    for name in normalize_all(game.publishers):
-        stats = publishers.get(name)
-        if stats is not None:
-            break
-    if stats is None:
+    # No date cutoff: for a game that has not shipped, every historical
+    # release in the corpus genuinely precedes it.
+    record = publishers.record(game.publishers, before=None)
+    if not record.known:
         imputed.extend(
             ["publisher_mean_volume_pct", "publisher_mean_positive_pct", "publisher_title_count"]
         )
@@ -241,10 +345,10 @@ def build_live_features(session: Session, game: Game) -> LiveFeatures:
     imputed.extend(["budget_tier_aaa", "has_prelaunch_demo", "launch_day_dlc_count"])
 
     values = [
-        stats.mean_volume_percentile if stats and stats.mean_volume_percentile else 50.0,
-        stats.mean_positive_pct if stats and stats.mean_positive_pct else 75.0,
-        float(stats.title_count) if stats else 0.0,
-        1.0 if stats else 0.0,
+        record.mean_volume_pct,
+        record.mean_positive_pct,
+        float(record.title_count),
+        1.0 if record.known else 0.0,
         relative,
         (price_cents or 0) / 100.0,
         # Everything the dashboard tracks is AAA by the project's own scope.

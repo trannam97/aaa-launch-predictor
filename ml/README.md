@@ -100,11 +100,15 @@ then `publisher_stats.tier` stays NULL. **Do not fill it in by hand.**
 ## What is written instead
 
 `publisher_stats` holds the aggregates themselves — catalog size, mean launch
-volume percentile, mean launch sentiment, platform breadth, active span.
-These are more useful than tiers would have been: bucketing continuous
-features into three categories throws away information a tree model can use
-directly. The clustering was only ever a way to manufacture a categorical
-where dollars were missing.
+volume percentile, mean launch sentiment, platform breadth, active span. They
+describe the corpus, and they are worth having for that.
+
+**The model does not read them**, and cannot. A stored aggregate is computed
+over every release a publisher has, including the game being predicted and
+every game they shipped afterwards — so using it would leak a row's own
+outcome into its own features and let a 2019 launch be forecast from a 2024
+track record. `app/features.py` recomputes the record per row with both
+excluded. That is not something a cached table or a cluster tier can express.
 
 They are **not** a budget estimate. A publisher with a large catalog of
 modest releases and one with a small catalog of huge ones are different

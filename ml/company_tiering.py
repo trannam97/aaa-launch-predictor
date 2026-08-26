@@ -30,12 +30,17 @@ regardless — they are useful on their own, and a gradient-boosted tree can
 use them as continuous features without the information loss that bucketing
 into three tiers imposes.
 
-**Known leakage.** `mean_volume_percentile` summarises how big a company's
-launches were, so a company's tier partly reflects games that may also be
-training rows. For forecasting a genuinely new title that is legitimate — a
-publisher's past record is known before their next game ships. For
-*evaluating* on historical rows it is not: Phase 2 must exclude a game from
-its own company's aggregate, or the tier will quietly encode the answer.
+**Known leakage, and where it is handled.** `mean_volume_percentile`
+summarises how big a company's launches were, so these aggregates partly
+reflect games that are also training rows. For forecasting a genuinely new
+title that is legitimate — a publisher's past record is known before their
+next game ships. For *evaluating* on historical rows it is not.
+
+The model therefore does not read this table. `app/features.py` recomputes a
+publisher's record per row, excluding the game being predicted and every
+release that postdates it, which neither a stored aggregate nor a cluster tier
+can express. What is written here stands on its own as a description of the
+corpus; it is not a model input.
 """
 
 from __future__ import annotations

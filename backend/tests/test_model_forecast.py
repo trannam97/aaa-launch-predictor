@@ -188,23 +188,35 @@ def test_a_game_with_no_announced_date_imputes_its_cohort(session):
 
 
 def test_a_known_publisher_is_not_reported_as_imputed(session):
-    from app.models import PublisherStats
+    from app.models import ReleaseWindow, WindowKey
 
-    session.add(
-        PublisherStats(
-            name="Example Interactive",
-            title_count=4,
-            mean_volume_percentile=62.0,
-            mean_positive_pct=81.0,
+    for appid in range(1, 4):
+        release = HistoricalRelease(
+            steam_appid=appid,
+            game_name=f"Prior Game {appid}",
+            publisher="Example Interactive",
+            steam_release_date=date(2023, 3, 1),
+            cohort_year=2023,
+            platform_launch_type=PlatformLaunchType.DAY_ONE_STEAM,
         )
-    )
+        session.add(release)
+        session.flush()
+        session.add(
+            ReleaseWindow(
+                release_id=release.id,
+                window_key=WindowKey.LAUNCH_2W,
+                review_total=4000,
+                review_positive=3240,
+            )
+        )
     game = make_game(session)
     session.commit()
 
     live = build_live_features(session, game)
 
     assert "publisher_title_count" not in live.imputed
-    assert live.values[FEATURE_NAMES.index("publisher_mean_volume_pct")] == 62.0
+    assert live.values[FEATURE_NAMES.index("publisher_title_count")] == 3.0
+    assert live.values[FEATURE_NAMES.index("publisher_mean_positive_pct")] == 81.0
 
 
 def test_price_uses_a_recent_cohort_rate_when_the_release_year_has_none(session):
