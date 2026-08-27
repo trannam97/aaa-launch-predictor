@@ -269,6 +269,43 @@ Access tail runs for months, a premium head start for days — but it changes
 what "launch window" means, so it is recorded here rather than quietly
 applied.
 
+## The cohort is day-one launches only
+
+Cohort normalization ranks a launch against its peers from the same year. The
+reference set is **day-one Steam releases only** — delayed ports and former
+exclusives are excluded, and so are rows whose launch type is still unknown.
+
+A port's Steam window is not a launch. It measures whatever PC audience
+remained after the console release already happened, often years earlier:
+median 2,740 reviews against 9,188 for day-one releases in this corpus, a
+3.4x gap. With 60 of 204 reference rows carrying that, the distribution was
+dragged down and every day-one game's percentile inflated.
+
+The effect was not small. On the 32 labeled rows, removing ports moved
+percentiles by 6.5 points on average and up to 19.6, and **12 rows crossed a
+rubric threshold** — all four flops dropped below `VOLUME_FLOOR`, where they
+had been sitting above it.
+
+Crucially the rubric got *better*, with no threshold retuned:
+
+| Cohort | Met-expectations | Exact | Ordinal distance |
+|---|---|---|---|
+| All releases (previous) | 100% | 93.8% | 0.06 |
+| Day-one only | 100% | **96.9%** | **0.03** |
+
+That is the evidence this is a correction rather than a recalibration: the
+thresholds were tuned against the contaminated distribution and still improved
+against the clean one.
+
+`PriceIndex` applies the same rule for the same reason — a years-old game
+arriving on PC at a discount says nothing about that year's going rate for a
+new release. The measured effect there is much weaker, flipping only 2024 and
+by a single vote in a near-tie (8x $60 against 7x $70), so it is applied for
+consistency of principle rather than on the strength of its own evidence. It
+also exposes a real limitation: the modal price is unstable in a year when the
+market is mid-transition between price points, and the mode discards that
+ambiguity rather than reporting it.
+
 ## Known caveats
 
 - **Concurrent players can't be backfilled.** Steam publishes only a live

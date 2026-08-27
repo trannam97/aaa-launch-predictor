@@ -19,7 +19,7 @@ from dataclasses import dataclass, field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models import HistoricalRelease, ReleaseWindow, WindowKey
+from app.models import HistoricalRelease, PlatformLaunchType, ReleaseWindow, WindowKey
 
 # Half-width of the cohort window, in years. A game released in 2020 with
 # COHORT_HALF_WIDTH=1 is ranked against 2019-2021 releases.
@@ -76,11 +76,23 @@ class CohortIndex:
 
     @classmethod
     def from_db(cls, session: Session, window_key: WindowKey = WindowKey.LAUNCH_2W) -> CohortIndex:
-        """Build the index from every backfilled release with a count.
+        """Build the index from every backfilled day-one release with a count.
 
         Unlabeled rows are included on purpose: the cohort describes what a
         normal launch looked like that year, and that does not depend on
         whether anyone has researched the outcome.
+
+        **Delayed ports and former exclusives are excluded**, because their
+        Steam window is not a launch. It measures whatever PC audience remained
+        after the console release already happened, often years earlier — a
+        median of 2,740 reviews against 9,188 for day-one releases in this
+        corpus. Leaving them in drags the reference distribution down and
+        inflates every day-one game's percentile: on the labeled set, 12 of 32
+        rows crossed a rubric threshold when they were removed, and the rubric's
+        exact agreement rose from 93.8% to 96.9% with no threshold retuned.
+
+        The cohort answers "what did a normal launch look like that year". A
+        port arriving three years late is a different event.
         """
         rows = session.execute(
             select(HistoricalRelease.cohort_year, ReleaseWindow.review_total)
@@ -89,6 +101,7 @@ class CohortIndex:
                 ReleaseWindow.window_key == window_key,
                 ReleaseWindow.review_total.is_not(None),
                 HistoricalRelease.cohort_year.is_not(None),
+                HistoricalRelease.platform_launch_type == PlatformLaunchType.DAY_ONE_STEAM,
             )
         ).all()
 
@@ -145,11 +158,21 @@ class PriceIndex:
 
     @classmethod
     def from_db(cls, session: Session) -> PriceIndex:
+        """Day-one releases only, for the same reason as CohortIndex.
+
+        A port's Steam price is what a years-old game costs when it finally
+        reaches PC, which says nothing about that year's going rate for a new
+        release. The measured effect here is much weaker than for volume — on
+        this corpus it flips only 2024, and by a single vote in a near-tie
+        (8x $60 against 7x $70) — so this is applied for consistency of
+        principle rather than on the strength of the evidence.
+        """
         rows = session.execute(
             select(HistoricalRelease.cohort_year, HistoricalRelease.launch_price_cents).where(
                 HistoricalRelease.launch_price_cents.is_not(None),
                 HistoricalRelease.launch_price_cents > 0,
                 HistoricalRelease.cohort_year.is_not(None),
+                HistoricalRelease.platform_launch_type == PlatformLaunchType.DAY_ONE_STEAM,
             )
         ).all()
         prices: dict[int, list[int]] = {}
