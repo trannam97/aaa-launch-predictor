@@ -342,6 +342,55 @@ also exposes a real limitation: the modal price is unstable in a year when the
 market is mid-transition between price points, and the mode discards that
 ambiguity rather than reporting it.
 
+## Regional reach — tracked games only, never backfilled
+
+`Game.regional_offers` records which markets can buy a title and at what
+price, sampled across eight countries spanning purchasing power and known
+restriction zones. A closed market removes an entire audience, which is a real
+constraint on sales and therefore on review volume: Red Dead Redemption 2,
+Monster Hunter World and Modern Warfare III are all unpurchasable in Russia
+today, and Steam reports that as `success: false` rather than an error.
+
+Regional pricing is equally available — Space Marine 2 is $59.99 in the US,
+R$199.90 in Brazil, ¥9,800 in Japan, and $39.99 **in US dollars** in Turkey,
+where Valve repriced to stop currency arbitrage.
+
+**Neither is on `historical_releases`, and that is deliberate.** Both are live
+readings. RDR2 *was* on sale in Russia when it launched in 2019 — the
+withdrawal came in 2022 — and today's Brazilian price is not the launch price.
+Backfilling a historical row from either would be anachronistic by years: the
+same present-state trap that already caught lifetime reviews, current price
+and DLC counts. It is captured for *tracked upcoming* games, where the reading
+is genuinely pre-launch, and refreshed at most fortnightly since a market
+withdrawal is not a daily event.
+
+## Studio closure is not studio failure
+
+`studio_signal` exists to capture whether a studio survived its launch, and
+the obvious reading of a headline is often wrong. **Max Payne 3** is the case
+to remember:
+
+- Metacritic 87, critically acclaimed.
+- Take-Two said it **underperformed** in its Q1 FY2013 results — roughly
+  440,000 US units in the first month against about 3 million shipped, leaving
+  millions of unsold units on shelves.
+- Rockstar Vancouver closed two months after launch.
+
+The first two make it a textbook case of *critical success is not commercial
+success*, which is the whole reason this project measures sales-shaped
+outcomes rather than review scores. But the third is **not** evidence of that:
+Rockstar Vancouver was merged into Rockstar Toronto and staff were offered
+positions at the expanded Oakville site. It was consolidation, not collapse.
+
+Coding that row `studio_signal=closed` would be wrong, and it is exactly the
+mistake a researcher reading "developer closes two months after launch" would
+make. Reserve `closed` for a studio that actually stopped existing with its
+people out of work; a merger with retained staff is `continued`.
+
+(Max Payne 3 itself is not in the corpus: it launched in 2012, outside the
+2014–2025 range, and its Steam release trailed console by 16 days, making it a
+delayed port either way.)
+
 ## Known caveats
 
 - **Concurrent players can't be backfilled.** Steam publishes only a live

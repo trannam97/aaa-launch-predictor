@@ -536,6 +536,58 @@ An exclusion earns its place by what the label would mean, never by what it
 does to a score. Filtering the training set until the numbers improve, at this
 corpus size, finds noise and calls it a finding.
 
+#### Regional Reach (captured forward, never backfilled)
+A closed market removes an entire audience, which constrains sales and
+therefore review volume. Red Dead Redemption 2, Monster Hunter World and
+Modern Warfare III are all unpurchasable in Russia today; Steam reports that
+as `success: false` per country. Regional pricing is available the same way.
+
+Both are **present-state readings and cannot be backfilled** — RDR2 *was* on
+sale in Russia at its 2019 launch, and the withdrawal came in 2022. They live
+on `Game`, for tracked upcoming titles where the reading is genuinely
+pre-launch, and deliberately not on `historical_releases`.
+
+#### Regional Release Dates: the P291 Rule, Measured and Rejected
+Wikidata carries a `P291` place-of-publication qualifier, and using it to
+prefer a *worldwide* release date over a territory-only one looks like it
+would fix a real problem: Dark Souls III launched in Japan on 2016-03-24 and
+worldwide on 2016-04-12, and its Steam release of 2016-04-11 was read as an
+18-day delayed port against the Japanese date.
+
+Measured across the corpus, 132 of 203 rows carry place qualifiers but **only
+three change classification**, and the rule is not worth adopting:
+
+| Row | Effect |
+|---|---|
+| Dark Souls III | Correct — becomes day-one, as it should be |
+| Horizon Zero Dawn Complete Edition | **Regression** — undoes the P629 edition fix |
+| Yakuza: Like a Dragon | Debatable — ten months of its story happened in Japan first |
+
+The regression is structural rather than incidental: for an edition, the
+"worldwide" date *is* the edition's own date, so preferring it overrides the
+P629 hop back to the base game. Reconciling them properly means applying the
+worldwide preference *within* the base game's dates, which is more machinery
+than one clear fix justifies.
+
+Dark Souls III is therefore hand-corrected in the CSV with its reasoning
+recorded, and the general rule is left unimplemented. Anyone revisiting it
+should know it conflicts with P629 before starting.
+
+#### Studio Closure Is Not Studio Failure
+`studio_signal` asks whether a studio survived its launch, and headlines
+mislead. **Max Payne 3**: Metacritic 87, and Take-Two reported it
+underperformed — roughly 440,000 US units in the first month against about
+three million shipped. That makes it a clean example of *critical success is
+not commercial success*, which is why this project measures sales-shaped
+outcomes rather than review scores.
+
+But Rockstar Vancouver's closure two months later is **not** evidence of it:
+the studio was merged into Rockstar Toronto with staff offered positions at
+the expanded Oakville site. Consolidation, not collapse.
+
+Reserve `closed` for a studio that stopped existing with its people out of
+work. A merger with retained staff is `continued`.
+
 #### Steam Metadata Describes a Store Listing, Not a Game
 Four fields have now been found to mean something narrower than their name
 suggests, and the pattern is worth stating once rather than rediscovering:

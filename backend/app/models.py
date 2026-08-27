@@ -162,6 +162,22 @@ class Game(Base):
     metacritic_score: Mapped[int | None] = mapped_column(Integer)
     metacritic_url: Mapped[str | None] = mapped_column(String(512))
 
+    # --- Regional reach (tracked games only, captured at ingest) ---
+    # JSON: {"us": {"available": true, "currency": "USD", "price_cents": 5999},
+    #        "ru": {"available": false}}
+    #
+    # A closed market removes an entire audience, which is a real constraint on
+    # sales and therefore on review volume: Red Dead Redemption 2, Monster
+    # Hunter World and Modern Warfare III are all unpurchasable in Russia today.
+    #
+    # **Deliberately absent from `historical_releases`.** This is a live
+    # reading and cannot be backfilled — RDR2 *was* on sale in Russia when it
+    # launched in 2019, and today's Brazilian price is not its launch price.
+    # Filling a historical row from it would be the present-state trap that has
+    # already caught lifetime reviews, current price and DLC counts.
+    regional_offers: Mapped[str | None] = mapped_column(Text)
+    regional_offers_at: Mapped[datetime | None] = mapped_column(UtcDateTime)
+
     # --- Prediction lifecycle ---
     lifecycle_status: Mapped[LifecycleStatus] = mapped_column(
         LifecycleStatusType, nullable=False, default=LifecycleStatus.PRE_LAUNCH
