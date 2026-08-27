@@ -253,6 +253,19 @@ divides them reliably — an Early Access tail runs for months, a head start for
 days — and writes `launch_window_start` where they differ. The backfill then
 measures every window from it.
 
+**There is a third case the probes cannot resolve, and it is left unwritten.**
+A pre-order *beta* also puts reviews in the days before release, and nothing
+in the review counts distinguishes it from a premium tier shipping 1.0:
+
+| Game | Head start | What it actually was | Shift correct? |
+|---|---|---|---|
+| Rise of the Tomb Raider | 12 days | Steam's store date is wrong; 1.0 launched 28 Jan 2016 | Yes |
+| Warhammer 40,000: Darktide | 13 days | Pre-order beta — four missions of an unfinished build, 1.0 arrived on the store date | **No** |
+
+Head starts longer than a week are therefore reported and **not written**,
+since two to five days is the premium-tier pattern and anything beyond that
+needs a person to look. Confirming one is a manual edit.
+
 The scale of what was being dropped, against a window opened seven days
 earlier:
 

@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from datetime import date
 
-from app.launch_window import MEANINGFUL_REVIEWS, LaunchStart, detect
+from app.launch_window import HEAD_START_AUTO_DAYS, MEANINGFUL_REVIEWS, LaunchStart, detect
 from app.steam import ReviewSummary
 
 RECORDED = date(2024, 9, 9)
@@ -109,3 +109,35 @@ def test_launch_start_reports_no_shift_when_dates_match():
 
     assert not unchanged.shifted
     assert unchanged.days_earlier == 0
+
+
+def test_a_long_head_start_is_flagged_rather_than_written():
+    # Rise of the Tomb Raider (12 days) is a wrong store date and the shift is
+    # right; Darktide (13 days) is a pre-order beta and the shift is wrong.
+    # Nothing in the review counts separates them, so neither is guessed at.
+    client = FakeClient({days_before(o): 1500 for o in range(1, 13)})
+
+    result = detect(client, 1, RECORDED)
+
+    assert result.shifted
+    assert result.needs_review
+    assert "needs confirming" in result.reason
+
+
+def test_a_premium_tier_head_start_is_written_unattended():
+    client = FakeClient({days_before(o): 5000 for o in (1, 2, 3, 4)})
+
+    result = detect(client, 1, RECORDED)
+
+    assert result.shifted
+    assert not result.needs_review
+
+
+def test_exactly_at_the_bound_is_still_written():
+    # Black Ops 6 sits at seven days and is a genuine wrong-store-date case.
+    client = FakeClient({days_before(o): 600 for o in range(1, 8)})
+
+    result = detect(client, 1, RECORDED)
+
+    assert result.days_earlier == HEAD_START_AUTO_DAYS
+    assert not result.needs_review

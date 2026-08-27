@@ -48,6 +48,21 @@ EARLY_ACCESS_LOOKBACK_DAYS = 90
 # were buying.
 MEANINGFUL_REVIEWS = 50
 
+# A premium tier unlocks two to five days early; that pattern is well enough
+# understood to act on unattended. Beyond a week, the evidence stops being
+# self-explanatory and the two possibilities need a human:
+#
+#   Rise of the Tomb Raider, 12 days — Steam's store date is simply wrong, and
+#   the earlier date is the real 1.0 launch. The shift is correct.
+#
+#   Warhammer 40,000: Darktide, 13 days — a *pre-order beta*, four missions of
+#   an unfinished build, with 1.0 arriving on the store date. The shift is
+#   wrong, and by the project's rule those reviews belong outside the window.
+#
+# Nothing in the review counts distinguishes them, so long head starts are
+# reported and left unwritten rather than guessed at.
+HEAD_START_AUTO_DAYS = 7
+
 
 @dataclass(slots=True)
 class LaunchStart:
@@ -62,6 +77,11 @@ class LaunchStart:
     @property
     def shifted(self) -> bool:
         return self.detected != self.recorded
+
+    @property
+    def needs_review(self) -> bool:
+        """Too long to be a premium tier, so it could be a beta instead."""
+        return self.shifted and self.days_earlier > HEAD_START_AUTO_DAYS
 
     @property
     def days_earlier(self) -> int:
@@ -113,10 +133,20 @@ def detect(client: SteamClient, appid: int, recorded: date) -> LaunchStart:
         next_day = _as_utc(day + timedelta(days=1))
         if (client.get_review_summary(appid, _as_utc(day), next_day).total or 0) > 0:
             earliest = day
+    days = (recorded - earliest).days
+    if days > HEAD_START_AUTO_DAYS:
+        return LaunchStart(
+            recorded,
+            earliest,
+            early_total,
+            head_total,
+            f"on sale {days} days early — too long for a premium tier; could be a "
+            "pre-order beta, needs confirming",
+        )
     return LaunchStart(
         recorded,
         earliest,
         early_total,
         head_total,
-        f"1.0 on sale {(recorded - earliest).days} day(s) before the store date",
+        f"1.0 on sale {days} day(s) before the store date",
     )

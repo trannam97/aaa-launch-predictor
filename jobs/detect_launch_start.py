@@ -62,7 +62,7 @@ def main(argv: list[str] | None = None) -> int:
         ]
         logger.info("Probing %d releases...", len(releases))
 
-        shifted, early_access, failed = [], [], 0
+        shifted, flagged, early_access, failed = [], [], [], 0
         with SteamClient() as client:
             for release in releases:
                 try:
@@ -74,6 +74,17 @@ def main(argv: list[str] | None = None) -> int:
                 if "Early Access" in result.reason:
                     early_access.append((release.game_name, result))
                 if not result.shifted:
+                    continue
+                if result.needs_review:
+                    flagged.append((release.game_name, result))
+                    logger.warning(
+                        "%-40s %s -> %s  (%d days) NOT WRITTEN — %s",
+                        release.game_name[:40],
+                        result.recorded,
+                        result.detected,
+                        result.days_earlier,
+                        result.reason,
+                    )
                     continue
                 shifted.append((release.game_name, result))
                 logger.info(
@@ -90,6 +101,9 @@ def main(argv: list[str] | None = None) -> int:
         print()
         print(f"  probed                     {len(releases)}")
         print(f"  1.0 on sale before store   {len(shifted)}")
+        print(f"  needs confirming, unwritten {len(flagged)}")
+        for name, result in flagged:
+            print(f"      {name[:40]:42} {result.recorded} -> {result.detected}")
         print(f"  Early Access, date stands  {len(early_access)}")
         for name, _ in early_access:
             print(f"      {name[:52]}")
