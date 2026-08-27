@@ -141,3 +141,13 @@ def test_exactly_at_the_bound_is_still_written():
 
     assert result.days_earlier == HEAD_START_AUTO_DAYS
     assert not result.needs_review
+
+
+def test_a_head_start_at_the_bound_is_not_flagged():
+    # The boundary is inclusive: seven days is still the premium-tier pattern.
+    client = FakeClient({days_before(o): 300 for o in range(1, 8)})
+    assert not detect(client, 1, RECORDED).needs_review
+
+    # Eight is not.
+    client = FakeClient({days_before(o): 300 for o in range(1, 9)})
+    assert detect(client, 1, RECORDED).needs_review

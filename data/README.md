@@ -257,14 +257,23 @@ measures every window from it.
 A pre-order *beta* also puts reviews in the days before release, and nothing
 in the review counts distinguishes it from a premium tier shipping 1.0:
 
-| Game | Head start | What it actually was | Shift correct? |
-|---|---|---|---|
-| Rise of the Tomb Raider | 12 days | Steam's store date is wrong; 1.0 launched 28 Jan 2016 | Yes |
-| Warhammer 40,000: Darktide | 13 days | Pre-order beta — four missions of an unfinished build, 1.0 arrived on the store date | **No** |
-
 Head starts longer than a week are therefore reported and **not written**,
 since two to five days is the premium-tier pattern and anything beyond that
 needs a person to look. Confirming one is a manual edit.
+
+The case that established this is **Warhammer 40,000: Darktide**: 20,908
+reviews across the thirteen days before its store date, which looks exactly
+like a premium tier unlocking early. It was a pre-order beta — four missions
+of an unfinished build — with 1.0 arriving on the store date as listed. By the
+1.0 rule those reviews belong outside the window, so it keeps its store date.
+
+**Ports are not probed at all.** They are excluded from labeling and from the
+cohort, so nothing reads their windows: probing them spends Steam requests to
+produce a number no one consumes, and puts rows on the needs-confirming list
+that are not worth anyone's time. Rise of the Tomb Raider was flagged for a
+12-day discrepancy before this rule existed — and it launched on Xbox in
+November 2015, so it is a delayed port whichever date you pick, and the
+question never mattered. Skipping ports removes 122 Steam requests per run.
 
 The scale of what was being dropped, against a window opened seven days
 earlier:

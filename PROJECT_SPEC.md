@@ -504,10 +504,15 @@ Access tail runs for months, a head start for days. Two probes decide it, and
 
 **A third case is deliberately left unresolved.** A pre-order *beta* also puts
 reviews in the days before release, and nothing in the counts distinguishes it
-from a premium tier. Rise of the Tomb Raider shows a 12-day head start and is
-a genuine correction — Steam's date is simply wrong. Darktide shows 13 days
-and is a beta of an unfinished build. Head starts beyond a week are therefore
+from a premium tier shipping 1.0. Darktide has 20,908 reviews across the
+thirteen days before its store date and was a beta of an unfinished build, so
+by this rule it keeps the store date. Head starts beyond a week are therefore
 reported and **not written**; confirming one is a manual decision.
+
+Ports are not probed at all, since nothing reads their windows. Rise of the
+Tomb Raider was flagged for a 12-day discrepancy before that rule existed, and
+the question turned out not to matter: it launched on Xbox in November 2015,
+so it is a delayed port on either date.
 
 #### Scope: What Is Not Labeled (resolved in Phase 2)
 Beyond the Steam-scoped and launch-scoped rules above, **MMOs are excluded**.

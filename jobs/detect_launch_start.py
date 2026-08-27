@@ -34,7 +34,7 @@ from sqlalchemy import select  # noqa: E402
 
 from app.db import session_scope  # noqa: E402
 from app.launch_window import detect  # noqa: E402
-from app.models import HistoricalRelease  # noqa: E402
+from app.models import HistoricalRelease, PlatformLaunchType  # noqa: E402
 from app.steam import SteamClient, SteamError  # noqa: E402
 
 logger = logging.getLogger("detect_launch_start")
@@ -46,6 +46,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--appid", type=int, action="append", dest="appids", help="Only these (repeatable)."
     )
+    parser.add_argument(
+        "--include-ports",
+        action="store_true",
+        help="Probe delayed ports and former exclusives too (their windows feed nothing).",
+    )
     return parser.parse_args(argv)
 
 
@@ -55,10 +60,21 @@ def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
 
     with session_scope() as session:
+        # Delayed ports and former exclusives are excluded from labeling and
+        # from the cohort index, so nothing reads their windows — probing them
+        # spends Steam requests to produce a number no one consumes, and puts
+        # rows on the needs-confirming list that are not worth anyone's time.
+        # Rise of the Tomb Raider was flagged for a 12-day discrepancy that
+        # turned out not to matter: it launched on Xbox in November 2015 and
+        # is a port either way. Unknown launch types are still probed, since
+        # they may yet resolve to day-one.
+        in_scope = {PlatformLaunchType.DAY_ONE_STEAM, PlatformLaunchType.UNKNOWN}
         releases = [
             r
             for r in session.scalars(select(HistoricalRelease))
-            if r.steam_release_date and (not args.appids or r.steam_appid in args.appids)
+            if r.steam_release_date
+            and (not args.appids or r.steam_appid in args.appids)
+            and (args.include_ports or r.platform_launch_type in in_scope)
         ]
         logger.info("Probing %d releases...", len(releases))
 
