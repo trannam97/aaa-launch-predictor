@@ -29,9 +29,14 @@ coverage/
 next-env.d.ts.bak
 
 # --- Environment / secrets ---
-.env
-.env.local
-.env.*.local
+# Deliberately broad. The named patterns caught .env and .env.local but not
+# the files an editor or a careful person makes right before changing one:
+# .env~ (vim), .env.save, .env.bak, backup.env. Those hold exactly the same
+# credentials and were committable. A secret is far easier to keep out of
+# history than to remove from it — and on a public repo, removal does not
+# undo the exposure anyway.
+.env*
+*.env
 !.env.example
 
 # --- Editors / OS ---
