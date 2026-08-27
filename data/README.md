@@ -387,6 +387,18 @@ mistake a researcher reading "developer closes two months after launch" would
 make. Reserve `closed` for a studio that actually stopped existing with its
 people out of work; a merger with retained staff is `continued`.
 
+**This is the highest-stakes field in the schema.** `closed` is a hard
+override: the rubric returns Flop at high confidence immediately, without
+consulting volume, sentiment, retention or support. Measured across the 32
+labeled day-one rows, a wrongly-set `closed` flips **12 of them to Flop, and
+every one is currently Underperform** — the error lands exactly on the
+boundary this field exists to decide, and only ever pushes one way.
+
+Only 3 of 35 labeled rows are `closed`. When the evidence is a headline
+rather than a staff outcome, code `unknown`: with studio and support both
+unknown the rubric returns *unresolved*, which is the correct answer to
+"we don't know" and far cheaper than a false Flop.
+
 (Max Payne 3 itself is not in the corpus: it launched in 2012, outside the
 2014–2025 range, and its Steam release trailed console by 16 days, making it a
 delayed port either way.)

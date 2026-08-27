@@ -588,6 +588,52 @@ the expanded Oakville site. Consolidation, not collapse.
 Reserve `closed` for a studio that stopped existing with its people out of
 work. A merger with retained staff is `continued`.
 
+#### The `closed` Signal Is the Riskiest Thing Phase 3 Will Produce
+`StudioSignal.CLOSED` is a hard override in the rubric: it returns **Flop at
+high confidence immediately**, without consulting volume, sentiment, retention
+or support. It is the single strongest input in the system, and Phase 3 plans
+to have an LLM derive it from news coverage.
+
+That combination is dangerous, and the danger is one-directional. Measured on
+the 32 labeled day-one rows: if `studio_signal` were wrongly set to `closed`,
+**12 rows flip to Flop — and every one of them is currently Underperform.**
+Successes and breakouts are untouched, because they clear the
+met-expectations gate before studio fate is consulted. So the error lands
+precisely on the flop/underperform boundary that this field exists to
+adjudicate, and it only ever pushes one way.
+
+The base rate makes it worse rather than better. Only **3 of 35** labeled rows
+are `closed` (Concord, Redfall, Forspoken). A rare, high-impact, one-
+directional signal is exactly the kind a language model reading headlines will
+over-produce — "studio closes weeks after launch" is a story, while "studio
+merged into its sister studio, staff offered positions" is a footnote or goes
+unreported. Max Payne 3 is the worked example (see below).
+
+Two effects may be in play and they compound: mergers may be genuinely rarer
+than closures, *and* under-reported relative to them. Distinguishing those
+needs media analysis nobody has done. The mitigation does not depend on
+which:
+
+- **The discriminating fact is the staff outcome, not the studio's status.**
+  "Closed" is ambiguous; "people lost their jobs" versus "people transferred"
+  is not. Phase 3 must be required to establish the former before coding
+  `closed`.
+- **`unknown` is the safe default and the rubric already handles it.** With
+  studio and support both unknown, the rubric returns *unresolved* rather than
+  guessing. Instructing the layer to prefer `unknown` over a
+  single-headline `closed` degrades to "we don't know", which is the correct
+  failure mode.
+- **Never let the layer set `closed` from a headline alone.** Require it to
+  cite what happened to the staff.
+
+**A rubric change is available but not applied.** Requiring `closed` to be
+corroborated by non-sustained support before it forces Flop would change
+nothing today — all three `closed` rows also carry `support=abandoned` — so it
+is free on current data. It is left unapplied because the rubric is the one
+validated component here and should not be altered on the same 32 rows it is
+scored against. It is recorded as a decision waiting for a labeled set large
+enough to test it on rows held back.
+
 #### Steam Metadata Describes a Store Listing, Not a Game
 Four fields have now been found to mean something narrower than their name
 suggests, and the pattern is worth stating once rather than rediscovering:
