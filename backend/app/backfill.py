@@ -277,7 +277,9 @@ def _write_windows(
     _upsert_window(session, release, existing, WindowKey.LIFETIME, None, None, lifetime)
     written.append(WindowKey.LIFETIME)
 
-    steam_release = details.release_date
+    # The 1.0 build's first day on sale, when that has been established, and
+    # the store date otherwise. See app/launch_window.py for why they differ.
+    steam_release = release.launch_window_start or details.release_date
     if steam_release is None:
         warnings.append("no Steam release date; launch windows skipped")
         return written

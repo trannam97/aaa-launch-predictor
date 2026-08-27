@@ -241,10 +241,20 @@ Those are reviews of the Early Access build, and the launch window correctly
 starts at 1.0 — the same rule that makes Wikidata's preferred-rank date the
 right one. Nothing to fix.
 
-**2. Tiered early access (the real problem).** Deluxe and premium editions now
+**2. Tiered early access — now handled.** Deluxe and premium editions
 routinely unlock three to five days before the standard edition, and Steam's
-release date is the *standard* date. Those buyers play and review inside a
-window we exclude. Measured against a window opened seven days earlier:
+release date is the *standard* date. Those buyers are playing the finished
+**1.0 build** and reviewing it, inside a window we were excluding.
+
+The project's rule is that a launch is the 1.0 version. A premium head start
+ships 1.0 and counts; an Early Access build is not 1.0 and does not.
+`jobs/detect_launch_start.py` separates them using the one property that
+divides them reliably — an Early Access tail runs for months, a head start for
+days — and writes `launch_window_start` where they differ. The backfill then
+measures every window from it.
+
+The scale of what was being dropped, against a window opened seven days
+earlier:
 
 | Game | Recorded 2wk | Opened 7d earlier | Cohort percentile |
 |---|---|---|---|

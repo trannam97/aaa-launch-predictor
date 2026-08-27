@@ -558,6 +558,12 @@ class HistoricalRelease(Base):
     dlc_count: Mapped[int | None] = mapped_column(Integer)
     launch_day_dlc_count: Mapped[int | None] = mapped_column(Integer)
 
+    # The first day the finished 1.0 build was on sale, which is not always
+    # what Steam's store page says. A premium edition unlocking days early
+    # ships 1.0 and counts; an Early Access period does not. NULL means the
+    # store date stands. See app/launch_window.py.
+    launch_window_start: Mapped[date | None] = mapped_column(Date)
+
     # --- Pre-launch anticipation (award nominations made before release) ---
     # Counted across every award show that judges unreleased games, not just
     # The Game Awards. NULL means never looked up; 0 means looked up and none
