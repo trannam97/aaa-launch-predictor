@@ -106,6 +106,34 @@ keeps serving.
 Needs `ml/requirements.txt`. See `ml/README.md` for the evaluation protocol
 and why the bar is a constant rather than the baseline.
 
+### `enrich_release_dates.py`
+
+Fills `original_release_date` from Wikidata (joined on P1733, the Steam app ID)
+so `derive_platform_launch_type` has something to compare against. Without it,
+166 of 205 rows sat at `unknown` and were excluded from labeling and training.
+
+```bash
+DATABASE_URL=... python jobs/enrich_release_dates.py --dry-run
+DATABASE_URL=... python jobs/enrich_release_dates.py --refresh   # re-derive existing dates
+```
+
+`--refresh` exists because the lookup itself improves: following P629 to a base
+game, and honouring statement rank and time precision, corrected 17 dates that
+the first pass got wrong. See `data/README.md` for those conventions.
+
+### `enrich_award_nominations.py`
+
+Counts pre-release award nominations across every show that judges unreleased
+games — The Game Awards, Golden Joystick, Gamescom, Japan Game Awards.
+
+```bash
+DATABASE_URL=... python jobs/enrich_award_nominations.py --dry-run --verbose
+DATABASE_URL=... python jobs/enrich_award_nominations.py
+```
+
+Stored, not used: too few labeled rows carry a nomination to evaluate it. Run
+it against tracked upcoming games — that is the only time the data exists.
+
 ## Planned
 
 Per `PROJECT_SPEC.md`:

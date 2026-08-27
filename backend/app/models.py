@@ -557,6 +557,19 @@ class HistoricalRelease(Base):
     # later is a post-launch support signal and is outcome-contaminated.
     dlc_count: Mapped[int | None] = mapped_column(Integer)
     launch_day_dlc_count: Mapped[int | None] = mapped_column(Integer)
+
+    # --- Pre-launch anticipation (award nominations made before release) ---
+    # Counted across every award show that judges unreleased games, not just
+    # The Game Awards. NULL means never looked up; 0 means looked up and none
+    # found — a distinction that matters, since "no nomination" and "no data"
+    # would otherwise be the same number.
+    #
+    # Captured but deliberately NOT in FEATURE_NAMES yet: only a handful of
+    # labeled rows carry a nomination, which is too thin to evaluate. It is
+    # recorded now because it has to be recorded *before* a game launches to
+    # be worth anything later. See data/README.md.
+    prelaunch_award_nominations: Mapped[int | None] = mapped_column(Integer)
+    prelaunch_award_wins: Mapped[int | None] = mapped_column(Integer)
     post_launch_dlc_count: Mapped[int | None] = mapped_column(Integer)
     last_dlc_days_after_launch: Mapped[int | None] = mapped_column(Integer)
     has_in_app_purchases: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)

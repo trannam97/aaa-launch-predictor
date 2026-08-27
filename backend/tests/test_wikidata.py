@@ -191,3 +191,110 @@ def test_the_client_identifies_itself_to_wikimedia():
 
     assert "aaa-launch-predictor" in seen[0]
     assert "github.com" in seen[0]
+
+
+# --- anticipation awards --------------------------------------------------
+
+
+def award_response(rows):
+    """Rows are (appid, award_qid, when, precision, won)."""
+    bindings = []
+    for appid, qid, when, precision, won in rows:
+        binding = {
+            "appid": {"value": appid},
+            "award": {"value": f"http://www.wikidata.org/entity/{qid}"},
+            "won": {"value": "true" if won else "false"},
+        }
+        if when is not None:
+            binding["when"] = {"value": when}
+            binding["precision"] = {"value": str(precision)}
+        bindings.append(binding)
+    payload = {"results": {"bindings": bindings}}
+    body = json.dumps(payload).encode()
+
+    class _Response(io.BytesIO):
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+    def opener(request, timeout=None):
+        return _Response(body)
+
+    return opener
+
+
+TGA = "Q68094302"
+GOLDEN_JOYSTICK = "Q68093583"
+
+
+def test_nominations_are_gathered_across_every_show():
+    # The Game Awards is the biggest anticipation category but not the only
+    # one; a signal built on it alone misses the European and Japanese shows.
+    opener = award_response(
+        [
+            ("1", TGA, "2021-11-16T00:00:00Z", 11, False),
+            ("1", GOLDEN_JOYSTICK, "2021-01-01T00:00:00Z", 9, True),
+        ]
+    )
+    found = client(opener).anticipation([1])
+
+    assert len(found[1].nominations) == 2
+    assert {n.award_qid for n in found[1].nominations} == {TGA, GOLDEN_JOYSTICK}
+
+
+def test_an_award_outside_the_anticipation_set_is_ignored():
+    # Game of the Year is decided after release and would be pure leakage.
+    opener = award_response([("1", "Q78762377", "2022-12-08T00:00:00Z", 11, True)])
+    assert client(opener).anticipation([1]) == {}
+
+
+def test_a_day_precision_nomination_is_compared_directly():
+    opener = award_response([("1", TGA, "2021-12-09T00:00:00Z", 11, False)])
+    found = client(opener).anticipation([1])
+
+    assert found[1].before(date(2022, 2, 25))
+    assert not found[1].before(date(2021, 6, 1))
+
+
+def test_a_year_precision_nomination_needs_the_whole_year_to_precede():
+    # Golden Joystick statements often carry only a year, rendered as January
+    # 1st. Comparing that day against a June release would count a November
+    # nomination as preceding it.
+    opener = award_response([("1", GOLDEN_JOYSTICK, "2021-01-01T00:00:00Z", 9, False)])
+    found = client(opener).anticipation([1])
+
+    assert found[1].before(date(2022, 2, 25))
+    assert not found[1].before(date(2021, 6, 1))
+    assert not found[1].before(date(2021, 12, 31))
+
+
+def test_an_undated_nomination_never_counts_as_pre_release():
+    opener = award_response([("1", TGA, None, 11, False)])
+    found = client(opener).anticipation([1])
+
+    assert found[1].nominations
+    assert found[1].before(date(2030, 1, 1)) == []
+
+
+def test_a_game_with_no_release_date_counts_nothing():
+    opener = award_response([("1", TGA, "2021-12-09T00:00:00Z", 11, False)])
+    assert client(opener).anticipation([1])[1].before(None) == []
+
+
+def test_wins_are_distinguished_from_nominations():
+    opener = award_response(
+        [
+            ("1", TGA, "2020-12-10T00:00:00Z", 11, True),
+            ("1", TGA, "2021-11-16T00:00:00Z", 11, False),
+        ]
+    )
+    qualifying = client(opener).anticipation([1])[1].before(date(2022, 2, 25))
+
+    assert sum(n.won for n in qualifying) == 1
+
+
+def test_award_names_resolve_to_something_readable():
+    opener = award_response([("1", TGA, "2021-12-09T00:00:00Z", 11, False)])
+    assert "Game Awards" in client(opener).anticipation([1])[1].nominations[0].award_name

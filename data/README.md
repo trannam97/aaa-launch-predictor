@@ -176,6 +176,55 @@ are deliberately unused — the minimum publication date is sufficient. A 2014
 console launch against a 2019 Steam date identifies a port whether or not
 either statement names its platform.
 
+## Pre-launch anticipation (captured, not yet used)
+
+`prelaunch_award_nominations` and `prelaunch_award_wins` count nominations in
+award categories that judge games **before they exist**. `jobs/enrich_award_nominations.py`
+fills them from Wikidata across every such show it could find, not just the
+biggest one:
+
+| Award | Nominations in corpus |
+|---|---|
+| The Game Awards − Most Anticipated Game | 27 |
+| Golden Joystick Awards − Most Wanted Game | 6 |
+| Japan Game Awards − Future Category | 1 |
+| Gamescom Award − Most Wanted (incl. platform variants) | 2 |
+
+This is one of very few signals here that is **verifiably** pre-launch rather
+than assumed to be: Wikidata stamps each nomination with the date it was made,
+so the ordering is proven per row. Two rules protect that guarantee:
+
+- **Undated nominations are dropped**, never assumed to precede release.
+- **Year-precision dates only count when the entire year precedes the release
+  year.** Gamescom and Golden Joystick statements frequently carry only a year,
+  rendered as January 1st; comparing that day directly would count a November
+  nomination as preceding a June release in the same year.
+
+The cutoff is `original_release_date`, not the Steam date — anticipation is
+about a game that exists nowhere yet, so a console launch ends it even when the
+Steam version is years off.
+
+**These columns are not features.** `app/features.py` does not read them. Nine
+of the 32 trainable rows carry a nomination, which is far too thin to evaluate:
+
+| Outcome | Corpus | Nominated |
+|---|---|---|
+| Flop | 25% | **0%** |
+| Underperform | 34% | 56% |
+| Success | 16% | 11% |
+| Breakout | 25% | 33% |
+
+Zero flops among nine nominated games is suggestive — Concord, the corpus's
+clearest flop, was never nominated — but at a 25% base rate, seeing none in
+nine has roughly a 7% chance of happening anyway. Promoting it to a feature on
+that basis would be the same error as filtering the training set until the
+numbers improve. It is captured now because it can only be captured *before*
+launch; it gets evaluated when the labeled set can support it.
+
+One limit worth recording: this measures **press and jury anticipation, not
+consumer intent**, and absence conflates "nobody wanted it" with "nobody
+covered it."
+
 ## Known caveats
 
 - **Concurrent players can't be backfilled.** Steam publishes only a live

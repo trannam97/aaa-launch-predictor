@@ -27,6 +27,24 @@ from datetime import date
 
 SPARQL_ENDPOINT = "https://query.wikidata.org/sparql"
 
+# Award categories that honour games *before* they ship. Discovered by
+# enumerating every award the corpus's titles are nominated for and keeping the
+# ones judging unreleased work — The Game Awards is the largest but not the only
+# one, and a signal built on it alone would miss the European and Japanese shows
+# entirely.
+#
+# All of these are "anticipation" in the same sense: a jury or public vote on a
+# game that does not exist yet. They are not equivalent in weight, which is why
+# the count is stored per statement rather than collapsed into a flag here.
+ANTICIPATION_AWARDS: dict[str, str] = {
+    "Q68094302": "The Game Awards - Most Anticipated Game",
+    "Q68093583": "Golden Joystick Awards - Most Wanted Game",
+    "Q106152664": "Japan Game Awards - Future Category",
+    "Q108529975": "Gamescom Award - Most Wanted",
+    "Q113586377": "Gamescom Award - Most Wanted Sony PlayStation Game",
+    "Q113586071": "Gamescom Award - Most Wanted PC Game",
+}
+
 # Wikimedia asks that automated clients identify themselves and provide a way
 # to make contact. An anonymous or browser-spoofing agent risks a block.
 USER_AGENT = (
@@ -116,11 +134,78 @@ def _query(appids: list[int]) -> str:
 }}"""
 
 
+def _anticipation_query(appids: list[int]) -> str:
+    values = " ".join(f'"{appid}"' for appid in appids)
+    awards = " ".join(f"wd:{qid}" for qid in ANTICIPATION_AWARDS)
+    return f"""SELECT ?appid ?award ?when ?precision ?won WHERE {{
+  VALUES ?appid {{ {values} }}
+  VALUES ?award {{ {awards} }}
+  ?item wdt:P1733 ?appid .
+  {{ ?item p:P1411 ?stmt . ?stmt ps:P1411 ?award . BIND(false AS ?won) }}
+  UNION
+  {{ ?item p:P166 ?stmt . ?stmt ps:P166 ?award . BIND(true AS ?won) }}
+  OPTIONAL {{
+    ?stmt pqv:P585 ?node .
+    ?node wikibase:timeValue ?when ; wikibase:timePrecision ?precision .
+  }}
+}}"""
+
+
 def _parse_date(raw: str) -> date | None:
     try:
         return date.fromisoformat(raw[:10])
     except ValueError:
         return None
+
+
+@dataclass(slots=True)
+class Nomination:
+    """One award nomination, with the date it was made and how precisely."""
+
+    award_qid: str
+    awarded_on: date | None
+    precision: int
+    won: bool
+
+    @property
+    def award_name(self) -> str:
+        return ANTICIPATION_AWARDS.get(self.award_qid, self.award_qid)
+
+    def precedes(self, cutoff: date) -> bool:
+        """Whether this nomination provably happened before `cutoff`.
+
+        Year-precision dates matter here and are not a rounding nuisance.
+        Gamescom and Golden Joystick nominations frequently carry only a year,
+        rendered as January 1st. Comparing that day against a release date
+        would count a November nomination as preceding a June release in the
+        same year — turning the one leakage-free signal in this project into a
+        leaky one. A year-precision statement therefore only counts when the
+        entire year precedes the release year.
+        """
+        if self.awarded_on is None:
+            return False
+        if self.precision >= DAY_PRECISION:
+            return self.awarded_on < cutoff
+        return self.awarded_on.year < cutoff.year
+
+
+@dataclass(slots=True)
+class Anticipation:
+    """Every anticipation-award nomination Wikidata holds for one Steam app."""
+
+    steam_appid: int
+    nominations: list[Nomination]
+
+    def before(self, cutoff: date | None) -> list[Nomination]:
+        """Nominations provably made before the game existed anywhere.
+
+        An undated nomination is dropped rather than assumed pre-release. The
+        whole value of this signal is that it is verifiably pre-launch, and a
+        statement without a date cannot carry that guarantee.
+        """
+        if cutoff is None:
+            return []
+        return [n for n in self.nominations if n.precedes(cutoff)]
 
 
 class WikidataClient:
@@ -152,6 +237,41 @@ class WikidataClient:
                 return json.load(response)
         except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as exc:
             raise WikidataError(f"Wikidata query failed: {exc}") from exc
+
+    def anticipation(self, appids: list[int]) -> dict[int, Anticipation]:
+        """Pre-release award nominations for each appid, across every show.
+
+        Nominations carry a P585 "point in time" qualifier, which is what makes
+        this usable at all: the caller can prove each one predates the game's
+        release rather than trusting that award shows happen beforehand.
+        """
+        found: dict[int, Anticipation] = {}
+        batches = [appids[i : i + self.batch_size] for i in range(0, len(appids), self.batch_size)]
+        for index, batch in enumerate(batches):
+            if index:
+                time.sleep(self.delay_seconds)
+            payload = self._fetch(_anticipation_query(batch))
+            for binding in payload.get("results", {}).get("bindings", []):
+                try:
+                    appid = int(binding["appid"]["value"])
+                except (KeyError, ValueError):
+                    continue
+                qid = binding.get("award", {}).get("value", "").rsplit("/", 1)[-1]
+                if qid not in ANTICIPATION_AWARDS:
+                    continue
+                try:
+                    precision = int(binding.get("precision", {}).get("value", DAY_PRECISION))
+                except ValueError:
+                    precision = DAY_PRECISION
+                found.setdefault(appid, Anticipation(appid, [])).nominations.append(
+                    Nomination(
+                        award_qid=qid,
+                        awarded_on=_parse_date(binding.get("when", {}).get("value", "")),
+                        precision=precision,
+                        won=binding.get("won", {}).get("value") == "true",
+                    )
+                )
+        return found
 
     def release_dates(self, appids: list[int]) -> dict[int, ReleaseDates]:
         """Look up every publication date for each appid.
