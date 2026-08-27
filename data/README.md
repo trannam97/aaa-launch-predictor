@@ -225,6 +225,50 @@ One limit worth recording: this measures **press and jury anticipation, not
 consumer intent**, and absence conflates "nobody wanted it" with "nobody
 covered it."
 
+## `steam_release_date` is not always the day the game launched
+
+Every windowed metric here is measured from `steam_release_date`, taken from
+Steam's `appdetails`. An audit — checking each row for reviews dated *before*
+its recorded release — found **18 of 204** rows with 50 or more, which means
+those windows are measured over the wrong fortnight. They fail silently, with
+plausible-looking numbers.
+
+Three separate causes, and only one is a defect:
+
+**1. Early Access graduating to 1.0 (working as intended).** Baldur's Gate 3
+carries 8,166 reviews before its 2023-08-03 date, Hades 651, Grounded 436.
+Those are reviews of the Early Access build, and the launch window correctly
+starts at 1.0 — the same rule that makes Wikidata's preferred-rank date the
+right one. Nothing to fix.
+
+**2. Tiered early access (the real problem).** Deluxe and premium editions now
+routinely unlock three to five days before the standard edition, and Steam's
+release date is the *standard* date. Those buyers play and review inside a
+window we exclude. Measured against a window opened seven days earlier:
+
+| Game | Recorded 2wk | Opened 7d earlier | Cohort percentile |
+|---|---|---|---|
+| Warhammer 40,000: Space Marine 2 | 51,977 | 81,303 | 86.7 → 92.4 |
+| Sid Meier's Civilization VII | 16,920 | 30,363 | 67.7 → 77.1 |
+| Avowed | 4,834 | 6,911 | 32.3 → **45.8** |
+
+Volume percentile is a primary rubric input (`VOLUME_FLOOR`, `MOMENTUM_VOLUME`,
+`BREAKOUT_VOLUME`), and Avowed crosses the 35-point floor in that shift. This
+systematically under-counts exactly the largest releases, since they are the
+ones that ship premium tiers.
+
+**3. A release date that is simply wrong.** Call of Duty: Black Ops 6 shipped
+25 Oct 2024; its Steam store page says 1 Nov. The recorded window holds 1,925
+reviews against 6,478 for the true launch fortnight — a 23-point percentile
+error.
+
+A blanket seven-day shift is **not** the fix: it would pull Early Access
+reviews into the launch window for category 1, which is precisely what the
+1.0 rule exists to prevent. Distinguishing the cases is tractable — an Early
+Access tail runs for months, a premium head start for days — but it changes
+what "launch window" means, so it is recorded here rather than quietly
+applied.
+
 ## Known caveats
 
 - **Concurrent players can't be backfilled.** Steam publishes only a live
