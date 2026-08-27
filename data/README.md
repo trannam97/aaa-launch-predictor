@@ -316,6 +316,10 @@ Crucially the rubric got *better*, with no threshold retuned:
 | All releases (previous) | 100% | 93.8% | 0.06 |
 | Day-one only | 100% | **96.9%** | **0.03** |
 
+(The launch-window correction that followed took exact agreement to 90.6% —
+see the Retention Thresholds note in `PROJECT_SPEC.md`. Met-expectations
+stayed at 100% throughout.)
+
 That is the evidence this is a correction rather than a recalibration: the
 thresholds were tuned against the contaminated distribution and still improved
 against the clean one.

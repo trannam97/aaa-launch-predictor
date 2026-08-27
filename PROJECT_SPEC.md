@@ -27,9 +27,9 @@ corpus with 35 labels (32 scored — day-one Steam releases only, MMOs excluded)
 
 | Component | Result | Note |
 |---|---|---|
-| Outcome rubric (post-launch) | **100%** met-expectations, 96.9% exact | Works. Not yet wired into any endpoint. |
+| Outcome rubric (post-launch) | **100%** met-expectations, 90.6% exact | Works on the falsifiable axis. Not wired into any endpoint. |
 | Rule-based baseline (pre-launch) | **31.2%** | Loses to always guessing `underperform` (**34.4%**) |
-| Ordinal model (pre-launch) | **38.3%** | Beats the baseline, loses to the constant on ordinal distance; gate refuses it, no artifact written |
+| Ordinal model (pre-launch) | **38.8%** | Beats the baseline, loses to the constant on ordinal distance; gate refuses it, no artifact written |
 | Company tiering clustering | **Failed** | Unstable; writes no tiers. See ml/README.md |
 
 The gap between the first two rows is the project's central finding so far:
@@ -545,6 +545,34 @@ suggests, and the pattern is worth stating once rather than rediscovering:
 
 Treat any Steam flag as a statement about the store page until proven
 otherwise, and check it against a second source before building on it.
+
+#### Retention Thresholds Are Now Mis-Calibrated (open, do not tune)
+Opening the launch window at 1.0 rather than the store date is correct, and it
+**cost the rubric 6.3 points of exact agreement** — 96.9% down to 90.6%. Two
+breakouts are now called success. Met-expectations holds at 100% and mean
+ordinal distance is still 0.09, so every miss is one tier on the correct side
+of the line, but the drop is real and is recorded rather than tuned away.
+
+Two distinct mechanisms, both consequences of the correction being right:
+
+- **Space Marine 2** grew from 51,977 to 74,301 launch-fortnight reviews. That
+  is the correct figure, and it is also the *denominator* of the retention
+  ratio, which fell from above `RETENTION_SUSTAINED` to 1.78 — closing the
+  momentum path to breakout. At 86th-percentile volume it sits below
+  `BREAKOUT_VOLUME` (90), so it resolves to success.
+- **Clair Obscur: Expedition 33** did not change at all. Its cohort did: other
+  2024–25 launches grew, raising the bar, and its percentile fell from 81.4 to
+  79 — one point below `BREAKOUT_VOLUME_WITH_MOMENTUM` (80).
+
+`RETENTION_STRONG` (2.5), `RETENTION_SUSTAINED` (2.0) and
+`BREAKOUT_VOLUME_WITH_MOMENTUM` (80) were all fitted against narrower windows
+and a smaller cohort. They are stale.
+
+**Do not adjust them against these 32 rows.** That is precisely the in-sample
+tuning the Evaluation Protocol below bans, and the Phase 1 rubric's headline
+figure is already optimistic for having been fitted this way once. Recalibrate
+when there are enough labels to hold rows back — which is the same thing
+everything else here is waiting on.
 
 #### Evaluation Protocol (resolved in Phase 2)
 With ~32 labeled rows, how the model is scored matters more than how it is
