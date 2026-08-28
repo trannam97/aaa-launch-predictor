@@ -403,6 +403,25 @@ unknown the rubric returns *unresolved*, which is the correct answer to
 2014–2025 range, and its Steam release trailed console by 16 days, making it a
 delayed port either way.)
 
+## Early Access reviews are recoverable, and pre-launch
+
+Under the 1.0 rule, Early Access reviews sit before launch, and windowed
+`appreviews` retrieves them for any date range. That makes them unusual: a
+pre-launch signal that is not lost to history.
+
+Late-EA sentiment tracked 1.0 launch sentiment to within 0.1 points on both
+cases available — Baldur's Gate 3 (97.1% -> 97.2%) and Hades (98.5% ->
+98.6%) — while volume transferred not at all. **n=2, so a hypothesis, not a
+finding.**
+
+It is not a feature and will not become one: only five corpus rows are
+genuinely Early Access and one is labeled, because Early Access is an indie
+and AA practice while this corpus is AAA. And "do EA games launch better"
+cannot be answered from data of this shape at all — games that fail in Early
+Access never reach 1.0, so the comparison sees only survivors.
+
+Useful per game in Phase 3, for a tracked title currently in Early Access.
+
 ## Known caveats
 
 - **Concurrent players can't be backfilled.** Steam publishes only a live

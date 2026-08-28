@@ -588,6 +588,45 @@ the expanded Oakville site. Consolidation, not collapse.
 Reserve `closed` for a studio that stopped existing with its people out of
 work. A merger with retained staff is `continued`.
 
+#### Early Access as a Pre-Launch Signal (investigated; per-game only)
+Under the 1.0 rule, Early Access reviews sit unambiguously *before* launch —
+which makes them the rare signal that is both genuinely pre-launch **and**
+retroactively recoverable, better on both counts than anything currently in
+the feature set. Windowed `appreviews` retrieves them directly.
+
+**Late-EA sentiment tracked 1.0 launch sentiment almost exactly**, on the two
+cases available:
+
+| | EA final 90 days | 1.0 launch fortnight |
+|---|---|---|
+| Baldur's Gate 3 | 12,016 @ **97.1%** | 114,341 @ **97.2%** |
+| Hades | 5,170 @ **98.5%** | 10,411 @ **98.6%** |
+
+Volume transferred not at all — Baldur's Gate 3 grew 1.6x while Hades shrank
+to 0.4x — but sentiment carried to within 0.1 points twice. Mechanically
+plausible: the same audience reviewing a game that is nearly what ships. It is
+**a hypothesis on n=2, not a finding**, and is recorded so it can be tested
+rather than rediscovered.
+
+**It cannot be a trained feature, and that will not change with more labels.**
+Only five corpus rows are genuinely Early Access, and exactly one is labeled.
+The shortfall is structural rather than incidental: Early Access is an indie
+and AA practice, and this corpus is AAA by design.
+
+**The comparison "do EA games launch better" is not answerable, even in
+principle, from data shaped like this.** Games that fail in Early Access never
+reach 1.0 — abandoned, or shipped quietly into obscurity and never entered
+into a AAA dataset. Any such comparison measures survivors against everyone,
+and the counterfactual is invisible by construction. Collecting more rows of
+the same kind does not fix it; it is the same shape as the sampling bias noted
+above.
+
+**Where it is worth using: Phase 3, per game.** A tracked title currently in
+Early Access has live, quantitative evidence about *itself* rather than its
+publisher, and on this evidence late-EA sentiment may read directly onto 1.0.
+That belongs in the reasoning layer's inputs even though it can never be a
+column in the model.
+
 #### The `closed` Signal Is the Riskiest Thing Phase 3 Will Produce
 `StudioSignal.CLOSED` is a hard override in the rubric: it returns **Flop at
 high confidence immediately**, without consulting volume, sentiment, retention
