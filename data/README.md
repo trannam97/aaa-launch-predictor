@@ -176,6 +176,30 @@ are deliberately unused — the minimum publication date is sufficient. A 2014
 console launch against a 2019 Steam date identifies a port whether or not
 either statement names its platform.
 
+### It is not a window anchor
+
+`original_release_date` answers *when did this title first exist*, not *when
+did it go on sale on Steam*. Those are the same date for most rows and wildly
+different for the rest, so anchoring a measurement window on it fails quietly
+rather than loudly — the query succeeds and returns nothing.
+
+Measured on this corpus: 59 of the 205 rows with a usable Steam date carry a
+gap past the seven-day tolerance, reaching five years at the extreme. Halo:
+The Master Chief Collection is 2014-11-11 on Wikidata and 2019-12-03 on Steam;
+God of War is 2018-04-20 against 2022-01-14; Titanfall 2 is 2016-10-28 against
+2020-06-18. Opening a fourteen-day launch window on the Wikidata date returns
+**zero reviews for 56 rows**. Re-anchored on Steam's own date, 55 of those 56
+return a populated window — Halo alone has 42,514 launch-fortnight reviews
+that the wrong anchor reports as none.
+
+The pipeline already anchors correctly and needs no guarding: `app/backfill.py`
+measures every window from `launch_window_start or details.release_date` and
+sets `cohort_year` from the Steam year, while `original_release_date` is read
+only to derive the launch type and to date award nominations, which genuinely
+want the title's first release. The trap is for analysis written *against the
+CSV directly*, where `original_release_date` is the only date column present
+and looks like the one to use. It is not. Fetch the Steam date first.
+
 ## Pre-launch anticipation (captured, not yet used)
 
 `prelaunch_award_nominations` and `prelaunch_award_wins` count nominations in
