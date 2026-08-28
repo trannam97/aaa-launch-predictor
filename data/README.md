@@ -14,6 +14,25 @@ migrate — see that folder's notes in `backend/README.md`.
 |---|---|
 | `historical_releases.csv` | **Curated input** for the backfill — one row per game, holding only what Steam cannot answer. |
 | `historical_releases_seed.csv` | The original 13-game research batch, kept as provenance. Superseded by the file above; not read by any code. |
+| `game_list.csv` | **Generated snapshot**, not input. One row per game with the tier currently assigned and how it was arrived at. Read by nothing; regenerate rather than edit. |
+
+### `game_list.csv` is a snapshot, and will go stale
+
+It holds name, Steam year, tier, and basis for all 206 rows, where basis is one
+of: **confirmed** (a hand-researched label in the curated CSV), **auto** (the
+rubric resolved it from Steam data with studio and support forced unknown),
+**needs research**, **port**, **flagged**, or **no data**. At the time of
+writing that is 35 confirmed, 45 auto, 69 needing research, 52 ports, 4
+flagged and 1 inert.
+
+There is no job that produces it, because the view it shows properly belongs to
+the database: once `backfill_historical.py` has run, the same four columns come
+from `historical_releases` joined to `release_windows`. This file was assembled
+before that database exists, by running `app.rubric.classify` over launch
+windows fetched live from Steam. Treat it as a point-in-time read for reviewing
+labels by eye, and regenerate it from the database rather than editing it —
+every value in it is derived, so an edit here changes nothing downstream and
+only disagrees with the pipeline.
 
 ## The curated CSV
 
