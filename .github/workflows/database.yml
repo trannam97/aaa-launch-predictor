@@ -1,0 +1,132 @@
+name: Database
+
+# The one-time setup that turns an empty Supabase project into a working
+# database, run from the Actions tab so no local Python toolchain is needed.
+#
+# Two steps, deliberately separate: a migration failure should not burn an
+# hour of Steam fetching, and re-running migrations later should not re-load
+# the corpus. Pick one, or "migrate-then-backfill" for a first run.
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "Which step to run"
+        type: choice
+        default: migrate
+        options:
+          - migrate
+          - backfill
+          - migrate-then-backfill
+      dry_run:
+        description: "Backfill only — fetch and report, write nothing"
+        type: boolean
+        default: false
+
+# Never let two of these overlap; both write to the same database.
+concurrency:
+  group: database
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    if: inputs.action != 'backfill'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install
+        run: pip install -e './backend[postgres]'
+
+      # app/config.py rewrites postgresql:// to postgresql+psycopg:// at
+      # runtime, and GitHub only redacts the *exact* secret string it stores.
+      # So the rewritten URL would print unmasked if anything ever logged it.
+      # Normalising here and re-masking both the whole URL and the password
+      # closes that hole whichever scheme the secret happens to carry.
+      - name: Normalise the connection string
+        env:
+          RAW: ${{ secrets.DATABASE_URL }}
+        run: |
+          NORM="${RAW/#postgresql:\/\//postgresql+psycopg:\/\/}"
+          NORM="${NORM/#postgres:\/\//postgresql+psycopg:\/\/}"
+          echo "::add-mask::$NORM"
+          PW="${NORM#*://*:}"; PW="${PW%%@*}"
+          [ -n "$PW" ] && echo "::add-mask::$PW"
+          echo "DATABASE_URL=$NORM" >> "$GITHUB_ENV"
+
+      - name: Create or update the tables
+        working-directory: backend
+        run: |
+          alembic upgrade head
+          alembic current
+
+      - name: Report
+        working-directory: backend
+        run: |
+          python - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          from sqlalchemy import create_engine, inspect
+          from app.config import get_settings
+          insp = inspect(create_engine(get_settings().sqlalchemy_url))
+          names = sorted(insp.get_table_names())
+          print(f"### Schema ready — {len(names)} tables\n")
+          print("\n".join(f"- `{n}`" for n in names))
+          PY
+
+  backfill:
+    needs: [migrate]
+    # Runs when migrate succeeded, or was skipped because only backfill was
+    # asked for. Never after a failed migration — the tables would be wrong.
+    if: >-
+      always() && inputs.action != 'migrate'
+      && needs.migrate.result != 'failure' && needs.migrate.result != 'cancelled'
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install
+        run: pip install -e './backend[postgres]'
+
+      - name: Normalise the connection string
+        env:
+          RAW: ${{ secrets.DATABASE_URL }}
+        run: |
+          NORM="${RAW/#postgresql:\/\//postgresql+psycopg:\/\/}"
+          NORM="${NORM/#postgres:\/\//postgresql+psycopg:\/\/}"
+          echo "::add-mask::$NORM"
+          PW="${NORM#*://*:}"; PW="${PW%%@*}"
+          [ -n "$PW" ] && echo "::add-mask::$PW"
+          echo "DATABASE_URL=$NORM" >> "$GITHUB_ENV"
+
+      # Paced by SteamClient's own 1.5s minimum request interval, so this is
+      # slow by design: roughly 40-90 minutes for the full corpus.
+      - name: Load the corpus
+        run: |
+          python jobs/backfill_historical.py ${{ inputs.dry_run && '--dry-run' || '' }}
+
+      - name: Report
+        if: ${{ !inputs.dry_run }}
+        working-directory: backend
+        run: |
+          python - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          from sqlalchemy import create_engine, func, select
+          from sqlalchemy.orm import Session
+          from app.config import get_settings
+          from app.models import HistoricalRelease
+          with Session(create_engine(get_settings().sqlalchemy_url)) as s:
+              total = s.scalar(select(func.count()).select_from(HistoricalRelease))
+              labeled = s.scalar(
+                  select(func.count()).select_from(HistoricalRelease)
+                  .where(HistoricalRelease.resolved_outcome.is_not(None))
+              )
+          print(f"### Corpus loaded\n\n- **{total}** releases\n- **{labeled}** carrying a label")
+          PY
