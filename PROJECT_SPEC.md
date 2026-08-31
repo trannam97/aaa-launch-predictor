@@ -1,24 +1,58 @@
 # AAA Game Launch Predictor — Project Spec
 
 ## Build Status — read this before implementing anything
-**Current phase: Phase 0.5 (bulk historical backfill), not started.**
-Phase 0 is done — basic Steam ingestion for a single game is working.
+**Current phase: Phase 3 (LLM reasoning layer), not started.**
+Phases 0 through 2 are done: Steam ingestion end-to-end, 205 historical
+releases backfilled with windowed launch metrics, 35 labeled from sourced
+research, the outcome rubric encoded and validated, and the full model
+pipeline built, measured and — correctly — refusing to serve.
 
 This document is a **design reference, not a build order.** Most of it
 describes decisions for phases that haven't started yet (Public Reception
-Signal, company-tiering clustering, the FTME lifecycle, leak handling,
-retraining cadence) — these are settled *decisions* worth having on record
-so they don't need re-litigating later, not a to-do list for the current
-phase. **When prompting Claude Code for the current phase, scope the ask
-explicitly to what that phase needs** (see MVP Phasing below) rather than
-handing over this whole document as "build this" — most of it describes
-Phase 2-4 work that would be premature to scaffold now.
+Signal, leak handling, the FTME resolution lifecycle, the LLM reasoning
+layer) — these are settled
+*decisions* worth having on record so they don't need re-litigating later,
+not a to-do list for the current phase. **When prompting Claude Code for the
+current phase, scope the ask explicitly to what that phase needs** (see MVP
+Phasing below) rather than handing over this whole document as "build this".
 
-For Phase 0.5 specifically, the relevant sections are: Historical Labeled
-Dataset, Prediction Categories (for the labeling rubric), and the seed
-CSV (`historical_releases_seed.csv`). Everything under ML Model, Public
-Reception Signal, Prediction Lifecycle, and Company Tiering Pipeline can
-be skipped for now — they're Phase 2-3 territory.
+For Phase 3 specifically, the relevant sections are: LLM Reasoning Layer,
+Public Reception Signal, Wishlist/Follower Signal Handling, and Leak Events.
+The ML Model and Evaluation Protocol sections describe work already done and
+are reference, not a to-do list.
+
+### What is measured, as of the Phase 3 start
+Numbers to design against rather than re-derive. All from the 205-game
+corpus with 35 labels (32 scored — day-one Steam releases only, MMOs excluded).
+
+| Component | Result | Note |
+|---|---|---|
+| Outcome rubric (post-launch) | **100%** met-expectations, 90.6% exact | Works on the falsifiable axis. Not wired into any endpoint. |
+| Rule-based baseline (pre-launch) | **31.2%** | Loses to always guessing `underperform` (**34.4%**) |
+| Ordinal model (pre-launch) | **38.8%** | Beats the baseline, loses to the constant on ordinal distance; gate refuses it, no artifact written |
+| Company tiering clustering | **Failed** | Unstable; writes no tiers. See ml/README.md |
+
+The gap between the first two rows is the project's central finding so far:
+**classifying a launch after it happens is a solved problem here;
+forecasting one before it happens is not.** Structural pre-launch features
+carry little signal at this sample size. Whether that is a data-volume
+problem, a feature problem, or a ceiling on pre-launch predictability is
+not yet distinguishable from 32 rows, and nothing here should be read as
+having decided it.
+
+**The bar is the constant, not the baseline.** A model that cannot beat a
+constant guess has learned nothing, and saying so plainly is more useful than
+shipping a number that looks like progress. The Phase 2 model does not clear
+it, so `/games/{appid}/prediction` still serves the rule-based baseline,
+tagged `rule_based_baseline_v1` so a reader can always tell which produced a
+number.
+
+**The binding constraint is labels, not code.** 100 day-one candidates sit
+unlabeled. Of those, the rubric settles 48 unaided — but 45 of the 48 are
+`success`, because a game that met expectations resolves from launch data
+while a game that fell short needs studio and support signals. The 52 it
+cannot settle are therefore the flop and underperform candidates, and are
+where research time is worth several times as much as anywhere else.
 
 ## Goal
 A dashboard that tracks upcoming Triple-A game releases on Steam and predicts
@@ -423,6 +457,364 @@ clustering job.
 - Output: probability distribution over {flop, underperform, success,
   breakout}.
 
+#### What Belongs in a Cohort (resolved in Phase 2)
+The cohort answers "what did a normal launch look like that year", so only
+launches belong in it. **Delayed ports and former exclusives are excluded**,
+along with rows whose launch type is still unknown.
+
+A port's Steam window is not a launch. It measures whatever PC audience
+remained after the console release already happened, often years earlier —
+median 2,740 reviews against 9,188 for day-one releases in this corpus. With
+60 of 204 reference rows carrying that, the distribution was dragged down and
+every day-one percentile inflated. On the labeled set, removing them moved
+percentiles by 6.5 points on average and up to 19.6, and twelve rows crossed a
+rubric threshold; all four flops had been sitting above `VOLUME_FLOOR` and
+dropped below it.
+
+The rubric's exact agreement rose from 93.8% to 96.9% with no threshold
+retuned. Thresholds calibrated against the contaminated distribution getting
+*better* against the clean one is what makes this a correction rather than a
+recalibration.
+
+`PriceIndex` applies the same rule, though its evidence is much weaker — it
+flips only 2024 and by a single vote in a near-tie. That near-tie exposes a
+real limitation: the modal price is unstable in a year when the market is
+mid-transition between price points, and the mode discards that ambiguity
+rather than reporting it.
+
+#### When a Launch Begins (resolved in Phase 2)
+**A launch is the 1.0 version.** That single rule settles two cases that look
+identical in the data and need opposite treatment.
+
+A **premium edition unlocking early** ships the finished 1.0 build. Deluxe and
+Gold tiers routinely unlock two to five days ahead of standard, and Steam's
+release date is the *standard* date — so those buyers play, review, and fall
+outside the launch window. Space Marine 2 has 23,194 such reviews, more than a
+third of its launch fortnight, worth 5.7 percentile points; Avowed crosses
+`VOLUME_FLOOR` on the same correction. This systematically under-counts
+exactly the largest releases, because they are the ones with premium tiers.
+
+An **Early Access period** does not ship 1.0. Baldur's Gate 3 was purchasable
+for nearly three years beforehand, and those reviews are of an unfinished
+build that must stay outside the window.
+
+They are separated by the one property that divides them reliably: an Early
+Access tail runs for months, a head start for days. Two probes decide it, and
+`launch_window_start` records the result where it differs from the store date.
+
+**A third case is deliberately left unresolved.** A pre-order *beta* also puts
+reviews in the days before release, and nothing in the counts distinguishes it
+from a premium tier shipping 1.0. Darktide has 20,908 reviews across the
+thirteen days before its store date and was a beta of an unfinished build, so
+by this rule it keeps the store date. Head starts beyond a week are therefore
+reported and **not written**; confirming one is a manual decision.
+
+Ports are not probed at all, since nothing reads their windows. Rise of the
+Tomb Raider was flagged for a 12-day discrepancy before that rule existed, and
+the question turned out not to matter: it launched on Xbox in November 2015,
+so it is a delayed port on either date.
+
+#### Scope: What Is Not Labeled (resolved in Phase 2)
+Beyond the Steam-scoped and launch-scoped rules above, **MMOs are excluded**.
+Cohort normalization ranks raw launch review counts, which only compares like
+with like across titles sold the same way; a subscription or free MMO has no
+price barrier, a launch designed to build over months, and a review count that
+tracks install base rather than sales.
+
+Concretely: exclude a title tagged **Massively Multiplayer** on Steam. Four
+corpus titles carry it and all four are unlabeled, so the rule costs nothing
+today — it is recorded so it stays a decision rather than an accident.
+
+Two things it deliberately does not cover. **Live-service premium games are
+still labeled**: Concord and Suicide Squad are flops, Helldivers 2 is a
+breakout, and removing that band would remove the extremes the corpus most
+needs. And **the `Free To Play` tag is not a scope rule** — Steam applies it to
+Halo Infinite for its free multiplayer client while the paid campaign is the
+thing being labeled.
+
+An exclusion earns its place by what the label would mean, never by what it
+does to a score. Filtering the training set until the numbers improve, at this
+corpus size, finds noise and calls it a finding.
+
+#### Regional Reach (captured forward, never backfilled)
+A closed market removes an entire audience, which constrains sales and
+therefore review volume. Red Dead Redemption 2, Monster Hunter World and
+Modern Warfare III are all unpurchasable in Russia today; Steam reports that
+as `success: false` per country. Regional pricing is available the same way.
+
+Both are **present-state readings and cannot be backfilled** — RDR2 *was* on
+sale in Russia at its 2019 launch, and the withdrawal came in 2022. They live
+on `Game`, for tracked upcoming titles where the reading is genuinely
+pre-launch, and deliberately not on `historical_releases`.
+
+#### Regional Release Dates: the P291 Rule, Measured and Rejected
+Wikidata carries a `P291` place-of-publication qualifier, and using it to
+prefer a *worldwide* release date over a territory-only one looks like it
+would fix a real problem: Dark Souls III launched in Japan on 2016-03-24 and
+worldwide on 2016-04-12, and its Steam release of 2016-04-11 was read as an
+18-day delayed port against the Japanese date.
+
+Measured across the corpus, 132 of 203 rows carry place qualifiers but **only
+three change classification**, and the rule is not worth adopting:
+
+| Row | Effect |
+|---|---|
+| Dark Souls III | Correct — becomes day-one, as it should be |
+| Horizon Zero Dawn Complete Edition | **Regression** — undoes the P629 edition fix |
+| Yakuza: Like a Dragon | Debatable — ten months of its story happened in Japan first |
+
+The regression is structural rather than incidental: for an edition, the
+"worldwide" date *is* the edition's own date, so preferring it overrides the
+P629 hop back to the base game. Reconciling them properly means applying the
+worldwide preference *within* the base game's dates, which is more machinery
+than one clear fix justifies.
+
+Dark Souls III is therefore hand-corrected in the CSV with its reasoning
+recorded, and the general rule is left unimplemented. Anyone revisiting it
+should know it conflicts with P629 before starting.
+
+#### Studio Closure Is Not Studio Failure
+`studio_signal` asks whether a studio survived its launch, and headlines
+mislead. **Max Payne 3**: Metacritic 87, and Take-Two reported it
+underperformed — roughly 440,000 US units in the first month against about
+three million shipped. That makes it a clean example of *critical success is
+not commercial success*, which is why this project measures sales-shaped
+outcomes rather than review scores.
+
+But Rockstar Vancouver's closure two months later is **not** evidence of it:
+the studio was merged into Rockstar Toronto with staff offered positions at
+the expanded Oakville site. Consolidation, not collapse.
+
+Reserve `closed` for a studio that stopped existing with its people out of
+work. A merger with retained staff is `continued`.
+
+#### Early Access as a Pre-Launch Signal (investigated; per-game only)
+Under the 1.0 rule, Early Access reviews sit unambiguously *before* launch —
+which makes them the rare signal that is both genuinely pre-launch **and**
+retroactively recoverable, better on both counts than anything currently in
+the feature set. Windowed `appreviews` retrieves them directly.
+
+**Late-EA sentiment tracked 1.0 launch sentiment almost exactly**, on the two
+cases available:
+
+| | EA final 90 days | 1.0 launch fortnight |
+|---|---|---|
+| Baldur's Gate 3 | 12,016 @ **97.1%** | 114,341 @ **97.2%** |
+| Hades | 5,170 @ **98.5%** | 10,411 @ **98.6%** |
+
+Volume transferred not at all — Baldur's Gate 3 grew 1.6x while Hades shrank
+to 0.4x — but sentiment carried to within 0.1 points twice. Mechanically
+plausible: the same audience reviewing a game that is nearly what ships. It is
+**a hypothesis on n=2, not a finding**, and is recorded so it can be tested
+rather than rediscovered.
+
+**It cannot be a trained feature, and that will not change with more labels.**
+Only five corpus rows are genuinely Early Access, and exactly one is labeled.
+The shortfall is structural rather than incidental: Early Access is an indie
+and AA practice, and this corpus is AAA by design.
+
+**The comparison "do EA games launch better" is not answerable, even in
+principle, from data shaped like this.** Games that fail in Early Access never
+reach 1.0 — abandoned, or shipped quietly into obscurity and never entered
+into a AAA dataset. Any such comparison measures survivors against everyone,
+and the counterfactual is invisible by construction. Collecting more rows of
+the same kind does not fix it; it is the same shape as the sampling bias noted
+above.
+
+**Where it is worth using: Phase 3, per game.** A tracked title currently in
+Early Access has live, quantitative evidence about *itself* rather than its
+publisher, and on this evidence late-EA sentiment may read directly onto 1.0.
+That belongs in the reasoning layer's inputs even though it can never be a
+column in the model.
+
+#### The `closed` Signal Is the Riskiest Thing Phase 3 Will Produce
+`StudioSignal.CLOSED` is a hard override in the rubric: it returns **Flop at
+high confidence immediately**, without consulting volume, sentiment, retention
+or support. It is the single strongest input in the system, and Phase 3 plans
+to have an LLM derive it from news coverage.
+
+That combination is dangerous, and the danger is one-directional. Measured on
+the 32 labeled day-one rows: if `studio_signal` were wrongly set to `closed`,
+**12 rows flip to Flop — and every one of them is currently Underperform.**
+Successes and breakouts are untouched, because they clear the
+met-expectations gate before studio fate is consulted. So the error lands
+precisely on the flop/underperform boundary that this field exists to
+adjudicate, and it only ever pushes one way.
+
+The base rate makes it worse rather than better. Only **3 of 35** labeled rows
+are `closed` (Concord, Redfall, Forspoken). A rare, high-impact, one-
+directional signal is exactly the kind a language model reading headlines will
+over-produce — "studio closes weeks after launch" is a story, while "studio
+merged into its sister studio, staff offered positions" is a footnote or goes
+unreported. Max Payne 3 is the worked example (see below).
+
+Two effects may be in play and they compound: mergers may be genuinely rarer
+than closures, *and* under-reported relative to them. Distinguishing those
+needs media analysis nobody has done. The mitigation does not depend on
+which:
+
+- **The discriminating fact is the staff outcome, not the studio's status.**
+  "Closed" is ambiguous; "people lost their jobs" versus "people transferred"
+  is not. Phase 3 must be required to establish the former before coding
+  `closed`.
+- **`unknown` is the safe default and the rubric already handles it.** With
+  studio and support both unknown, the rubric returns *unresolved* rather than
+  guessing. Instructing the layer to prefer `unknown` over a
+  single-headline `closed` degrades to "we don't know", which is the correct
+  failure mode.
+- **Never let the layer set `closed` from a headline alone.** Require it to
+  cite what happened to the staff.
+
+**A rubric change is available but not applied.** Requiring `closed` to be
+corroborated by non-sustained support before it forces Flop would change
+nothing today — all three `closed` rows also carry `support=abandoned` — so it
+is free on current data. It is left unapplied because the rubric is the one
+validated component here and should not be altered on the same 32 rows it is
+scored against. It is recorded as a decision waiting for a labeled set large
+enough to test it on rows held back.
+
+#### Steam Metadata Describes a Store Listing, Not a Game
+Four fields have now been found to mean something narrower than their name
+suggests, and the pattern is worth stating once rather than rediscovering:
+
+- `dlc_count` counts separate Steam apps, so Helldivers 2's Warbonds are
+  invisible while a cosmetic pack is not.
+- `has_in_app_purchases` is set for Hogwarts Legacy, a premium single-player
+  RPG with a purchasable deluxe upgrade.
+- The `Free To Play` genre is set for Halo Infinite's free multiplayer client.
+- `release_date` is the *standard edition's* date, and for Black Ops 6 it is
+  simply wrong — the store says 1 Nov 2024, the game shipped 25 Oct.
+
+Treat any Steam flag as a statement about the store page until proven
+otherwise, and check it against a second source before building on it.
+
+#### Retention Thresholds Are Now Mis-Calibrated (open, do not tune)
+Opening the launch window at 1.0 rather than the store date is correct, and it
+**cost the rubric 6.3 points of exact agreement** — 96.9% down to 90.6%. Two
+breakouts are now called success. Met-expectations holds at 100% and mean
+ordinal distance is still 0.09, so every miss is one tier on the correct side
+of the line, but the drop is real and is recorded rather than tuned away.
+
+Two distinct mechanisms, both consequences of the correction being right:
+
+- **Space Marine 2** grew from 51,977 to 74,301 launch-fortnight reviews. That
+  is the correct figure, and it is also the *denominator* of the retention
+  ratio, which fell from above `RETENTION_SUSTAINED` to 1.78 — closing the
+  momentum path to breakout. At 86th-percentile volume it sits below
+  `BREAKOUT_VOLUME` (90), so it resolves to success.
+- **Clair Obscur: Expedition 33** did not change at all. Its cohort did: other
+  2024–25 launches grew, raising the bar, and its percentile fell from 81.4 to
+  79 — one point below `BREAKOUT_VOLUME_WITH_MOMENTUM` (80).
+
+`RETENTION_STRONG` (2.5), `RETENTION_SUSTAINED` (2.0) and
+`BREAKOUT_VOLUME_WITH_MOMENTUM` (80) were all fitted against narrower windows
+and a smaller cohort. They are stale.
+
+**Do not adjust them against these 32 rows.** That is precisely the in-sample
+tuning the Evaluation Protocol below bans, and the Phase 1 rubric's headline
+figure is already optimistic for having been fitted this way once. Recalibrate
+when there are enough labels to hold rows back — which is the same thing
+everything else here is waiting on.
+
+#### Evaluation Protocol (resolved in Phase 2)
+With ~32 labeled rows, how the model is scored matters more than how it is
+trained, and the obvious choice is the wrong one.
+
+- **Not a single holdout.** A 25% holdout leaves 8 test rows, which gives an
+  accuracy estimate of roughly ±35 percentage points — wide enough that a
+  60%-accurate model and a 95%-accurate one are indistinguishable. Reporting
+  a number from it would be reporting noise.
+- **Repeated stratified k-fold cross-validation** instead, which is the
+  standard answer at this sample size. Stratified because the rarest tier has
+  only a handful of members and an unstratified fold can miss it entirely.
+  Repeated because a single k-fold run at this n is itself high-variance.
+- **Always report against a constant guess**, and use the strongest trivial
+  guess for each metric rather than one convenient straw man: the modal tier
+  for accuracy, the median tier for ordinal distance. Both are recomputed
+  inside each training fold — a constant derived from the full labeled set
+  already knows the answer distribution of the rows it is scored on.
+- **Report mean ordinal distance alongside accuracy.** The tiers are ordered,
+  so a Flop/Breakout confusion is a worse error than Underperform/Success,
+  and plain accuracy cannot see the difference.
+- **Never tune thresholds or hyperparameters on the same rows used to
+  report.** The Phase 1 rubric was tuned in-sample and its headline figure is
+  optimistic as a result; the model should not repeat that. Model
+  hyperparameters are fixed a priori and are not searched.
+- **A model that does not clear the constant is not served.** The training
+  job writes no artifact unless the ordinal-distance improvement clears its
+  own 95% interval and accuracy does not regress; the rule-based baseline
+  keeps answering the endpoint until it does. Being ahead on the mean is not
+  evidence when the interval straddles zero.
+
+Once the labeled set is large enough to spare them (~150+ rows), switch to a
+held-out test set that is touched exactly once.
+
+#### Pre-Launch Feature Discipline (resolved in Phase 2)
+The corpus is mostly post-launch data, and every post-launch column would
+raise the model's measured accuracy while destroying its purpose. That
+failure is invisible in an accuracy number, so the separation is enforced in
+code rather than left to discipline:
+
+- A named list of forbidden fields — launch review volume and sentiment,
+  retention, peak concurrents, studio and support signals, Metacritic — and
+  an assertion that fires if one reaches the feature matrix. Metacritic
+  belongs on that list: critic scores land *at* launch under embargo, not
+  before it.
+- **A company's aggregate record is recomputed per row, never read from a
+  stored table.** A cached aggregate includes the game being predicted, so
+  its own launch sentiment reaches its own features; it also includes the
+  publisher's later releases, which would forecast a 2019 launch from a 2024
+  track record. Both are excluded per row, which means a publisher's debut
+  correctly gets no history at all.
+- Features that a stored model was not fitted on invalidate that model. The
+  serving path refuses a version mismatch rather than misaligning columns.
+
+#### Pre-Launch Anticipation (captured in Phase 2, not yet a feature)
+Award shows run categories that judge games **before they exist** — The Game
+Awards' Most Anticipated Game, Golden Joystick's Most Wanted, Gamescom's Most
+Wanted, the Japan Game Awards' Future Category. A nomination there is one of
+the very few signals in this project that is *verifiably* pre-launch rather
+than assumed to be: Wikidata stamps each nomination with the date it was made,
+so the ordering can be proven per row.
+
+The award set was found by enumerating every award the corpus's titles are
+nominated for and keeping the ones judging unreleased work. The Game Awards is
+the largest but not the only one — Elden Ring picks up Gamescom and Golden
+Joystick nods a TGA-only signal would miss entirely.
+
+Two rules protect the guarantee that makes this worth having. **Undated
+nominations are dropped**, never assumed pre-release. And **year-precision
+dates only count when the entire year precedes the release year** — Gamescom
+and Golden Joystick statements frequently carry only a year, rendered as
+January 1st, and comparing that day directly would count a November nomination
+as preceding a June release.
+
+**It is stored, not used.** Nine of the 32 trainable rows carry a nomination,
+split 0 flop / 5 underperform / 1 success / 3 breakout against a corpus that
+is 25% flop. Zero flops in nine is suggestive — Concord was never nominated by
+anyone — but at that base rate it happens by chance about 7% of the time.
+Promoting it to a feature on that basis would be the same error as filtering
+the training set until the numbers improve. It is captured now because it can
+only be captured before launch.
+
+One limit worth recording: it measures **press and jury anticipation, not
+consumer intent**, and absence conflates "nobody wanted it" with "nobody
+covered it."
+
+#### Sampling Bias in the Labeled Set (open, unresolved)
+The rubric calls 36% of the unlabeled pool `success`, while the hand-labeled
+set is only 16% success. That gap is probably real and it matters: **the
+labeled set was chosen for notability, and notable games skew toward famous
+flops.** Concord, Babylon's Fall, Redfall and Suicide Squad are memorable
+precisely because they failed.
+
+So the training distribution does not match the population, *and the constant
+baseline the model is measured against inherits the same skew*. Growing the
+label count without addressing this would produce a model that looks
+calibrated on this corpus and mis-forecasts real upcoming releases. Worth
+deciding deliberately whether this project samples notable AAA releases or all
+of them — they are different projects with different base rates.
+
 #### Company Tiering Pipeline (sub-component, runs offline)
 Budget figures aren't public, so instead of estimating dollars, derive a
 categorical tier per publisher/developer via **unsupervised clustering**
@@ -603,10 +995,39 @@ scope limit:
    training. A rule-based baseline is what covers the gap while the
    labeled dataset is still thin, so lack of full training data doesn't
    block having a working prediction feature.
-4. **Phase 2**: Train the ML model on the labeled set, wire it into the
-   backend, replace the rule-based baseline.
-5. **Phase 3**: Add the Claude reasoning layer on top of ML output for live
-   upcoming titles.
+4. **Phase 2 (done, narrowed as planned)**: The training *pipeline*, wired
+   into the backend, reporting its accuracy honestly. Deliberately scoped to
+   the infrastructure rather than the accuracy, because the two are separable
+   and only one was achievable:
+   - Training script, model artifact, serving path, retraining job. All built.
+   - Evaluation per the protocol below, reported against the constant
+     whether or not the model wins.
+   - The model **lost, as expected**, and the gate refused to write an
+     artifact. That is a data problem, not an engineering one — the pipeline
+     now improves as labels arrive without further engineering.
+   - The rule-based baseline is **not deleted**. Both stay available and every
+     prediction is tagged with the method that produced it, so a reader can
+     always tell which is speaking.
+5. **Phase 3**: Add the Claude reasoning layer for live upcoming titles.
+   **One decision has to be made first, and this document cannot make it.**
+   The LLM Reasoning Layer section below specifies the model's probabilities
+   as an input — and there are none, because the model did not clear its gate.
+   Three ways out, none obviously right:
+   - **On top of the baseline's numbers.** Closest to the original design.
+     Risk: it hands Claude a distribution carrying no signal and invites it to
+     anchor on noise dressed as a prior.
+   - **Forecast directly**, given the structural facts (publisher record,
+     price against the cohort, platform reach, slippage) as context rather
+     than as a prediction. No fake prior; the model rejoins when it earns it.
+   - **Reasoning only, never the call.** It gathers and summarises live
+     signals; the tier stays with the baseline until a model exists.
+
+   Independently, Phase 3's live signals are mostly **unbuilt data plumbing**
+   rather than LLM work. Recent Steam reviews exist; critic score is at ~52%
+   coverage via Metacritic; news, social sentiment, marketing footprint and
+   cast prominence have **no source at all**. Embargo timing is specified as
+   needing "no new data source" from OpenCritic — which is not yet integrated,
+   so that claim is not true as things stand.
 6. **Phase 4**: Dashboard polish — tracking multiple games, refresh
    scheduling, historical accuracy tracking (did past predictions pan out?).
 
@@ -645,8 +1066,23 @@ scope limit:
 7. Open the repo in Claude Code and hand it this spec file as the starting
    context — ask it to scaffold Phase 0 first, not the whole app at once.
 8. Get an Anthropic API key for the LLM reasoning layer (separate from
-   Claude Code itself, which uses your Claude subscription).
-9. Get a Steam Web API key (free, via Steam's developer portal).
+   Claude Code itself, which uses your Claude subscription). Not needed until
+   Phase 3 — nothing reads it yet.
+9. A Steam Web API key is **not required**. Every Steam endpoint this project
+   uses — `appdetails`, `appreviews`, `GetNumberOfCurrentPlayers` — is public
+   and unkeyed, including for delisted titles. `ISteamApps/GetAppList` is gone
+   unkeyed, but name-to-appid resolution is not something the pipeline needs:
+   appids are curated. `STEAM_API_KEY` is declared in config against a later
+   keyed endpoint and currently read by nothing.
+10. **The one credential that actually blocks work is `DATABASE_URL`.** Every
+    job reads it, and without hosted Postgres the corpus lives in an ephemeral
+    container — it has been rebuilt from Steam more than once for exactly that
+    reason, at roughly two hours a time.
+11. **Wikidata is a live dependency now**, and unkeyed. `original_release_date`
+    and pre-launch award nominations both come from its SPARQL endpoint, joined
+    on P1733 (Steam application ID). Any environment running those jobs needs
+    network access to `query.wikidata.org`; a restrictive egress policy will
+    block them.
 
 ## Hosting & Cost (resolved)
 - **Repo visibility: public.** This is now a real cost decision, not just

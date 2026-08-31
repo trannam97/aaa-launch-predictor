@@ -19,7 +19,7 @@ from app.validation import validate
 def add(
     session,
     appid: int,
-    outcome: Outcome,
+    outcome: Outcome | None,
     *,
     total_2w: int,
     positive_2w: int,
@@ -64,15 +64,21 @@ def add(
 
 
 def populate_cohort(session, start_appid: int = 100, n: int = 12):
-    """Enough unlabeled peers that percentiles become reliable."""
+    """Enough unlabeled peers that percentiles become reliable.
+
+    Day-one and unlabeled, which is what the real cohort is made of. Ports
+    were used here once to keep the peers out of scoring, but they are also
+    kept out of the cohort index now — their Steam window measures a residual
+    PC audience years after the console launch, not a launch — so a cohort
+    built from them would be empty.
+    """
     for i in range(n):
         add(
             session,
             start_appid + i,
-            Outcome.SUCCESS,
+            None,  # unlabeled: in the cohort, never scored against a hand label
             total_2w=1000 * (i + 1),
             positive_2w=int(1000 * (i + 1) * 0.9),
-            launch_type=PlatformLaunchType.DELAYED_PORT,  # excluded from scoring
         )
 
 

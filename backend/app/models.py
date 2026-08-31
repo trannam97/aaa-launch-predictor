@@ -162,6 +162,22 @@ class Game(Base):
     metacritic_score: Mapped[int | None] = mapped_column(Integer)
     metacritic_url: Mapped[str | None] = mapped_column(String(512))
 
+    # --- Regional reach (tracked games only, captured at ingest) ---
+    # JSON: {"us": {"available": true, "currency": "USD", "price_cents": 5999},
+    #        "ru": {"available": false}}
+    #
+    # A closed market removes an entire audience, which is a real constraint on
+    # sales and therefore on review volume: Red Dead Redemption 2, Monster
+    # Hunter World and Modern Warfare III are all unpurchasable in Russia today.
+    #
+    # **Deliberately absent from `historical_releases`.** This is a live
+    # reading and cannot be backfilled — RDR2 *was* on sale in Russia when it
+    # launched in 2019, and today's Brazilian price is not its launch price.
+    # Filling a historical row from it would be the present-state trap that has
+    # already caught lifetime reviews, current price and DLC counts.
+    regional_offers: Mapped[str | None] = mapped_column(Text)
+    regional_offers_at: Mapped[datetime | None] = mapped_column(UtcDateTime)
+
     # --- Prediction lifecycle ---
     lifecycle_status: Mapped[LifecycleStatus] = mapped_column(
         LifecycleStatusType, nullable=False, default=LifecycleStatus.PRE_LAUNCH
@@ -557,6 +573,25 @@ class HistoricalRelease(Base):
     # later is a post-launch support signal and is outcome-contaminated.
     dlc_count: Mapped[int | None] = mapped_column(Integer)
     launch_day_dlc_count: Mapped[int | None] = mapped_column(Integer)
+
+    # The first day the finished 1.0 build was on sale, which is not always
+    # what Steam's store page says. A premium edition unlocking days early
+    # ships 1.0 and counts; an Early Access period does not. NULL means the
+    # store date stands. See app/launch_window.py.
+    launch_window_start: Mapped[date | None] = mapped_column(Date)
+
+    # --- Pre-launch anticipation (award nominations made before release) ---
+    # Counted across every award show that judges unreleased games, not just
+    # The Game Awards. NULL means never looked up; 0 means looked up and none
+    # found — a distinction that matters, since "no nomination" and "no data"
+    # would otherwise be the same number.
+    #
+    # Captured but deliberately NOT in FEATURE_NAMES yet: only a handful of
+    # labeled rows carry a nomination, which is too thin to evaluate. It is
+    # recorded now because it has to be recorded *before* a game launches to
+    # be worth anything later. See data/README.md.
+    prelaunch_award_nominations: Mapped[int | None] = mapped_column(Integer)
+    prelaunch_award_wins: Mapped[int | None] = mapped_column(Integer)
     post_launch_dlc_count: Mapped[int | None] = mapped_column(Integer)
     last_dlc_days_after_launch: Mapped[int | None] = mapped_column(Integer)
     has_in_app_purchases: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)

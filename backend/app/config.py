@@ -6,6 +6,13 @@ from functools import lru_cache
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+# Hosted Postgres providers hand out `postgresql://...`, which SQLAlchemy
+# routes to psycopg2. This project installs psycopg 3 (the `postgres` extra),
+# so a URL pasted verbatim from Supabase or Render fails at import with
+# "No module named 'psycopg2'" — in the API, in Alembic, and in every job.
+# Normalising here rather than asking four separate places to remember it.
+_PSYCOPG2_SCHEMES = ("postgresql://", "postgres://")
+
 
 class Settings(BaseSettings):
     """Runtime configuration.
@@ -36,8 +43,25 @@ class Settings(BaseSettings):
     cors_allow_origins: str = "http://localhost:3000"
 
     @property
+    def sqlalchemy_url(self) -> str:
+        """`database_url` with a driver SQLAlchemy can actually load.
+
+        `postgres://` is also accepted because several providers still emit
+        the older form.
+        """
+        return normalize_database_url(self.database_url)
+
+    @property
     def cors_origins(self) -> list[str]:
         return [origin.strip() for origin in self.cors_allow_origins.split(",") if origin.strip()]
+
+
+def normalize_database_url(url: str) -> str:
+    """Point a bare Postgres URL at psycopg 3, leaving everything else alone."""
+    for scheme in _PSYCOPG2_SCHEMES:
+        if url.startswith(scheme):
+            return "postgresql+psycopg://" + url[len(scheme) :]
+    return url
 
 
 @lru_cache

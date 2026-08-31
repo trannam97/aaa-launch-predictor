@@ -18,7 +18,7 @@ if _settings.database_url.startswith("sqlite"):
     # SQLite only: allow the connection to be used from FastAPI's threadpool.
     _engine_kwargs["connect_args"] = {"check_same_thread": False}
 
-engine: Engine = create_engine(_settings.database_url, **_engine_kwargs)
+engine: Engine = create_engine(_settings.sqlalchemy_url, **_engine_kwargs)
 SessionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
 
 

@@ -8,13 +8,15 @@ or LLM research.
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
+from datetime import timedelta
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models import Game, GameSnapshot, LifecycleStatus, ReleaseDateChange, utcnow
-from app.steam import COARSE_DATE_PATTERN, AppDetails, SteamClient
+from app.steam import COARSE_DATE_PATTERN, AppDetails, SteamClient, SteamError
 
 
 @dataclass(slots=True)
@@ -28,11 +30,23 @@ def get_game_by_appid(session: Session, appid: int) -> Game | None:
     return session.scalar(select(Game).where(Game.steam_appid == appid))
 
 
-def ingest_game(session: Session, appid: int, client: SteamClient) -> IngestResult:
+# Regional reach costs one Steam request per country, so it is refreshed at
+# most this often rather than on every poll. It changes when a publisher
+# withdraws from a market or Valve reprices a region — neither is a daily event.
+REGIONAL_REFRESH_DAYS = 14
+
+
+def ingest_game(
+    session: Session, appid: int, client: SteamClient, *, with_regions: bool = True
+) -> IngestResult:
     """Fetch a game from Steam and upsert it plus a fresh snapshot.
 
     The caller owns the transaction — this flushes but does not commit, so a
     job can batch several games into one commit.
+
+    `with_regions` controls the regional-reach sample, which is the expensive
+    part: one request per sampled country. Turn it off for a bulk refresh where
+    only the volatile fields matter.
     """
     details = client.get_app_details(appid)
     reviews = client.get_review_summary(appid)
@@ -53,6 +67,9 @@ def ingest_game(session: Session, appid: int, client: SteamClient) -> IngestResu
     game.lifecycle_status = _next_lifecycle_status(game.lifecycle_status, details)
     game.last_ingested_at = utcnow()
 
+    if with_regions and _regional_sample_is_stale(game):
+        _apply_regional_offers(game, client, appid)
+
     snapshot = GameSnapshot(
         game=game,
         captured_at=utcnow(),
@@ -68,6 +85,38 @@ def ingest_game(session: Session, appid: int, client: SteamClient) -> IngestResu
     session.add(snapshot)
     session.flush()
     return IngestResult(game=game, snapshot=snapshot, created=created)
+
+
+def _regional_sample_is_stale(game: Game) -> bool:
+    if game.regional_offers_at is None:
+        return True
+    return (utcnow() - game.regional_offers_at) > timedelta(days=REGIONAL_REFRESH_DAYS)
+
+
+def _apply_regional_offers(game: Game, client: SteamClient, appid: int) -> None:
+    """Record which markets can buy this game, and at what price.
+
+    Failures are swallowed: a regional sample is a nice-to-have, and losing it
+    should never cost the ingest of a game's actual metadata.
+    """
+    try:
+        offers = client.get_regional_offers(appid)
+    except SteamError:
+        return
+    if not offers:
+        return
+    game.regional_offers = json.dumps(
+        {
+            offer.country: (
+                {"available": True, "currency": offer.currency, "price_cents": offer.price_cents}
+                if offer.available
+                else {"available": False}
+            )
+            for offer in offers
+        },
+        sort_keys=True,
+    )
+    game.regional_offers_at = utcnow()
 
 
 def _record_release_date_change(

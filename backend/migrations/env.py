@@ -14,7 +14,7 @@ from logging.config import fileConfig
 from alembic import context
 from sqlalchemy import engine_from_config, pool
 
-from app.config import get_settings
+from app.config import get_settings, normalize_database_url
 from app.models import Base, UtcDateTime
 
 config = context.config
@@ -40,7 +40,9 @@ def render_item(type_, obj, autogen_context) -> str | bool:
 
 
 def get_url() -> str:
-    return os.environ.get("DATABASE_URL") or get_settings().database_url
+    # Normalised for the same reason the app normalises it: a URL pasted
+    # straight from a hosted provider names a driver that isn't installed.
+    return normalize_database_url(os.environ.get("DATABASE_URL") or get_settings().database_url)
 
 
 def run_migrations_offline() -> None:

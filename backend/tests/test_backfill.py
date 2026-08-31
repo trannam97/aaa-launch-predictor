@@ -50,6 +50,16 @@ CSV_HEADER = (
         (date(2024, 8, 25), date(2024, 8, 23), PlatformLaunchType.DAY_ONE_STEAM),
         (date(2019, 12, 5), date(2018, 10, 26), PlatformLaunchType.DELAYED_PORT),
         (date(2024, 3, 1), date(2024, 1, 1), PlatformLaunchType.DELAYED_PORT),
+        # The tolerance boundary. Seven days is still day-one; eight is a port.
+        (date(2024, 1, 8), date(2024, 1, 1), PlatformLaunchType.DAY_ONE_STEAM),
+        (date(2024, 1, 9), date(2024, 1, 1), PlatformLaunchType.DELAYED_PORT),
+        # Watch_Dogs 2, a real near-boundary case: Steam 13 days after the
+        # console release. Close enough to look day-one, far enough not to be.
+        (date(2016, 11, 28), date(2016, 11, 15), PlatformLaunchType.DELAYED_PORT),
+        # Steam *earlier* than the recorded original, but within tolerance: a
+        # premium tier unlocking ahead of the date Wikidata recorded. Still
+        # day-one, unlike the year-early case below which means a bad date.
+        (date(2024, 1, 1), date(2024, 1, 4), PlatformLaunchType.DAY_ONE_STEAM),
         (None, date(2024, 1, 1), PlatformLaunchType.UNKNOWN),
         (date(2024, 1, 1), None, PlatformLaunchType.UNKNOWN),
         # Steam earlier than the recorded original means the curated date is

@@ -5,201 +5,203 @@ steam_appid,game_name,original_release_date,platform_launch_type,platform_reach,
 315210,Suicide Squad: Kill the Justice League,2024-02-02,,PC+PS5+Xbox,aaa,70,"Live-service support ended after ~1 year (Jan 2025), well short of planned roadmap",Studio not closed; no confirmed layoffs found in sources reviewed,continued,curtailed,flop,medium,researched,"WB Discovery confirmed a ~$200M financial hit and a 41% loss in video game division revenue tied to this title. Concurrent players fell below 1,000 within weeks.",gamedeveloper.com / boundingintocomics.com
 2853730,Skull and Bones,2024-02-16,delayed_port,PC+PS5+Xbox,aaa,70,Continued live-service support into 2025,Studio not closed; continued operating,continued,sustained,underperform,medium,researched,"LABEL SCOPE MISMATCH: Steam release came ~6 months after the Feb 2024 launch the label describes. The label reflects overall commercial performance, not this Steam window. Excluded from rubric validation. Reported budget overruns past $120M+ after a decade in development; widely mocked at launch but Ubisoft kept supporting it rather than shutting it down.",watchmojo.com
 2842040,Star Wars Outlaws,2024-08-30,delayed_port,PC+PS5+Xbox,aaa,70,Continued post-launch patches and DLC,Studio not closed; continued operating,continued,sustained,underperform,medium,researched,"LABEL SCOPE MISMATCH: Steam release came ~3 months after the Ubisoft/Epic launch the label describes. The label reflects overall commercial performance, not this Steam window. Excluded from rubric validation. Estimated $100-200M budget; sold ~1M units against a reported ~5M breakeven target. Prompted Ubisoft strategic reviews but no studio closure.",thegamer.com
-1716740,Starfield,2023-09-06,,PC+Xbox,aaa,70,Continued DLC support (Shattered Space expansion),Studio not closed; continued operating,continued,sustained,underperform,low,researched,"BORDERLINE CASE - sold well commercially and holds a respectable ~83 critic score, but widely described as a letdown relative to exceptionally high pre-launch hype. Worth reviewing by hand rather than trusting this label.",kevurugames.com
+1716740,Starfield,2023-09-01,,PC+Xbox,aaa,70,Continued DLC support (Shattered Space expansion),Studio not closed; continued operating,continued,sustained,underperform,low,researched,"BORDERLINE CASE - sold well commercially and holds a respectable ~83 critic score, but widely described as a letdown relative to exceptionally high pre-launch hype. Worth reviewing by hand rather than trusting this label.","kevurugames.com / Wikidata P577 (earliest publication date, joined on P1733)"
 2651280,Marvel's Spider-Man 2,2023-10-20,former_exclusive,PS5 exclusive at launch; PC later,aaa,70,Post-launch patches; New Game Plus update,Studio not closed; continued operating,continued,sustained,success,high,researched,"LABEL SCOPE MISMATCH: Steam release is a 2025 port of a 2023 PS5 exclusive. The label reflects overall commercial performance, not this Steam window. Excluded from rubric validation. Fastest-selling PlayStation first-party game ever; 11M+ units by April 2024, 18M+ by 2026. Sequel to a known hit - met high expectations rather than surprising anyone, distinguishing it from a breakout. NOTE: label reflects overall commercial performance; Steam-specific outcome differs and should be re-checked against the Steam-scoped rubric.",kotaku.com / pushsquare.com
 2050650,Resident Evil 4,2023-03-24,,PC+PS5+Xbox+PS4,aaa,60,Continued support incl. Separate Ways DLC,Studio not closed; continued operating,continued,sustained,success,high,researched,"5M units within months, 7M+ within a year. Strong critical reception, met expectations for a beloved remake.",tipranks.com
 1086940,Baldur's Gate 3,2023-08-03,,PC+PS5+Mac,aaa,60,Extensive post-launch patches (Patch 1-8),Studio not closed; grew significantly,grew,sustained,breakout,high,researched,"$657M revenue on Steam in 2023 alone per Video Game Insights; swept Game of the Year awards. Vastly exceeded expectations for a CRPG, a historically niche genre.",vgchartz.com
 553850,HELLDIVERS 2,2024-02-08,,PC+PS5,aa_leaning_aaa,40,Ongoing frequent live-service updates,Studio not closed; grew significantly,grew,sustained,breakout,high,researched,"Budget was reportedly a fraction of typical AAA sibling titles, yet outsold major franchise entries (Call of Duty, Final Fantasy) in 2024. Explicitly described by developers and press as an unexpected surprise.",gamesradar.com / fandomwire.com
 2358720,Black Myth: Wukong,2024-08-20,,PC+PS5,unknown,60,Continued post-launch support,Studio not closed; grew significantly,grew,sustained,breakout,high,researched,Debut AAA title from a first-time AAA studio; sold millions in days despite no prior track record. Named in Steam's 2024 top-10 grossing titles alongside established franchises.,gamingbolt.com / grokipedia.com
 208650,Batman™: Arkham Knight,2015-06-23,day_one_steam,PC+PS4+Xbox,aaa,60,"PC version withdrawn from sale for four months, then patched and restored",Rocksteady not closed; PC port outsourced to Iron Galaxy,continued,curtailed,underperform,medium,researched,STEAM-SCOPED LABEL. The console release performed well; the PC version was pulled from Steam and refunded twice. 47.7% positive over its first two weeks against 89.7% lifetime - the largest recovery in this dataset.,screenrant.com / techradar.com / gsmarena.com
-225540,Just Cause™ 3,,,,unknown,,,,,,,,not_researched,,
-234140,Mad Max,,,,unknown,,,,,,,,not_researched,,
-268500,XCOM® 2,,,,unknown,,,,,,,,not_researched,,
-275850,No Man's Sky,2016-08-12,day_one_steam,PC+PS4,aa_leaning_aaa,60,40 major free updates across ten years; still active,Hello Games not closed; grew and self-funded a follow-up,grew,sustained,underperform,high,researched,"LAUNCH-SCOPED LABEL. Labeled on its launch window, where it clearly missed: 61.3% positive over the first two weeks. Its ten-year recovery to 85.0% lifetime, 200M+ revenue and 40 free updates is real but out of scope - outcomes describe the launch, not what a title eventually became. Underperform rather than flop because Hello Games kept operating and kept supporting the game.",techtimes.com / gamesradar.com
-287700,METAL GEAR SOLID V: THE PHANTOM PAIN,,,,unknown,,,,,,,,not_researched,,
-292030,The Witcher 3: Wild Hunt,,,,unknown,,,,,,,,not_researched,,
-323190,Frostpunk,,,,unknown,,,,,,,,not_researched,,
+225540,Just Cause™ 3,2015-12-01,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+234140,Mad Max,2015-09-01,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+268500,XCOM® 2,2016-02-05,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+275850,No Man's Sky,2016-08-09,day_one_steam,PC+PS4,aa_leaning_aaa,60,40 major free updates across ten years; still active,Hello Games not closed; grew and self-funded a follow-up,grew,sustained,underperform,high,researched,"LAUNCH-SCOPED LABEL. Labeled on its launch window, where it clearly missed: 61.3% positive over the first two weeks. Its ten-year recovery to 85.0% lifetime, 200M+ revenue and 40 free updates is real but out of scope - outcomes describe the launch, not what a title eventually became. Underperform rather than flop because Hello Games kept operating and kept supporting the game.","techtimes.com / gamesradar.com / Wikidata P577 (earliest publication date, joined on P1733)"
+287700,METAL GEAR SOLID V: THE PHANTOM PAIN,2015-09-01,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+292030,The Witcher 3: Wild Hunt,2015-05-19,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+323190,Frostpunk,2018-04-24,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
 337000,Deus Ex: Mankind Divided,2016-08-23,day_one_steam,PC+PS4+Xbox,aaa,60,"Story DLC delivered; no sequel, franchise shelved",Eidos Montreal not closed; reassigned to Shadow of the Tomb Raider,continued,curtailed,underperform,high,researched,Critically well received (83 Metacritic) but sold below the previous entry. Square Enix put the franchise on hiatus and moved the studio to other work - a clean case of good reviews with a commercial miss.,screenrant.com / ibtimes.com
-356190,Middle-earth™: Shadow of War™,,,,unknown,,,,,,,,not_researched,,
-359550,Tom Clancy's Rainbow Six Siege,,,,unknown,,,,,,,,not_researched,,
-368500,Assassin's Creed® Syndicate,,,,unknown,,,,,,,,not_researched,,
-374320,DARK SOULS™ III,,,,unknown,,,,,,,,not_researched,,
-377160,Fallout 4,,,,unknown,,,,,,,,not_researched,,
-379430,Kingdom Come: Deliverance,,,,unknown,,,,,,,,not_researched,,
-379720,DOOM,,,,unknown,,,,,,,,not_researched,,
-397540,Borderlands 3,,,,unknown,,,,,,,,not_researched,,
-403640,Dishonored 2,,,,unknown,,,,,,,,not_researched,,
-412020,Metro Exodus,,,,unknown,,,,,,,,not_researched,,
-418370,Resident Evil 7 Biohazard,,,,unknown,,,,,,,,not_researched,,
-435150,Divinity: Original Sin 2 - Definitive Edition,,,,unknown,,,,,,,,not_researched,,
-447040,Watch_Dogs® 2,,,,unknown,,,,,,,,not_researched,,
-480490,Prey,,,,unknown,,,,,,,,not_researched,,
-524220,NieR:Automata™,,,,unknown,,,,,,,,not_researched,,
-534380,Dying Light 2 Stay Human: Reloaded Edition,,,,unknown,,,,,,,,not_researched,,
-546560,Half-Life: Alyx,,,,unknown,,,,,,,,not_researched,,
-552520,Far Cry® 5,,,,unknown,,,,,,,,not_researched,,
+356190,Middle-earth™: Shadow of War™,2017-10-10,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+359550,Tom Clancy's Rainbow Six Siege,2015-12-01,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+368500,Assassin's Creed® Syndicate,2015-10-23,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+374320,DARK SOULS™ III,2016-04-12,,,unknown,,,,,,,,not_researched,Hand-corrected: Wikidata's earliest P577 is 2016-03-24 with place=Japan; the worldwide release is 2016-04-12 and Steam launched 2016-04-11 alongside it. The Japan-only date made this read as an 18-day delayed port when the Steam launch was in fact day-one for the market being measured.,"Wikidata P577 (earliest publication date, joined on P1733) / Wikidata P291 (worldwide)"
+377160,Fallout 4,2015-11-10,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+379430,Kingdom Come: Deliverance,2018-02-13,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+379720,DOOM,2016-05-13,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+397540,Borderlands 3,2019-09-13,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+403640,Dishonored 2,2016-11-11,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+412020,Metro Exodus,2019-02-15,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+418370,Resident Evil 7 Biohazard,2017-01-24,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+435150,Divinity: Original Sin 2 - Definitive Edition,2017-09-14,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+447040,Watch_Dogs® 2,2016-11-15,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+480490,Prey,2017-05-05,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+524220,NieR:Automata™,2017-02-23,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+534380,Dying Light 2 Stay Human: Reloaded Edition,2022-02-04,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+546560,Half-Life: Alyx,2020-03-23,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+552520,Far Cry® 5,2018-03-27,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
 582010,Monster Hunter: World,2018-01-26,delayed_port,PC+PS4+Xbox,aaa,,,,,,,,not_researched,"Capcom's best-selling game ever at 30M+ units. Unlabeled: Steam arrived six months after console launch, and this PC window reads 59.5% positive on launch performance complaints.",gamespot.com / gamedeveloper.com / hollywoodreporter.com
-582160,Assassin's Creed® Origins,,,,unknown,,,,,,,,not_researched,,
-594570,Total War: WARHAMMER II,,,,unknown,,,,,,,,not_researched,,
-601150,Devil May Cry 5,,,,unknown,,,,,,,,not_researched,,
-612880,Wolfenstein II: The New Colossus,,,,unknown,,,,,,,,not_researched,,
-668580,Atomic Heart,,,,unknown,,,,,,,,not_researched,,
-680420,OUTRIDERS,,,,unknown,,,,,,,,not_researched,,
+582160,Assassin's Creed® Origins,2017-10-27,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+594570,Total War: WARHAMMER II,2017-09-28,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+601150,Devil May Cry 5,2019-03-08,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+612880,Wolfenstein II: The New Colossus,2017-10-27,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+668580,Atomic Heart,2023-02-21,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+680420,OUTRIDERS,2021-02-02,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
 742420,Saints Row,2022-08-23,delayed_port,PC+PS5+Xbox,aaa,,,,,,,,not_researched,"Steam release came a year after the Epic-exclusive PC launch; Volition was closed by Embracer a week later. Unlabeled: the commercial outcome belongs to the 2022 launch, not this Steam window.",kotaku.com / pcgamer.com / engadget.com
-750920,Shadow of the Tomb Raider: Definitive Edition,,,,unknown,,,,,,,,not_researched,,
-779340,Total War: THREE KINGDOMS,,,,unknown,,,,,,,,not_researched,,
-782330,DOOM Eternal,,,,unknown,,,,,,,,not_researched,,
-812140,Assassin's Creed® Odyssey,,,,unknown,,,,,,,,not_researched,,
-814380,Sekiro™: Shadows Die Twice - GOTY Edition,,,,unknown,,,,,,,,not_researched,,
-863550,HITMAN 2,,,,unknown,,,,,,,,not_researched,,
-870780,CONTROL Ultimate Edition,,,,unknown,,,,,,,,not_researched,,
-881020,Granblue Fantasy: Relink,,,,unknown,,,,,,,,not_researched,,
-883710,Resident Evil 2,,,,unknown,,,,,,,,not_researched,,
-892970,Valheim,,,,unknown,,,,,,,,not_researched,,
+750920,Shadow of the Tomb Raider: Definitive Edition,2018-09-14,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+779340,Total War: THREE KINGDOMS,2019-05-23,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+782330,DOOM Eternal,2020-03-20,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+812140,Assassin's Creed® Odyssey,2018-10-05,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+814380,Sekiro™: Shadows Die Twice - GOTY Edition,2019-03-22,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+863550,HITMAN 2,2018-11-13,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+870780,CONTROL Ultimate Edition,2019-08-27,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+881020,Granblue Fantasy: Relink,2024-02-01,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+883710,Resident Evil 2,2019-01-25,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+892970,Valheim,2021-02-02,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
 924970,Back 4 Blood,2021-10-12,day_one_steam,PC+PS5+Xbox,aa_leaning_aaa,60,"Three expansions delivered, then all new content ended Feb 2023",Turtle Rock not closed; moved to its next project,continued,curtailed,underperform,medium,researched,"Support ended under two years post-launch with servers left running. Studio cited its size rather than the game's failure, and completed the announced season pass first.",gematsu.com / gameshub.com / mp1st.com
-934700,Dead Island 2,,,,unknown,,,,,,,,not_researched,,
-952060,Resident Evil 3,,,,unknown,,,,,,,,not_researched,,
-976310,Mortal Kombat 11,,,,unknown,,,,,,,,not_researched,,
+934700,Dead Island 2,2023-04-21,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+952060,Resident Evil 3,2020-04-03,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+976310,Mortal Kombat 11,2019-04-23,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
 990080,Hogwarts Legacy,2023-02-10,day_one_steam,PC+PS5+Xbox,aaa,60,Patches and free content; no major paid expansion,Avalanche Software not closed; continued operating,continued,sustained,breakout,high,researched,"Best-selling game worldwide in 2023 at 22M units, ahead of Call of Duty and Tears of the Kingdom. Passed $1B revenue in under three months and 30M units by Nov 2024.",variety.com / pcgamer.com / gameworldobserver.com
 997070,Marvel's Avengers - The Definitive Edition,2020-09-04,day_one_steam,PC+PS4+Xbox,aaa,60,New content ended March 2023; all support ended Sept 2023; delisted from storefronts,Crystal Dynamics not closed; sold by Square Enix to Embracer,continued,abandoned,flop,high,researched,Square Enix reportedly lost around $200M on the Marvel partnership and repeatedly called the title disappointing in investor calls. Game was delisted entirely.,kotaku.com / windowscentral.com / gameshub.com
-1063730,New World: Aeternum,,,,unknown,,,,,,,,not_researched,,
+1063730,New World: Aeternum,2021-09-28,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
 1091500,Cyberpunk 2077,2020-12-10,day_one_steam,PC+PS5+Xbox+PS4,aaa,60,Years of patches plus the Phantom Liberty expansion,CD Projekt Red not closed; posted record revenue and profit for 2020,continued,sustained,breakout,high,researched,"Commercially a breakout despite a launch disaster: 13M+ copies inside two weeks, $563M revenue and $301M net profit in 2020, with refunds costing only about $12.9M that year. Delisted from the PlayStation Store, which did not dent the result.",newsweek.com / thesixthaxis.com / techcrunch.com
-1097840,Gears 5,,,,unknown,,,,,,,,not_researched,,
-1142710,Total War: WARHAMMER III,,,,unknown,,,,,,,,not_researched,,
-1145360,Hades,,,,unknown,,,,,,,,not_researched,,
-1151640,Horizon Zero Dawn™ Complete Edition,,,,unknown,,,,,,,,not_researched,,
-1158310,Crusader Kings III,,,,unknown,,,,,,,,not_researched,,
-1172380,STAR WARS Jedi: Fallen Order™,,,,unknown,,,,,,,,not_researched,,
-1174180,Red Dead Redemption 2,,,,unknown,,,,,,,,not_researched,,
-1196590,Resident Evil Village,,,,unknown,,,,,,,,not_researched,,
+1097840,Gears 5,2019-09-10,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+1142710,Total War: WARHAMMER III,2022-02-17,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+1145360,Hades,2020-09-17,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+1151640,Horizon Zero Dawn™ Complete Edition,2017-02-28,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+1158310,Crusader Kings III,2020-09-01,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+1172380,STAR WARS Jedi: Fallen Order™,2019-11-15,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+1174180,Red Dead Redemption 2,2018-10-26,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+1196590,Resident Evil Village,2021-05-07,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
 1237970,Titanfall® 2,2016-10-28,delayed_port,PC+PS4+Xbox,aaa,,,,,,,,not_researched,"EA confirmed sales below target after launching between Battlefield 1 and Infinite Warfare. Unlabeled: the 2020 Steam release reviewed at 96.0%, so a commercial label from 2016 would invert the signal.",gamespot.com / techtimes.com
 1240440,Halo Infinite,2021-11-15,day_one_steam,PC+Xbox,aaa,0,Ongoing but repeatedly delayed; co-op and Forge arrived ~11 months late,343 Industries not closed; roughly a quarter to a third of staff laid off in Jan 2023,severe_layoffs,sustained,underperform,high,researched,"Free-to-play multiplayer, so unit sales are not the measure; judged on engagement and the live-service roadmap, both of which fell short. Halo continues under the renamed studio.",kotaku.com / geekwire.com / windowscentral.com
 1245620,ELDEN RING,2022-02-25,day_one_steam,PC+PS5+Xbox+PS4,aaa,60,Extensive patching plus the Shadow of the Erdtree expansion,FromSoftware not closed; grew significantly,grew,sustained,breakout,high,researched,"12M units in its first two weeks and 25M+ by mid-2024, from a new IP. FromSoftware's previous best took four years to reach 10M. Swept Game of the Year awards.",gamedeveloper.com / playstationlifestyle.net
-1252330,DEATHLOOP,,,,unknown,,,,,,,,not_researched,,
+1252330,DEATHLOOP,2021-09-14,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
 1259420,Days Gone,2019-04-26,former_exclusive,PS4 at launch; PC 2021,aaa,,,,,,,,not_researched,"Sold 9M+ yet Sony called it a disappointment and declined a sequel. Unlabeled: that outcome is about the 2019 PS4 launch, while this Steam window is a 2021 port that reviewed at 93.5%.",kotaku.com / mp1st.com
 1272080,PAYDAY 3,2023-09-21,day_one_steam,PC+PS5+Xbox,aa_leaning_aaa,40,Continued patches and DLC despite the launch failure,Starbreeze not closed; CEO removed following the launch,continued,sustained,underperform,medium,researched,Day-one server and matchmaking failure; players returned to Payday 2 in far greater numbers. Starbreeze replaced its CEO but kept the studio and the game running.,kotaku.com / gamedeveloper.com / neowin.net
-1282100,REMNANT II®,,,,unknown,,,,,,,,not_researched,,
-1295660,Sid Meier's Civilization VII,,,,unknown,,,,,,,,not_researched,,
-1328670,Mass Effect™ Legendary Edition,,,,unknown,,,,,,,,not_researched,,
-1332010,Stray,,,,unknown,,,,,,,,not_researched,,
-1364780,Street Fighter™ 6,,,,unknown,,,,,,,,not_researched,,
-1426210,It Takes Two,,,,unknown,,,,,,,,not_researched,,
-1448440,Wo Long: Fallen Dynasty,,,,unknown,,,,,,,,not_researched,,
+1282100,REMNANT II®,2023-07-25,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+1295660,Sid Meier's Civilization VII,2025-02-11,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+1328670,Mass Effect™ Legendary Edition,2021-05-14,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+1332010,Stray,2022-07-19,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+1364780,Street Fighter™ 6,2023-06-02,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+1426210,It Takes Two,2021-03-26,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+1448440,Wo Long: Fallen Dynasty,2023-03-03,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
 1496790,Gotham Knights,2022-10-21,day_one_steam,PC+PS5+Xbox,aaa,70,One free Heroic Assault mode; planned playable characters never shipped,WB Games Montreal not closed; continued operating,continued,curtailed,underperform,medium,researched,Post-launch support was sparse against the studio's own Arkham Knight precedent (a year of DLC). No closure or reported mass layoffs tied to the title.,kotaku.com
-1501750,Lords of the Fallen,,,,unknown,,,,,,,,not_researched,,
+1501750,Lords of the Fallen,2023-10-13,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
 1517290,Battlefield™ 2042,2021-11-19,day_one_steam,PC+PS5+Xbox,aaa,60,Multi-year live-service support; content continued into 2023-24,DICE not closed; continued operating,continued,sustained,underperform,high,researched,"Lost roughly 99% of its Steam players within five months and EA publicly called it a disappointment, but DICE sustained support until concurrents returned near launch highs in Oct 2023. Recovery is what keeps this out of the flop tier.",gamesradar.com / techradar.com
 1544020,The Callisto Protocol™,2022-12-02,day_one_steam,PC+PS5+Xbox+PS4,aaa,60,"Season pass content delivered incl. Final Transmission expansion, then support wound down",Striking Distance remains operational but hit by repeated layoffs; creative lead departed,severe_layoffs,sustained,underperform,medium,researched,"Sold about 2M against a reported 5M target. Krafton kept the studio open and completed planned support, which is what separates this from a flop under the rubric.",videogameschronicle.com / pcgamer.com
-1593500,God of War,,,,unknown,,,,,,,,not_researched,,
-1601580,Frostpunk 2,,,,unknown,,,,,,,,not_researched,,
-1623730,Palworld,,,,unknown,,,,,,,,not_researched,"EARLY ACCESS: Steam reports the 1.0 date (2026-07-09), not the Jan 2024 Early Access launch. Set original_release_date to the EA date before this row is used - windows currently measure the wrong event.",
-1627720,Lies of P,,,,unknown,,,,,,,,not_researched,,
+1593500,God of War,2018-04-20,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+1601580,Frostpunk 2,2024-09-20,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+1623730,Palworld,2024-01-19,,,unknown,,,,,,,,not_researched,"EARLY ACCESS: Steam reports the 1.0 date (2026-07-09), not the Jan 2024 Early Access launch. Set original_release_date to the EA date before this row is used - windows currently measure the wrong event.","Wikidata P577 (earliest publication date, joined on P1733)"
+1627720,Lies of P,2023-09-19,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
 1643320,S.T.A.L.K.E.R. 2: Heart of Chornobyl,2024-11-20,day_one_steam,PC+Xbox,aaa,60,Extensive post-launch patching; content updates continued,GSC Game World not closed; continued operating through wartime displacement,continued,sustained,success,high,researched,"1M units inside 48 hours and about 1.4M on Steam within four days (~$66M gross), with a 117,928 Steam concurrent peak, excluding Game Pass players.",gematsu.com / gameworldobserver.com / gameshub.com
-1659420,UNCHARTED™: Legacy of Thieves Collection,,,,unknown,,,,,,,,not_researched,,
-1771300,Kingdom Come: Deliverance II,,,,unknown,,,,,,,,not_researched,,
-1774580,STAR WARS Jedi: Survivor™,,,,unknown,,,,,,,,not_researched,,
-1778820,TEKKEN 8,,,,unknown,,,,,,,,not_researched,,
-1817070,Marvel’s Spider-Man Remastered,,,,unknown,,,,,,,,not_researched,,
+1659420,UNCHARTED™: Legacy of Thieves Collection,2022-01-28,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+1771300,Kingdom Come: Deliverance II,2025-02-04,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+1774580,STAR WARS Jedi: Survivor™,2023-04-28,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+1778820,TEKKEN 8,2024-01-26,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+1817070,Marvel’s Spider-Man Remastered,2020-11-12,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
 1845910,Dragon Age™: The Veilguard,2024-10-31,day_one_steam,PC+PS5+Xbox,aaa,70,No story DLC; single post-launch patch series only,BioWare cut from ~200 to under 100 staff; most senior Veilguard writers gone,severe_layoffs,curtailed,flop,medium,researched,BORDERLINE. EA reported sales nearly 50% below expectation (1.5M players vs 3M+ target) and called it a disappointment. Studio survives on Mass Effect but was gutted - sits between the rubric's flop and underperform definitions.,gamesradar.com / bloomberg.com / forbes.com
-1850570,DEATH STRANDING DIRECTOR'S CUT,,,,unknown,,,,,,,,not_researched,,
+1850570,DEATH STRANDING DIRECTOR'S CUT,2021-09-24,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
 1888160,ARMORED CORE™ VI FIRES OF RUBICON™,2023-08-25,day_one_steam,PC+PS5+Xbox+PS4,aaa,60,Balance patches and free content updates,FromSoftware not closed; continued operating,continued,sustained,success,high,researched,"3M+ units, the highest-selling entry in the series, with a 129k Steam concurrent peak at launch. Bandai Namco expected it to break the series record and it did.",gamedeveloper.com / gematsu.com / gameworldobserver.com
 1903340,Clair Obscur: Expedition 33,2025-04-24,day_one_steam,PC+PS5+Xbox,aa_leaning_aaa,50,Free updates post-launch; still active,Sandfall Interactive not closed; grew significantly,grew,sustained,breakout,high,researched,8M+ copies on a stated budget under $10M. Won Best Game at BAFTA 2026 and is the second title after Baldur's Gate 3 to take Game of the Year at every major show.,gamedeveloper.com / forbes.com / gameworldobserver.com
-2001120,Split Fiction,,,,unknown,,,,,,,,not_researched,,
+2001120,Split Fiction,2025-03-06,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
 2009100,Immortals of Aveum™,2023-08-22,day_one_steam,PC+PS5+Xbox,aa_leaning_aaa,60,Minimal; one patch cycle then studio wound down,45% of staff (~40 devs) laid off within a month; most remaining staff furloughed April 2024,severe_layoffs,abandoned,flop,high,researched,Peaked around 800 concurrent players on Steam. CEO attributed layoffs directly to sales in a crowded window against Starfield and Armored Core VI.,gamedeveloper.com / videogameschronicle.com / kotaku.com
-2054970,Dragon's Dogma 2,,,,unknown,,,,,,,,not_researched,,
-2072450,Like a Dragon: Infinite Wealth,,,,unknown,,,,,,,,not_researched,,
+2054970,Dragon's Dogma 2,2024-03-22,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+2072450,Like a Dragon: Infinite Wealth,2024-01-26,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
 2124490,SILENT HILL 2,2024-10-08,day_one_steam,PC+PS5,aa_leaning_aaa,70,Patches plus a Born from a Wish side-story addition,Bloober Team not closed; grew and secured further Silent Hill work,grew,sustained,success,high,researched,"2.5M units shipped, roughly 19% of all Silent Hill franchise sales, and Konami raised its revenue forecast on the result. Met the high bar for a remake of a revered title.",gamedeveloper.com / newsweek.com / vgchartz.com
-2138710,Sifu,,,,unknown,,,,,,,,not_researched,,
-2161700,Persona 3 Reload,,,,unknown,,,,,,,,not_researched,,
+2138710,Sifu,2022-02-06,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+2161700,Persona 3 Reload,2024-02-02,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
 2183900,"Warhammer 40,000: Space Marine 2",2024-09-09,day_one_steam,PC+PS5+Xbox,aa_leaning_aaa,60,Ongoing free content seasons plus paid cosmetics,Saber Interactive not closed; grew and turned down outside work,grew,sustained,breakout,high,researched,4.5M players in its first month and 12M+ by early 2026 - Saber's fastest-selling game. Publisher stated it cleared its success bar well before hitting 4M.,gamespot.com / gamerant.com / techspot.com
-2239550,Watch Dogs®: Legion,,,,unknown,,,,,,,,not_researched,,
-2246340,Monster Hunter Wilds,,,,unknown,,,,,,,,not_researched,,
-2344520,Diablo® IV,,,,unknown,,,,,,,,not_researched,,
-2369390,Far Cry® 6,,,,unknown,,,,,,,,not_researched,,
-2457220,Avowed,,,,unknown,,,,,,,,not_researched,,
+2239550,Watch Dogs®: Legion,2020-10-29,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+2246340,Monster Hunter Wilds,2025-02-28,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+2344520,Diablo® IV,2023-06-06,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+2369390,Far Cry® 6,2021-10-07,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+2457220,Avowed,2025-02-18,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
 2461850,Hellblade II: Senua’s Saga,2024-05-21,day_one_steam,PC+Xbox,aa_leaning_aaa,50,Patches only; no expansion,Ninja Theory not closed at launch; continued operating,continued,curtailed,underperform,medium,researched,"Peaked below the 2017 original's concurrent players despite a far larger budget, and ranked 37th in US dollar sales for its launch month. Day-one Game Pass availability complicates any unit-sales read.",gamerant.com / dualshockers.com / gamingbolt.com
-2622380,ELDEN RING NIGHTREIGN,,,,unknown,,,,,,,,not_researched,,
-2677660,Indiana Jones and the Great Circle,,,,unknown,,,,,,,,not_researched,,
+2622380,ELDEN RING NIGHTREIGN,2025-05-30,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+2677660,Indiana Jones and the Great Circle,2024-12-09,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
 2679460,Metaphor: ReFantazio,2024-10-11,day_one_steam,PC+PS5+Xbox+PS4,aa_leaning_aaa,70,Patches; DLC delivered,Atlus not closed; continued operating,continued,sustained,success,medium,researched,"BORDERLINE success/breakout. Fastest-selling Atlus title ever at 1M on day one, beating Persona 3 Reload's record, and PC sales beat internal expectations - but 2M lifetime is modest against the breakout tier. Labeled conservatively.",pcgamer.com / forbes.com / rpgsite.net
-2751000,Prince of Persia The Lost Crown,,,,unknown,,,,,,,,not_researched,,
-2909400,FINAL FANTASY VII REBIRTH,,,,unknown,,,,,,,,not_researched,,
-3017860,DOOM: The Dark Ages,,,,unknown,,,,,,,,not_researched,,
-3159330,Assassin’s Creed Shadows,,,,unknown,,,,,,,,not_researched,,
-3489700,Stellar Blade™,,,,unknown,,,,,,,,not_researched,,
-391220,Rise of the Tomb Raider™,,,,unknown,,,,,,,,not_researched,,
-365590,Tom Clancy’s The Division™,,,,unknown,,,,,,,,not_researched,,
-2221490,Tom Clancy’s The Division® 2,,,,unknown,,,,,,,,not_researched,,
-304390,FOR HONOR™,,,,unknown,,,,,,,,not_researched,,
-460930,Tom Clancy's Ghost Recon® Wildlands,,,,unknown,,,,,,,,not_researched,,
-2231380,Tom Clancy's Ghost Recon® Breakpoint,,,,unknown,,,,,,,,not_researched,,
-1237950,STAR WARS™ Battlefront™ II,,,,unknown,,,,,,,,not_researched,,
-1238000,Mass Effect™: Andromeda Deluxe Edition,,,,unknown,,,,,,,,not_researched,,
-1222690,Dragon Age™ Inquisition,,,,unknown,,,,,,,,not_researched,,
-241930,Middle-earth™: Shadow of Mordor™,,,,unknown,,,,,,,,not_researched,,
-239140,Dying Light,,,,unknown,,,,,,,,not_researched,,
-289070,Sid Meier’s Civilization® VI,,,,unknown,,,,,,,,not_researched,,
-364360,Total War: WARHAMMER,,,,unknown,,,,,,,,not_researched,,
-1172620,Sea of Thieves: 2026 Edition,,,,unknown,,,,,,,,not_researched,,
-495420,State of Decay 2: Juggernaut Edition,,,,unknown,,,,,,,,not_researched,,
-427290,Vampyr,,,,unknown,,,,,,,,not_researched,,
-1151340,Fallout 76,,,,unknown,,,,,,,,not_researched,,
-548570,RAGE 2,,,,unknown,,,,,,,,not_researched,,
-939960,Far Cry® New Dawn,,,,unknown,,,,,,,,not_researched,,
-371660,Far Cry® Primal,,,,unknown,,,,,,,,not_researched,,
-298110,Far Cry® 4,,,,unknown,,,,,,,,not_researched,,
-243470,Watch_Dogs™,,,,unknown,,,,,,,,not_researched,,
-242050,Assassin’s Creed® IV Black Flag™,,,,unknown,,,,,,,,not_researched,,
-289650,Assassin's Creed® Unity,,,,unknown,,,,,,,,not_researched,,
-311560,Assassin’s Creed® Rogue,,,,unknown,,,,,,,,not_researched,,
-1475810,Ghostwire: Tokyo,,,,unknown,,,,,,,,not_researched,,
-1065310,Evil West,,,,unknown,,,,,,,,not_researched,,
-1583230,High On Life,,,,unknown,,,,,,,,not_researched,,
-1693980,Dead Space,,,,unknown,,,,,,,,not_researched,,
-1938010,WILD HEARTS™,,,,unknown,,,,,,,,not_researched,,
-2375550,Like a Dragon Gaiden: The Man Who Erased His Name,,,,unknown,,,,,,,,not_researched,,
-1235140,Yakuza: Like a Dragon,,,,unknown,,,,,,,,not_researched,,
-2058180,Judgment,,,,unknown,,,,,,,,not_researched,,
-2058190,Lost Judgment,,,,unknown,,,,,,,,not_researched,,
-1237320,Sonic Frontiers,,,,unknown,,,,,,,,not_researched,,
-1325200,Nioh 2 – The Complete Edition,,,,unknown,,,,,,,,not_researched,,
-1340990,Rise of the Ronin,,,,unknown,,,,,,,,not_researched,,
-785260,Team Sonic Racing™,,,,unknown,,,,,,,,not_researched,,
-560130,Pillars of Eternity II: Deadfire,,,,unknown,,,,,,,,not_researched,,
-719040,Wasteland 3,,,,unknown,,,,,,,,not_researched,,
-368260,Marvel's Midnight Suns,,,,unknown,,,,,,,,not_researched,,
-882100,XCOM®: Chimera Squad,,,,unknown,,,,,,,,not_researched,,
-1677280,Company of Heroes 3,,,,unknown,,,,,,,,not_researched,,
-1466860,Age of Empires IV: Anniversary Edition,,,,unknown,,,,,,,,not_researched,,
-976730,Halo: The Master Chief Collection,,,,unknown,,,,,,,,not_researched,,
-1184050,Gears Tactics,,,,unknown,,,,,,,,not_researched,,
-1551360,Forza Horizon 5,,,,unknown,,,,,,,,not_researched,,
-2440510,Forza Motorsport,,,,unknown,,,,,,,,not_researched,,
-2537590,Microsoft Flight Simulator 2024,,,,unknown,,,,,,,,not_researched,,
-962130,Grounded,,,,unknown,,,,,,,,not_researched,,
-1268750,Starship Troopers: Extermination,,,,unknown,,,,,,,,not_researched,,
-1361210,"Warhammer 40,000: Darktide",,,,unknown,,,,,,,,not_researched,,
-1937780,Total War: PHARAOH,,,,unknown,,,,,,,,not_researched,,
-1099410,A Total War Saga: TROY,,,,unknown,,,,,,,,not_researched,,
-394360,Hearts of Iron IV,,,,unknown,,,,,,,,not_researched,,
-529340,Victoria 3,,,,unknown,,,,,,,,not_researched,,
-281990,Stellaris,,,,unknown,,,,,,,,not_researched,,
-949230,Cities: Skylines II,,,,unknown,,,,,,,,not_researched,,
-1172710,Dune: Awakening,,,,unknown,,,,,,,,not_researched,,
-1840080,Homeworld 3,,,,unknown,,,,,,,,not_researched,,
-1601570,The Alters,,,,unknown,,,,,,,,not_researched,,
-2840770,Avatar: Frontiers of Pandora™,,,,unknown,,,,,,,,not_researched,,
-2556990,Beyond Good & Evil - 20th Anniversary Edition,,,,unknown,,,,,,,,not_researched,,
-916440,Anno 1800,,,,unknown,,,,,,,,not_researched,,
-3274580,Anno 117: Pax Romana,,,,unknown,,,,,,,,not_researched,,
-2290180,Riders Republic,,,,unknown,,,,,,,,not_researched,,
-2211280,Roller Champions™,,,,unknown,,,,,,,,not_researched,,
-2698940,The Crew Motorfest,,,,unknown,,,,,,,,not_researched,,
-641080,Trials® Rising,,,,unknown,,,,,,,,not_researched,,
-2221920,Immortals Fenyx Rising,,,,unknown,,,,,,,,not_researched,,
-2379390,Tom Clancy’s Rainbow Six® Extraction,,,,unknown,,,,,,,,not_researched,,
-2488620,F1® 24,,,,unknown,,,,,,,,not_researched,,
-2315690,WWE 2K24,,,,unknown,,,,,,,,not_researched,,
-2536520,Diablo II: Resurrected – Infernal Edition,,,,unknown,,,,,,,,not_researched,,
-4384550,Call of Duty®: Black Ops 6,,,,unknown,,,,,,,,not_researched,,
-3595270,Call of Duty®: Modern Warfare® III,,,,unknown,,,,,,,,not_researched,,
-1378990,Crash Bandicoot™ 4: It’s About Time,,,,unknown,,,,,,,,not_researched,,
-996580,Spyro™ Reignited Trilogy,,,,unknown,,,,,,,,not_researched,,
+2751000,Prince of Persia The Lost Crown,2024-01-18,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+2909400,FINAL FANTASY VII REBIRTH,2024-02-29,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+3017860,DOOM: The Dark Ages,2025-05-15,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+3159330,Assassin’s Creed Shadows,2025-03-20,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+3489700,Stellar Blade™,2024-04-26,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+391220,Rise of the Tomb Raider™,2015-11-10,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+365590,Tom Clancy’s The Division™,2016-03-08,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+2221490,Tom Clancy’s The Division® 2,2019-03-15,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+304390,FOR HONOR™,2017-02-13,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+460930,Tom Clancy's Ghost Recon® Wildlands,2017-03-07,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+2231380,Tom Clancy's Ghost Recon® Breakpoint,2019-10-04,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+1237950,STAR WARS™ Battlefront™ II,2017-11-17,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+1238000,Mass Effect™: Andromeda Deluxe Edition,2017-03-21,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+1222690,Dragon Age™ Inquisition,2014-11-18,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+241930,Middle-earth™: Shadow of Mordor™,2014-09-30,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+239140,Dying Light,2015-01-27,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+289070,Sid Meier’s Civilization® VI,2016-10-21,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+364360,Total War: WARHAMMER,2016-04-28,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+1172620,Sea of Thieves: 2026 Edition,2018-03-20,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+495420,State of Decay 2: Juggernaut Edition,2018-05-22,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+427290,Vampyr,2018-06-05,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+1151340,Fallout 76,2018-11-14,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+548570,RAGE 2,2019-05-14,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+939960,Far Cry® New Dawn,2019-02-15,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+371660,Far Cry® Primal,2016-02-23,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+298110,Far Cry® 4,2014-11-18,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+243470,Watch_Dogs™,2014-05-27,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+242050,Assassin’s Creed® IV Black Flag™,2013-10-29,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+289650,Assassin's Creed® Unity,2014-11-11,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+311560,Assassin’s Creed® Rogue,2014-11-11,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+1475810,Ghostwire: Tokyo,2022-03-25,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+1065310,Evil West,2022-11-22,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+1583230,High On Life,2022-12-13,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+1693980,Dead Space,2023-01-27,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+1938010,WILD HEARTS™,2023-02-17,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+2375550,Like a Dragon Gaiden: The Man Who Erased His Name,2023-11-09,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+1235140,Yakuza: Like a Dragon,2020-01-16,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+2058180,Judgment,2018-12-13,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+2058190,Lost Judgment,2021-09-24,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+1237320,Sonic Frontiers,2022-11-08,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+1325200,Nioh 2 – The Complete Edition,2020-03-13,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+1340990,Rise of the Ronin,2024-03-22,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+785260,Team Sonic Racing™,2019-05-21,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+560130,Pillars of Eternity II: Deadfire,2018-05-08,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+719040,Wasteland 3,2020-08-28,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+368260,Marvel's Midnight Suns,2022-12-02,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+882100,XCOM®: Chimera Squad,2020-04-24,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+1677280,Company of Heroes 3,2023-02-23,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+1466860,Age of Empires IV: Anniversary Edition,2021-10-28,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+976730,Halo: The Master Chief Collection,2014-11-11,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+1184050,Gears Tactics,2020-04-28,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+1551360,Forza Horizon 5,2021-11-09,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+2440510,Forza Motorsport,2023-10-10,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+2537590,Microsoft Flight Simulator 2024,2024-11-19,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+962130,Grounded,2020-07-28,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+1268750,Starship Troopers: Extermination,2023-05-17,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+1361210,"Warhammer 40,000: Darktide",2022-11-30,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+1937780,Total War: PHARAOH,2023-10-11,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+1099410,A Total War Saga: TROY,2020-08-13,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+394360,Hearts of Iron IV,2016-06-06,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+529340,Victoria 3,2022-10-25,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+281990,Stellaris,2016-05-09,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+949230,Cities: Skylines II,2023-10-24,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+1172710,Dune: Awakening,2025-06-10,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+1840080,Homeworld 3,2024-05-13,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+1601570,The Alters,2025-06-13,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+2840770,Avatar: Frontiers of Pandora™,2023-12-07,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+2556990,Beyond Good & Evil - 20th Anniversary Edition,2024-06-25,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+916440,Anno 1800,2019-04-16,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+3274580,Anno 117: Pax Romana,2025-11-13,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+2290180,Riders Republic,2021-10-28,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+2211280,Roller Champions™,2022-05-25,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+2698940,The Crew Motorfest,2023-09-14,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+641080,Trials® Rising,2019-02-12,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+2221920,Immortals Fenyx Rising,2020-12-03,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+2379390,Tom Clancy’s Rainbow Six® Extraction,2022-01-20,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+2488620,F1® 24,2024-05-31,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+2315690,WWE 2K24,2024-03-08,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+2536520,Diablo II: Resurrected – Infernal Edition,2021-09-23,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+4384550,Call of Duty®: Black Ops 6,2024-10-25,,,unknown,,,,,,,,not_researched,,Hand-verified: Simultaneous multiplatform launch; Wikidata item carries no Steam appid
+3595270,Call of Duty®: Modern Warfare® III,2023-11-10,,,unknown,,,,,,,,not_researched,,Hand-verified: Simultaneous multiplatform launch; Wikidata item carries no Steam appid
+1378990,Crash Bandicoot™ 4: It’s About Time,2020-10-02,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+996580,Spyro™ Reignited Trilogy,2018-11-13,,,unknown,,,,,,,,not_researched,,"Wikidata P577 (earliest publication date, joined on P1733)"
+889750,BABYLON'S FALL,2022-03-03,,PC+PS4+PS5,aaa,60,"Shutdown announced Sept 2022, six months after launch; online service terminated 27 Feb 2023 and the game delisted and made unplayable",PlatinumGames continued; no closure or reported layoffs tied to this title,continued,abandoned,flop,high,researched,"268 reviews in the launch fortnight - 2.8th percentile of its 2022 cohort, second-lowest launch volume in the corpus - at 39.2% positive. Peak concurrent players under 1,200 on Steam shortly after release, falling sharply. Priced at the full $59.99 going rate. Delisted, so appdetails returns no price; the launch price here is from PSPrices and Square Enix's own store listing.",Wikipedia / Game Developer / Shacknews / PSPrices / Steam appreviews
+3751950,Assassin's Creed Black Flag Resynced,2026-07-09,,PC+PS5+XSX,aaa,60,,,,,,,not_researched,"Ground-up remake of the 2013 game, not a port of it - Wikidata models it as its own work, so the P629 edition hop correctly does not date it 2013. Launched 21,618 reviews at 78.3% positive, 42.3rd percentile of its rolling cohort. Owner's read: not a flop, which rules out one tier of four and is not itself a label. The rubric resolves it to SUCCESS - but on a 0.3-point margin over SENTIMENT_BAR (78.3 vs 78.0), and with retention unavailable because the 3-month window does not close until 2026-10-09, which keeps the momentum path to breakout shut. Left unlabeled: a rubric-derived label would teach the model the rubric, and this one is too marginal to trust besides.",Ubisoft / Wikipedia / Steam appreviews

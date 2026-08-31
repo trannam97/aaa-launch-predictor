@@ -131,6 +131,28 @@ def parse_release_date(raw: str | None) -> date | None:
     return None
 
 
+# A basket spanning purchasing power and known restriction zones, not an
+# exhaustive list. Each entry costs one Steam request, so this is deliberately
+# small: enough to detect a closed market and a pricing tier, not a survey.
+SAMPLED_REGIONS: tuple[str, ...] = ("us", "gb", "de", "br", "jp", "au", "in", "ru")
+
+
+@dataclass(slots=True)
+class RegionalOffer:
+    """What one country sees on the store page.
+
+    `available` False means Steam returned no data for that country at all,
+    which is how a market closure looks — Red Dead Redemption 2, Monster
+    Hunter World and Modern Warfare III all read that way in Russia after
+    their publishers withdrew in 2022.
+    """
+
+    country: str
+    available: bool
+    currency: str | None = None
+    price_cents: int | None = None
+
+
 class SteamClient:
     """Synchronous Steam client. Pass a client in tests to stub the network."""
 
@@ -194,6 +216,47 @@ class SteamClient:
         if not isinstance(payload, dict):
             raise SteamUnavailable(f"Steam returned an unexpected payload shape for {url}")
         return payload
+
+    def get_regional_offers(
+        self, appid: int, countries: tuple[str, ...] = SAMPLED_REGIONS
+    ) -> list[RegionalOffer]:
+        """What each sampled country sees: whether it can buy, and for how much.
+
+        **Present state, not launch state.** This is a live reading and cannot
+        be backfilled: today's Brazilian price is not the launch price, and Red
+        Dead Redemption 2 was on sale in Russia in 2019 — its unavailability
+        dates from 2022. Historical rows must never be filled from this. It is
+        captured for *tracked upcoming* games, before they launch, where the
+        reading is genuinely pre-launch.
+
+        Costs one request per country, so `SAMPLED_REGIONS` stays small.
+        """
+        offers: list[RegionalOffer] = []
+        for country in countries:
+            try:
+                payload = self._get_json(
+                    f"{STORE_BASE_URL}/api/appdetails",
+                    {"appids": appid, "cc": country, "l": self._language},
+                )
+            except SteamError:
+                # A transient failure is not a market closure; say nothing
+                # rather than record an absence that isn't there.
+                continue
+            entry = payload.get(str(appid))
+            if not isinstance(entry, dict) or not entry.get("success"):
+                offers.append(RegionalOffer(country=country, available=False))
+                continue
+            data = entry.get("data") or {}
+            price = data.get("price_overview") or {}
+            offers.append(
+                RegionalOffer(
+                    country=country,
+                    available=True,
+                    currency=price.get("currency"),
+                    price_cents=price.get("initial"),
+                )
+            )
+        return offers
 
     def get_app_details(self, appid: int) -> AppDetails:
         """Fetch store metadata for one app.
