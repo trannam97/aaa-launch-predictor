@@ -42,7 +42,7 @@ why the response body is reported rather than summarised:
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from typing import Any, Self
 
 import httpx
@@ -57,6 +57,10 @@ LAUNCH_REGION = "US"
 # Publishers re-tier on a scale of years, not weeks, and the *regular* price is
 # read rather than the deal price, so a launch discount does not disturb this.
 LAUNCH_WINDOW_DAYS = 60
+
+# How far before release to start asking. A premium tier can list days ahead of
+# the standard edition, and the request should not cut that off.
+SINCE_MARGIN_DAYS = 30
 
 TIMEOUT_SECONDS = 20.0
 
@@ -83,6 +87,36 @@ class ItadShapeError(ItadError):
 
 
 @dataclass(slots=True)
+class HistoryRead:
+    """What a history payload yielded, and how much of it was understood.
+
+    The coverage counts exist because silent partial parsing is the failure
+    this parser is most likely to have: `_observe` returns None for any shape
+    it does not recognise, so understanding one entry out of three hundred
+    looks identical to a game with a single price record. It is not — and the
+    difference decides whether a result means anything.
+    """
+
+    observation: PriceObservation | None
+    parsed: int
+    total: int
+    oldest: date | None = None
+    newest: date | None = None
+
+    @property
+    def coverage(self) -> str:
+        span = ""
+        if self.oldest and self.newest:
+            span = f", spanning {self.oldest} to {self.newest}"
+        return f"parsed {self.parsed} of {self.total} history entries{span}"
+
+    @property
+    def is_suspect(self) -> bool:
+        """Too little understood for the oldest record to be meaningful."""
+        return self.total > 1 and self.parsed < self.total
+
+
+@dataclass(slots=True)
 class PriceObservation:
     """One recorded regular price. Not a deal price — see `_observe`."""
 
@@ -97,23 +131,32 @@ class LaunchPrice:
     price_cents: int
     observed_on: date
     days_after_release: int | None
+    coverage: str = ""
+    suspect_shape: bool = False
 
     @property
     def is_launch_price(self) -> bool:
         """False when the earliest record is too late to speak for the launch."""
-        if self.days_after_release is None:
+        if self.suspect_shape or self.days_after_release is None:
             return False
         return -1 <= self.days_after_release <= LAUNCH_WINDOW_DAYS
 
     @property
     def note(self) -> str:
+        if self.suspect_shape:
+            # Reported before the date arithmetic, because a partly-understood
+            # payload makes "how old is the oldest record" meaningless.
+            return f"UNRELIABLE — {self.coverage}, so this may not be the oldest"
         if self.days_after_release is None:
             return "no release date to measure against"
         if self.is_launch_price:
             return f"observed {self.days_after_release}d after release"
         if self.days_after_release < 0:
             return f"observed {-self.days_after_release}d BEFORE release — pre-order listing"
-        return f"earliest record is {self.days_after_release}d after release, not the launch price"
+        return (
+            f"earliest record is {self.days_after_release}d after release, "
+            f"not the launch price ({self.coverage})"
+        )
 
 
 def _amount_to_cents(value: Any) -> int | None:
@@ -176,8 +219,8 @@ def _observe(entry: Any) -> PriceObservation | None:
     return PriceObservation(price_cents=cents, recorded_on=when)
 
 
-def earliest_regular_price(history: Any) -> PriceObservation | None:
-    """The oldest regular price in a history payload, or None if it holds none."""
+def earliest_regular_price(history: Any) -> HistoryRead:
+    """The oldest regular price in a payload, with how much of it was read."""
     entries = history
     if isinstance(history, dict):
         for key in ("history", "data", "prices"):
@@ -187,13 +230,20 @@ def earliest_regular_price(history: Any) -> PriceObservation | None:
     if not isinstance(entries, list):
         raise ItadShapeError(f"expected a list of history entries, got {type(entries).__name__}")
     if not entries:
-        return None
+        return HistoryRead(observation=None, parsed=0, total=0)
 
     seen = [obs for obs in (_observe(e) for e in entries) if obs is not None]
     if not seen:
         keys = sorted(entries[0].keys()) if isinstance(entries[0], dict) else repr(entries[0])[:80]
         raise ItadShapeError(f"no price/date pair in a history entry; keys seen: {keys}")
-    return min(seen, key=lambda obs: obs.recorded_on)
+    dates = [obs.recorded_on for obs in seen]
+    return HistoryRead(
+        observation=min(seen, key=lambda obs: obs.recorded_on),
+        parsed=len(seen),
+        total=len(entries),
+        oldest=min(dates),
+        newest=max(dates),
+    )
 
 
 def _explain_403(body: str) -> str:
@@ -261,24 +311,38 @@ class ItadClient:
             return game["id"]
         return None
 
-    def history(self, itad_id: str) -> Any:
-        """Raw Steam-only, US price history. Returned unparsed for --dump-raw."""
-        return self._get(
-            "/games/history/v2",
-            {"id": itad_id, "shops": STEAM_SHOP_ID, "country": LAUNCH_REGION},
-        )
+    def history(self, itad_id: str, since: date | None = None) -> Any:
+        """Raw Steam-only, US price history. Returned unparsed for --dump-raw.
+
+        Without `since` the endpoint answers with a recent window only — a
+        captured response held five change events spanning eleven weeks, whose
+        regular price was the title's present re-tier rather than anything it
+        launched at. `since` is what reaches back past that.
+        """
+        params: dict[str, Any] = {
+            "id": itad_id,
+            "shops": STEAM_SHOP_ID,
+            "country": LAUNCH_REGION,
+        }
+        if since is not None:
+            params["since"] = f"{since.isoformat()}T00:00:00Z"
+        return self._get("/games/history/v2", params)
 
     def launch_price(self, steam_appid: int, release_date: date | None) -> LaunchPrice | None:
         """Earliest US Steam regular price, with how far from launch it sits."""
         itad_id = self.lookup(steam_appid)
         if itad_id is None:
             return None
-        observation = earliest_regular_price(self.history(itad_id))
-        if observation is None:
+        since = release_date - timedelta(days=SINCE_MARGIN_DAYS) if release_date else None
+        read = earliest_regular_price(self.history(itad_id, since=since))
+        if read.observation is None:
             return None
-        gap = (observation.recorded_on - release_date).days if release_date else None
+        oldest = read.observation
+        gap = (oldest.recorded_on - release_date).days if release_date else None
         return LaunchPrice(
-            price_cents=observation.price_cents,
-            observed_on=observation.recorded_on,
+            price_cents=oldest.price_cents,
+            observed_on=oldest.recorded_on,
             days_after_release=gap,
+            coverage=read.coverage,
+            suspect_shape=read.is_suspect,
         )
