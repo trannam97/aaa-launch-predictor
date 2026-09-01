@@ -16,11 +16,14 @@ on:
           - evaluate-baseline
           - both
       min_agreement:
-        description: "validate-rubric — fail below this percent agreement. 0 never fails."
+        # The script gates on met-expectations agreement, not the exact 4-tier
+        # number it also reports. Naming the metric here keeps someone from
+        # gating the wrong one.
+        description: "validate-rubric only — fail the run if met-expectations agreement drops below this percent. 0 never fails."
         type: string
         default: "0"
       verbose:
-        description: "evaluate-baseline — show every prediction"
+        description: "evaluate-baseline only — list every per-game prediction. Ignored otherwise."
         type: boolean
         default: false
 
