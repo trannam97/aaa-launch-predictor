@@ -40,7 +40,7 @@ sys.path.insert(0, str(REPO_ROOT / "backend"))
 from sqlalchemy import select  # noqa: E402
 
 from app.db import session_scope  # noqa: E402
-from app.itad import ItadClient, ItadError  # noqa: E402
+from app.itad import ItadAuthError, ItadClient, ItadError  # noqa: E402
 from app.models import HistoricalRelease  # noqa: E402
 
 logger = logging.getLogger("backfill_launch_prices")
@@ -130,6 +130,14 @@ def main(argv: list[str] | None = None) -> int:
                         logger.info("wrote the raw history for %s to %s", name, args.dump_raw)
                         dumped = True
                 found = client.launch_price(appid, released)
+            except ItadAuthError as exc:
+                # Never per-row: the next 169 would fail identically. Say it
+                # once and stop rather than filling the log with one message.
+                logger.error("%s", exc)
+                logger.error(
+                    "Stopped after %d of %d; nothing was written.", len(rows), len(targets)
+                )
+                return 1
             except ItadError as exc:
                 failed += 1
                 logger.warning("%-40s %s", name[:40], exc)

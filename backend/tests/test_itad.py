@@ -15,8 +15,10 @@ import pytest
 from app.itad import (
     LAUNCH_WINDOW_DAYS,
     STEAM_SHOP_ID,
+    ItadClient,
     ItadShapeError,
     LaunchPrice,
+    _explain_403,
     earliest_regular_price,
 )
 
@@ -111,3 +113,35 @@ def test_only_a_record_near_release_counts_as_the_launch_price(gap, expected):
 def test_steam_shop_id_is_pinned():
     """Verified against /service/shops/v1, which answers without a key."""
     assert STEAM_SHOP_ID == 61
+
+
+# --- what a 403 actually was -----------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("body", "expected"),
+    [
+        ('{"status_code":403,"reason_phrase":"Missing api key"}', "no api key"),
+        ('{"status_code":403,"reason_phrase":"Invalid or expired api key"}', "invalid or expired"),
+        ("error code: 1010", "Cloudflare"),
+        ("something unexpected", "rejected:"),
+        ("", "rejected:"),
+    ],
+)
+def test_a_403_says_which_of_three_faults_it_was(body, expected):
+    """All three arrive as 403 and need different fixes, so never collapse them."""
+    assert expected in _explain_403(body)
+
+
+def test_the_missing_key_message_names_where_the_key_goes():
+    """Header auth is silently ignored by ITAD and reads as missing."""
+    explained = _explain_403('{"reason_phrase":"Missing api key"}')
+
+    assert "`key` query parameter" in explained
+    assert "Authorization" in explained
+
+
+def test_a_pasted_newline_is_stripped_from_the_key():
+    """A secret copied with a trailing newline reaches ITAD as %0A."""
+    assert ItadClient("abc123\n", client=object())._key == "abc123"
+    assert ItadClient("  abc123  ", client=object())._key == "abc123"

@@ -23,6 +23,20 @@ tracking each title at some point, and for a 2015 release that point may be
 years late. Every result carries how far after release the observation sits and
 whether that is close enough to call it a launch price, so a stale reading is
 visible rather than silently curated in.
+
+## What a 403 means here
+
+Three different faults arrive as HTTP 403 and are not interchangeable, which is
+why the response body is reported rather than summarised:
+
+- ``{"reason_phrase": "Missing api key"}`` — the key never reached the API. The
+  key goes in the ``key`` query parameter; ``Authorization: Bearer`` and
+  ``X-API-Key`` are both ignored and read as missing.
+- ``{"reason_phrase": "Invalid or expired api key"}`` — it arrived and was
+  rejected. A trailing newline from a pasted secret lands here, which is why the
+  key is stripped.
+- ``error code: 1010`` in a non-JSON body — Cloudflare, not ITAD, refusing the
+  request outright. Sending no ``User-Agent`` at all triggers it.
 """
 
 from __future__ import annotations
@@ -49,6 +63,15 @@ TIMEOUT_SECONDS = 20.0
 
 class ItadError(RuntimeError):
     """ITAD could not answer."""
+
+
+class ItadAuthError(ItadError):
+    """The key was missing, rejected, or the request never reached ITAD.
+
+    Separate from ItadError because it is never per-row: whatever is wrong will
+    be wrong for every remaining game, so the caller should stop rather than
+    repeat the same failure once per title.
+    """
 
 
 class ItadShapeError(ItadError):
@@ -173,11 +196,34 @@ def earliest_regular_price(history: Any) -> PriceObservation | None:
     return min(seen, key=lambda obs: obs.recorded_on)
 
 
+def _explain_403(body: str) -> str:
+    """Turn ITAD's 403 body into something that says what to fix."""
+    text = (body or "").strip()
+    if "1010" in text:
+        return (
+            "blocked by Cloudflare before reaching ITAD (error 1010) — the "
+            "request needs a User-Agent header"
+        )
+    if "Missing api key" in text:
+        return (
+            "ITAD saw no api key. It must go in the `key` query parameter; "
+            "Authorization and X-API-Key headers are ignored"
+        )
+    if "Invalid or expired" in text:
+        return (
+            "ITAD rejected the key as invalid or expired. Check the secret for "
+            "a stray newline or space, and that it is still active"
+        )
+    return f"rejected: {text[:120]}"
+
+
 class ItadClient:
     """Thin ITAD client. Pass a client in tests to stub the network."""
 
     def __init__(self, api_key: str, client: httpx.Client | None = None) -> None:
-        self._key = api_key
+        # A secret pasted with a trailing newline reaches the API as %0A and is
+        # rejected as invalid, which looks nothing like the cause.
+        self._key = api_key.strip()
         self._owns_client = client is None
         self._client = client or httpx.Client(
             timeout=TIMEOUT_SECONDS,
@@ -200,9 +246,9 @@ class ItadClient:
         except httpx.HTTPError as exc:
             raise ItadError(f"{path}: {exc}") from exc
         if response.status_code == 403:
-            raise ItadError(f"{path}: rejected — check ITAD_API_KEY")
+            raise ItadAuthError(f"{path}: {_explain_403(response.text)}")
         if response.status_code >= 400:
-            raise ItadError(f"{path}: HTTP {response.status_code}")
+            raise ItadError(f"{path}: HTTP {response.status_code} {response.text[:120]}")
         return response.json()
 
     def lookup(self, steam_appid: int) -> str | None:
