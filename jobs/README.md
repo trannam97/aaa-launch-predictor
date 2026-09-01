@@ -16,7 +16,7 @@ Python on your machine. They split by what they do to the data:
 |---|---|---|---|
 | **Database** | `alembic upgrade head`, `backfill_historical.py`, `detect_launch_start.py` | the database | once, to create the schema and load the corpus, and again when the launch-window correction is applied. `appids` reloads named rows in seconds rather than repeating the ~50-minute full run. |
 | **Analysis** | `validate_rubric.py`, `evaluate_baseline.py` | nothing | any time. Read-only, so safe to re-run whenever labels or thresholds move. Output goes to the run's step summary. |
-| **Research** | `backfill_launch_prices.py`, `draft_studio_signals.py` | a file you download | when filling curated columns. Proposes values for review; both cost quota or money per row, so both take a `limit`. |
+| **Research** | `backfill_launch_prices.py`, `draft_studio_signals.py` | a file you download | when filling curated columns. Proposes values for review; both cost quota or money per row, so both take a `limit` — `all` runs the whole queue, and only `launch-prices` accepts it. |
 | **Retrain** | `train_model.py` | a model artifact | 1st and 15th, or on demand. |
 
 The split matters when adding a job: anything that writes the database belongs
