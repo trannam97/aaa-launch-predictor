@@ -168,6 +168,42 @@ def test_layoffs_with_curtailed_support_is_a_flop():
     assert result.outcome is Outcome.FLOP
 
 
+def test_curtailed_support_is_not_described_as_sustained():
+    """Suicide Squad's shape: studio survived, support was cut short.
+
+    The tier is Underperform either way — curtailed support only decides an
+    outcome when paired with severe layoffs — but the reason has to match the
+    signals. This branch previously reported that the game "kept being
+    supported" for every row reaching it.
+    """
+    result = classify(
+        signals(
+            positive_pct=75.0,
+            studio_signal=StudioSignal.CONTINUED,
+            support_signal=SupportSignal.CURTAILED,
+        )
+    )
+
+    assert result.outcome is Outcome.UNDERPERFORM
+    assert "post-launch support was curtailed" in result.reasons[-1]
+    assert "kept being supported" not in result.reasons[-1]
+
+
+@pytest.mark.parametrize(
+    ("studio", "support", "expected"),
+    [
+        (StudioSignal.GREW, SupportSignal.SUSTAINED, "the studio grew and the game kept"),
+        (StudioSignal.CONTINUED, SupportSignal.UNKNOWN, "no post-launch support signal"),
+        (StudioSignal.UNKNOWN, SupportSignal.SUSTAINED, "no studio-outcome signal"),
+    ],
+)
+def test_survived_reason_reads_the_signals(studio, support, expected):
+    result = classify(signals(positive_pct=75.0, studio_signal=studio, support_signal=support))
+
+    assert result.outcome is Outcome.UNDERPERFORM
+    assert expected in result.reasons[-1]
+
+
 def test_shortfall_with_no_post_launch_evidence_stays_unresolved():
     # This is the "Failed to Meet Expectations" state: clearly short, but
     # nothing yet says how short.
