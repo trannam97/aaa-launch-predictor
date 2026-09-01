@@ -38,12 +38,20 @@ jobs:
           key: model-${{ github.run_id }}
           restore-keys: model-
 
+      - uses: ./.github/actions/database-url
+        with:
+          url: ${{ secrets.DATABASE_URL }}
+
+      # tee needs pipefail, or a training failure is masked by tee's success
+      # and the job reports green over a broken run.
       - name: Train
         env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          FORCE: ${{ inputs.force }}
         run: |
-          python jobs/train_model.py ${{ inputs.force && '--force' || '' }} \
-            | tee -a "$GITHUB_STEP_SUMMARY"
+          set -o pipefail
+          args=()
+          [ "$FORCE" = "true" ] && args+=(--force)
+          python jobs/train_model.py "${args[@]}" | tee -a "$GITHUB_STEP_SUMMARY"
 
       # Uploaded rather than deployed. The API loads a model from its own
       # disk, and this project has no deployment target wired up yet — so

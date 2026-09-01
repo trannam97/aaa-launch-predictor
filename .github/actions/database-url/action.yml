@@ -1,0 +1,70 @@
+name: Database URL
+description: >-
+  Normalise DATABASE_URL, mask every credential fragment, and export it for
+  later steps. Extracted so the masking exists once rather than per workflow —
+  a leak already happened when one copy registered only part of a password.
+
+inputs:
+  url:
+    description: The raw DATABASE_URL secret.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        RAW: ${{ inputs.url }}
+      run: |
+        python3 - <<'PY'
+        import os, sys
+
+        raw = os.environ.get("RAW", "").strip()
+        if not raw:
+            sys.exit("The DATABASE_URL secret is empty or missing.")
+
+        # app/config.py does this at runtime, but GitHub only redacts the
+        # exact string it stores, so the rewritten URL would print unmasked.
+        for old in ("postgresql://", "postgres://"):
+            if raw.startswith(old):
+                raw = "postgresql+psycopg://" + raw[len(old) :]
+                break
+
+        # Register every credential fragment BEFORE anything can fail and
+        # print one. Order matters: a mask added after the leak is too late.
+        def mask(value: str) -> None:
+            if len(value) >= 4:
+                print(f"::add-mask::{value}")
+
+        mask(raw)
+        after = raw.split("://", 1)[1] if "://" in raw else ""
+        userinfo, sep, host = after.rpartition("@")
+        if sep:
+            mask(userinfo)
+            if ":" in userinfo:
+                password = userinfo.split(":", 1)[1]
+                mask(password)
+                # Whatever splits on the first @ rather than the last sees
+                # only this much; mask it too.
+                mask(password.split("@", 1)[0])
+
+        if not sep or not host:
+            sys.exit("DATABASE_URL is not a valid connection string.")
+
+        # An unencoded '@' in the password makes the URL ambiguous. psycopg
+        # folds the tail into the hostname and prints the whole thing in its
+        # resolver error — which is how a password reaches a build log.
+        if "@" in userinfo:
+            sys.exit(
+                "The password in DATABASE_URL contains an unencoded '@'.\n"
+                "Percent-encode it before storing the secret:\n"
+                "  @ -> %40   : -> %3A   / -> %2F   % -> %25   ? -> %3F   # -> %23\n"
+                "Or reset the database password in Supabase and let it generate an\n"
+                "alphanumeric one, which needs no encoding.\n"
+                "Nothing was printed and no connection was attempted."
+            )
+
+        with open(os.environ["GITHUB_ENV"], "a") as handle:
+            handle.write(f"DATABASE_URL={raw}\n")
+        print("Connection string normalised, validated and masked.")
+        PY

@@ -1,0 +1,85 @@
+name: Analysis
+
+# Read-only reports against the loaded corpus. Nothing here writes to the
+# database, so these are safe to re-run whenever labels or thresholds move —
+# unlike Database, which is one-time setup.
+
+on:
+  workflow_dispatch:
+    inputs:
+      job:
+        description: "Which report to run"
+        type: choice
+        default: validate-rubric
+        options:
+          - validate-rubric
+          - evaluate-baseline
+          - both
+      min_agreement:
+        description: "validate-rubric — fail below this percent agreement. 0 never fails."
+        type: string
+        default: "0"
+      verbose:
+        description: "evaluate-baseline — show every prediction"
+        type: boolean
+        default: false
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install
+        run: pip install -e './backend[postgres,ml]'
+
+      - uses: ./.github/actions/database-url
+        with:
+          url: ${{ secrets.DATABASE_URL }}
+
+      # Reports go to the step summary so they are readable without opening
+      # the log. stdout only: a traceback goes to stderr and stays in the log,
+      # since the summary is not a channel to push an unexpected string into.
+      - name: Rubric against the hand labels
+        if: inputs.job != 'evaluate-baseline'
+        env:
+          MIN_AGREEMENT: ${{ inputs.min_agreement }}
+        run: |
+          case "$MIN_AGREEMENT" in
+            ''|*[!0-9.]*|*.*.*) echo "::error::min_agreement must be a number: $MIN_AGREEMENT"; exit 1 ;;
+          esac
+          status=0
+          python jobs/validate_rubric.py --min-agreement "$MIN_AGREEMENT" > report.txt || status=$?
+          cat report.txt
+          {
+            echo "## Rubric validation"
+            echo
+            echo '```'
+            cat report.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit $status
+
+      - name: Pre-launch baseline
+        if: ${{ always() && inputs.job != 'validate-rubric' }}
+        env:
+          VERBOSE: ${{ inputs.verbose }}
+        run: |
+          args=()
+          [ "$VERBOSE" = "true" ] && args+=(--verbose)
+          status=0
+          python jobs/evaluate_baseline.py "${args[@]}" > baseline.txt || status=$?
+          cat baseline.txt
+          {
+            echo "## Pre-launch baseline"
+            echo
+            echo '```'
+            cat baseline.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit $status

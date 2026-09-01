@@ -7,6 +7,25 @@ They import the backend package directly (`sys.path` is extended to
 `/backend`), so they share its models, ingestion code and Steam client rather
 than reimplementing them.
 
+## Running them without a local toolchain
+
+Three workflows dispatch these from the Actions tab, so first-time setup needs
+no Python on your machine:
+
+| workflow | runs | when |
+|---|---|---|
+| **Database** | `alembic upgrade head`, then `backfill_historical.py` | once, to create the schema and load the corpus. Its `appids` input reloads named rows in seconds instead of repeating the ~50-minute full run. |
+| **Analysis** | `validate_rubric.py`, `evaluate_baseline.py` | any time. Read-only, so safe to re-run whenever labels or thresholds move. Output goes to the run's step summary. |
+| **Retrain** | `train_model.py` | 1st and 15th, or on demand. |
+
+All four places that read the `DATABASE_URL` secret go through
+`.github/actions/database-url`, a composite action that normalises the scheme,
+masks the URL and every credential fragment inside it, and refuses a password
+containing an unencoded `@` before opening a connection. It exists as one
+shared action rather than a copy per workflow because an earlier per-workflow
+copy masked only the leading fragment of a password, and a failed connection
+printed the rest into a build log.
+
 ## Available now
 
 ### `refresh_tracked_games.py`
