@@ -344,6 +344,53 @@ Access tail runs for months, a premium head start for days — but it changes
 what "launch window" means, so it is recorded here rather than quietly
 applied.
 
+## Four launch types the dates cannot settle
+
+`derive_platform_launch_type` compares `steam_release_date` against
+`original_release_date` and calls anything past the seven-day tolerance a
+delayed port. That is right for a console-first title and wrong for two other
+shapes, both of which put a large date gap on a game that never left Steam.
+
+**Early Access graduations.** The project's rule is that a launch is the 1.0
+version, so an Early Access period ends at a day-one Steam launch. Baldur's
+Gate 3 and Hades already work this way and need no curation, because their
+Wikidata items carry 1.0 dates — BG3 is labeled `breakout` on a 2023-08-03
+launch after three years in Early Access. Palworld, Grounded and Starship
+Troopers: Extermination differ only in that Wikidata dates *them* from their
+Early Access start, so the gap reads as a port. That is a data inconsistency,
+not a different kind of release, and they are curated to `day_one_steam` to
+match.
+
+**A former store exclusive.** Metro Exodus launched on PC via Epic on
+2019-02-15 and returned to Steam sale on 2020-02-14. Steam pre-orders placed
+before the exclusivity deal was announced were honoured, so the game accrued
+6,677 Steam reviews across the 13-month gap while no new copies could be
+bought. Neither date bounds a representative launch window — the earlier one
+sees only the pre-order cohort, the later one a re-listing into a year of
+existing reputation. It is curated `former_exclusive`, which keeps it out of
+the cohort and out of labeling rather than dating it to whichever is
+convenient.
+
+### Why this is curated rather than detected
+
+The obvious probe is to look for reviews before the recorded date, which
+`launch_window.py` already does. It cannot separate these two cases. Measured
+month by month across each game's gap:
+
+| game | gap | months with reviews | reviews before the Steam date |
+|---|---|---|---|
+| Palworld | 31 months | 31 / 31 | 425,126 |
+| Grounded | 27 months | 27 / 27 | 35,629 |
+| Starship Troopers: Extermination | 18 months | 18 / 18 | 27,984 |
+| Metro Exodus | 13 months | 13 / 13 | 6,677 |
+
+All four sold continuously on Steam for the whole gap, so no threshold on
+volume, spread or recency tells an Early Access build apart from a shipped
+game whose store listing was closed to new buyers. What separates them is the
+commercial arrangement behind the listing, which no Steam field reports —
+exactly the case `platform_launch_type` exists in the curated CSV to carry,
+and `app/backfill.py` prefers a curated value over the derived one.
+
 ## The cohort is day-one launches only
 
 Cohort normalization ranks a launch against its peers from the same year. The
