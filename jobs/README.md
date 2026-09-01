@@ -244,7 +244,9 @@ Three constraints are structural rather than configured:
 
 Writes a **review file**, never the database and never the curated CSV. The
 `verdict` column triages: `launch_price` means ITAD's earliest record sits
-within 60 days of release; `too_late` means ITAD only began tracking that title
+between 30 days before release and 60 after — the window opens early because
+the request asks from before release, and the oldest record is usually the
+pre-order listing, whose regular price is the launch price; `too_late` means ITAD only began tracking that title
 years later, so its earliest price is a re-tier and not the launch price; and
 `suspect_shape` means the parser understood only part of the response, so the
 "earliest" record it found may not be the earliest at all and the number means
