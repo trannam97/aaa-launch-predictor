@@ -9,16 +9,23 @@ than reimplementing them.
 
 ## Running them without a local toolchain
 
-Three workflows dispatch these from the Actions tab, so first-time setup needs
-no Python on your machine:
+Four workflows dispatch these from the Actions tab, so nothing here needs
+Python on your machine. They split by what they do to the data:
 
-| workflow | runs | when |
-|---|---|---|
-| **Database** | `alembic upgrade head`, then `backfill_historical.py` | once, to create the schema and load the corpus. Its `appids` input reloads named rows in seconds instead of repeating the ~50-minute full run. |
-| **Analysis** | `validate_rubric.py`, `evaluate_baseline.py` | any time. Read-only, so safe to re-run whenever labels or thresholds move. Output goes to the run's step summary. |
-| **Retrain** | `train_model.py` | 1st and 15th, or on demand. |
+| workflow | runs | writes | when |
+|---|---|---|---|
+| **Database** | `alembic upgrade head`, `backfill_historical.py`, `detect_launch_start.py` | the database | once, to create the schema and load the corpus, and again when the launch-window correction is applied. `appids` reloads named rows in seconds rather than repeating the ~50-minute full run. |
+| **Analysis** | `validate_rubric.py`, `evaluate_baseline.py` | nothing | any time. Read-only, so safe to re-run whenever labels or thresholds move. Output goes to the run's step summary. |
+| **Research** | `backfill_launch_prices.py`, `draft_studio_signals.py` | a file you download | when filling curated columns. Proposes values for review; both cost quota or money per row, so both take a `limit`. |
+| **Retrain** | `train_model.py` | a model artifact | 1st and 15th, or on demand. |
 
-All four places that read the `DATABASE_URL` secret go through
+The split matters when adding a job: anything that writes the database belongs
+in **Database**, anything that only reports belongs in **Analysis**, and
+anything that proposes a curated value belongs in **Research** — where the
+output is a review file rather than a write, because those columns are curated
+precisely because the automated answer is wrong often enough to matter.
+
+All seven places that read the `DATABASE_URL` secret go through
 `.github/actions/database-url`, a composite action that normalises the scheme,
 masks the URL and every credential fragment inside it, and refuses a password
 containing an unencoded `@` before opening a connection. It exists as one
@@ -174,6 +181,8 @@ hosted database, so scheduled runs don't start failing against a
 
 ### `draft_studio_signals.py`
 
+Run it from **Actions -> Research -> `signal-drafts`**, or locally:
+
 ```
 DATABASE_URL=... python jobs/draft_studio_signals.py --list          # free, no API call
 DATABASE_URL=... ANTHROPIC_API_KEY=... python jobs/draft_studio_signals.py --limit 5
@@ -203,6 +212,8 @@ absorptions are not. Never merge one unread.
 One Claude call with web search per game, so start with `--limit`.
 
 ### `backfill_launch_prices.py`
+
+Run it from **Actions -> Research -> `launch-prices`**, or locally:
 
 ```
 DATABASE_URL=... python jobs/backfill_launch_prices.py --list       # free, no API call
