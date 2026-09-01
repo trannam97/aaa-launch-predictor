@@ -15,6 +15,8 @@ migrate — see that folder's notes in `backend/README.md`.
 | `historical_releases.csv` | **Curated input** for the backfill — one row per game, holding only what Steam cannot answer. |
 | `historical_releases_seed.csv` | The original 13-game research batch, kept as provenance. Superseded by the file above; not read by any code. |
 | `game_list.csv` | **Generated snapshot**, not input. One row per game with the tier currently assigned and how it was arrived at. Read by nothing; regenerate rather than edit. |
+| `signal_drafts.csv` | **Unverified research output**, not input. Drafted studio and support signals awaiting human review. Read by nothing; values move to the curated CSV only after a reviewer opens the sources. |
+| `launch_price_proposals.csv` | **Unverified lookup output**, not input. Launch prices proposed from ITAD price history, with a verdict saying whether the record is close enough to release to be trusted. Read by nothing. |
 
 ### `game_list.csv` is a snapshot, and will go stale
 

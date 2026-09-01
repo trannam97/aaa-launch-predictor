@@ -171,3 +171,73 @@ Per `PROJECT_SPEC.md`:
 `retrain.yml` is the only scheduled workflow so far. The rest land with the
 hosted database, so scheduled runs don't start failing against a
 `DATABASE_URL` that doesn't exist.
+
+### `draft_studio_signals.py`
+
+```
+DATABASE_URL=... python jobs/draft_studio_signals.py --list          # free, no API call
+DATABASE_URL=... ANTHROPIC_API_KEY=... python jobs/draft_studio_signals.py --limit 5
+```
+
+Drafts `studio_signal` and `support_signal` with Claude and web search, for the
+rows the rubric refuses to call. Needs the `research` extra (`pip install -e
+'./backend[postgres,research]'`).
+
+**It writes a review file, never the database and never the curated CSV.** A
+draft is not a label: a reviewer opens the sources, and only a verified value is
+copied into `historical_releases.csv` by hand. The failure mode here is not a
+wrong tier — it is a wrong tier with a plausible sentence attached, which is
+exactly what survives a skim.
+
+Selection runs the real rubric over unlabeled day-one releases and keeps the
+ones it cannot resolve, so nothing is researched whose signals the rubric would
+not have read. About 40% of unlabeled rows meet expectations and get a tier from
+Steam data alone; researching those would spend a call to learn something
+nothing consumes.
+
+Output carries a `needs_attention` column. `CLOSED-verify` is the one that
+matters: `closed` is a hard override straight to Flop, and it is also the value
+the evidence is biased towards, since closures are announced while quiet
+absorptions are not. Never merge one unread.
+
+One Claude call with web search per game, so start with `--limit`.
+
+### `backfill_launch_prices.py`
+
+```
+DATABASE_URL=... python jobs/backfill_launch_prices.py --list       # free, no API call
+DATABASE_URL=... ITAD_API_KEY=... python jobs/backfill_launch_prices.py --limit 20
+```
+
+Proposes `launch_price_usd` from IsThereAnyDeal's Steam price history. Needs a
+free key from isthereanydeal.com/apps/dev; no new Python dependency.
+
+170 of 206 rows have no launch price, and a missing one does not read as
+missing — `app/features.py` turns it into `0.0`, which the model reads as a free
+game rather than an unknown. Every one of those rows carries that value into
+training the moment it gets a label, which is what the signal-research queue is
+about to start doing.
+
+An LLM is the wrong tool for this: a launch price is a fact with a database
+behind it, the same reason release dates come from Wikidata rather than from
+asking a model.
+
+Three constraints are structural rather than configured:
+
+- **Standard edition** — the join is on Steam appid, and a deluxe or gold tier
+  is a separate Steam app. Nothing has to filter for it.
+- **US** — `country=US`, which is what `launch_price_usd` has always meant.
+- **Regular price, not the sale price** — every ITAD record carries the
+  undiscounted regular price alongside what was charged, so a launch-week
+  discount never has to be filtered out.
+
+Writes a **review file**, never the database and never the curated CSV. The
+`verdict` column triages: `launch_price` means ITAD's earliest record sits
+within 60 days of release; `too_late` means ITAD only began tracking that title
+years later, so its earliest price is a re-tier and not the launch price. Those
+are the rows left for a human or an LLM pass.
+
+`--dump-raw` writes the first raw history response to a file. ITAD's history
+shape is not publicly documented and the parser was written without a key, so
+this captures the real shape rather than guessing at it twice.
+
