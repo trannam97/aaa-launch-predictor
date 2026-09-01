@@ -45,14 +45,14 @@ FLAT = [
 def test_takes_the_oldest_record(history):
     observed = earliest_regular_price(history)
 
-    assert observed is not None
-    assert observed.recorded_on == date(2023, 10, 5)
+    assert observed.observation is not None
+    assert observed.observation.recorded_on == date(2023, 10, 5)
 
 
 @pytest.mark.parametrize("history", [NESTED, FLAT])
 def test_reads_the_regular_price_not_the_sale_price(history):
     """A launch-week discount must not become the launch price."""
-    assert earliest_regular_price(history).price_cents == 5999
+    assert earliest_regular_price(history).observation.price_cents == 5999
 
 
 def test_reads_the_regular_price_even_from_a_discounted_record():
@@ -62,7 +62,7 @@ def test_reads_the_regular_price_even_from_a_discounted_record():
             "deal": {"price": {"amount": 17.99}, "regular": {"amount": 59.99}, "cut": 70},
         }
     ]
-    assert earliest_regular_price(discounted_only).price_cents == 5999
+    assert earliest_regular_price(discounted_only).observation.price_cents == 5999
 
 
 @pytest.mark.parametrize(
@@ -70,11 +70,14 @@ def test_reads_the_regular_price_even_from_a_discounted_record():
     [{"history": NESTED}, {"data": NESTED}, {"prices": NESTED}],
 )
 def test_unwraps_an_enveloped_payload(wrapped):
-    assert earliest_regular_price(wrapped).price_cents == 5999
+    assert earliest_regular_price(wrapped).observation.price_cents == 5999
 
 
 def test_empty_history_is_absence_not_an_error():
-    assert earliest_regular_price([]) is None
+    read = earliest_regular_price([])
+
+    assert read.observation is None
+    assert read.total == 0
 
 
 def test_an_unrecognised_entry_names_what_it_saw():
@@ -145,3 +148,48 @@ def test_a_pasted_newline_is_stripped_from_the_key():
     """A secret copied with a trailing newline reaches ITAD as %0A."""
     assert ItadClient("abc123\n", client=object())._key == "abc123"
     assert ItadClient("  abc123  ", client=object())._key == "abc123"
+
+
+# --- partial parsing must never look like a complete answer -----------------
+
+
+def test_a_partly_understood_payload_is_flagged():
+    """The failure this parser is most likely to have, made visible.
+
+    One entry in a shape `_observe` knows, beside entries it does not, used to
+    return that one entry as "the oldest record" with nothing to say otherwise.
+    A single current price is indistinguishable from a real history that way.
+    """
+    mixed = [
+        {"timestamp": "2026-09-01T00:00:00Z", "deal": {"regular": {"amount": 19.99}, "cut": 0}},
+        {"unrecognised": "shape"},
+        {"another": "unknown"},
+    ]
+    read = earliest_regular_price(mixed)
+
+    assert read.parsed == 1
+    assert read.total == 3
+    assert read.is_suspect
+    assert "parsed 1 of 3" in read.coverage
+
+
+def test_a_fully_understood_payload_is_not_flagged():
+    read = earliest_regular_price(NESTED)
+
+    assert read.parsed == read.total == 2
+    assert not read.is_suspect
+
+
+def test_a_suspect_read_is_never_called_a_launch_price():
+    """Date arithmetic on a partial payload is meaningless, so refuse it."""
+    found = LaunchPrice(
+        price_cents=1999,
+        observed_on=date(2026, 9, 1),
+        days_after_release=0,  # would otherwise pass the window cleanly
+        coverage="parsed 1 of 340 history entries",
+        suspect_shape=True,
+    )
+
+    assert not found.is_launch_price
+    assert "UNRELIABLE" in found.note
+    assert "parsed 1 of 340" in found.note

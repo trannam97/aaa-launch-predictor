@@ -245,8 +245,10 @@ Three constraints are structural rather than configured:
 Writes a **review file**, never the database and never the curated CSV. The
 `verdict` column triages: `launch_price` means ITAD's earliest record sits
 within 60 days of release; `too_late` means ITAD only began tracking that title
-years later, so its earliest price is a re-tier and not the launch price. Those
-are the rows left for a human or an LLM pass.
+years later, so its earliest price is a re-tier and not the launch price; and
+`suspect_shape` means the parser understood only part of the response, so the
+"earliest" record it found may not be the earliest at all and the number means
+nothing until the shape is settled.
 
 `--dump-raw` writes the first raw history response to a file. ITAD's history
 shape is not publicly documented and the parser was written without a key, so

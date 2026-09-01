@@ -83,6 +83,31 @@ class ItadShapeError(ItadError):
 
 
 @dataclass(slots=True)
+class HistoryRead:
+    """What a history payload yielded, and how much of it was understood.
+
+    The coverage counts exist because silent partial parsing is the failure
+    this parser is most likely to have: `_observe` returns None for any shape
+    it does not recognise, so understanding one entry out of three hundred
+    looks identical to a game with a single price record. It is not — and the
+    difference decides whether a result means anything.
+    """
+
+    observation: PriceObservation | None
+    parsed: int
+    total: int
+
+    @property
+    def coverage(self) -> str:
+        return f"parsed {self.parsed} of {self.total} history entries"
+
+    @property
+    def is_suspect(self) -> bool:
+        """Too little understood for the oldest record to be meaningful."""
+        return self.total > 1 and self.parsed < self.total
+
+
+@dataclass(slots=True)
 class PriceObservation:
     """One recorded regular price. Not a deal price — see `_observe`."""
 
@@ -97,16 +122,22 @@ class LaunchPrice:
     price_cents: int
     observed_on: date
     days_after_release: int | None
+    coverage: str = ""
+    suspect_shape: bool = False
 
     @property
     def is_launch_price(self) -> bool:
         """False when the earliest record is too late to speak for the launch."""
-        if self.days_after_release is None:
+        if self.suspect_shape or self.days_after_release is None:
             return False
         return -1 <= self.days_after_release <= LAUNCH_WINDOW_DAYS
 
     @property
     def note(self) -> str:
+        if self.suspect_shape:
+            # Reported before the date arithmetic, because a partly-understood
+            # payload makes "how old is the oldest record" meaningless.
+            return f"UNRELIABLE — {self.coverage}, so this may not be the oldest"
         if self.days_after_release is None:
             return "no release date to measure against"
         if self.is_launch_price:
@@ -176,8 +207,8 @@ def _observe(entry: Any) -> PriceObservation | None:
     return PriceObservation(price_cents=cents, recorded_on=when)
 
 
-def earliest_regular_price(history: Any) -> PriceObservation | None:
-    """The oldest regular price in a history payload, or None if it holds none."""
+def earliest_regular_price(history: Any) -> HistoryRead:
+    """The oldest regular price in a payload, with how much of it was read."""
     entries = history
     if isinstance(history, dict):
         for key in ("history", "data", "prices"):
@@ -187,13 +218,17 @@ def earliest_regular_price(history: Any) -> PriceObservation | None:
     if not isinstance(entries, list):
         raise ItadShapeError(f"expected a list of history entries, got {type(entries).__name__}")
     if not entries:
-        return None
+        return HistoryRead(observation=None, parsed=0, total=0)
 
     seen = [obs for obs in (_observe(e) for e in entries) if obs is not None]
     if not seen:
         keys = sorted(entries[0].keys()) if isinstance(entries[0], dict) else repr(entries[0])[:80]
         raise ItadShapeError(f"no price/date pair in a history entry; keys seen: {keys}")
-    return min(seen, key=lambda obs: obs.recorded_on)
+    return HistoryRead(
+        observation=min(seen, key=lambda obs: obs.recorded_on),
+        parsed=len(seen),
+        total=len(entries),
+    )
 
 
 def _explain_403(body: str) -> str:
@@ -273,12 +308,15 @@ class ItadClient:
         itad_id = self.lookup(steam_appid)
         if itad_id is None:
             return None
-        observation = earliest_regular_price(self.history(itad_id))
-        if observation is None:
+        read = earliest_regular_price(self.history(itad_id))
+        if read.observation is None:
             return None
-        gap = (observation.recorded_on - release_date).days if release_date else None
+        oldest = read.observation
+        gap = (oldest.recorded_on - release_date).days if release_date else None
         return LaunchPrice(
-            price_cents=observation.price_cents,
-            observed_on=observation.recorded_on,
+            price_cents=oldest.price_cents,
+            observed_on=oldest.recorded_on,
             days_after_release=gap,
+            coverage=read.coverage,
+            suspect_shape=read.is_suspect,
         )

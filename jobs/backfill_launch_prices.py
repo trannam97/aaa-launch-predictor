@@ -150,7 +150,13 @@ def main(argv: list[str] | None = None) -> int:
                 {
                     "steam_appid": appid,
                     "game_name": name,
-                    "verdict": "launch_price" if found.is_launch_price else "too_late",
+                    "verdict": (
+                        "suspect_shape"
+                        if found.suspect_shape
+                        else "launch_price"
+                        if found.is_launch_price
+                        else "too_late"
+                    ),
                     "launch_price_usd": f"{found.price_cents / 100:.2f}",
                     "observed_on": found.observed_on.isoformat(),
                     "days_after_release": found.days_after_release,
@@ -167,10 +173,14 @@ def main(argv: list[str] | None = None) -> int:
         writer.writerows(rows)
 
     usable = sum(1 for r in rows if r["verdict"] == "launch_price")
+    suspect = sum(1 for r in rows if r["verdict"] == "suspect_shape")
     print()
     print(f"  looked up          {len(targets)}")
     print(f"  usable at face     {usable}")
-    print(f"  too late to trust  {len(rows) - usable}")
+    print(f"  too late to trust  {len(rows) - usable - suspect}")
+    if suspect:
+        print(f"  UNRELIABLE shape   {suspect}   <- the parser understood only part of the")
+        print("                            response; these numbers mean nothing yet")
     print(f"  not tracked        {missing}")
     print(f"  failed             {failed}")
     print(f"  written to         {args.out}")
