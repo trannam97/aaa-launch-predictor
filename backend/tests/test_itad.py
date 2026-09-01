@@ -104,7 +104,11 @@ def test_a_non_list_payload_raises():
         (LAUNCH_WINDOW_DAYS + 1, False),
         (1500, False),  # ITAD started tracking a 2015 title in 2019
         (-1, True),  # a pre-order listing the day before release
-        (-30, False),  # too far ahead to be the launch listing
+        # The margin `history` asks from. Every row of the first working run
+        # landed here and was wrongly discarded.
+        (-25, True),
+        (-30, True),
+        (-31, False),  # earlier than we asked for, so unexplained
         (None, False),  # no release date to measure against
     ],
 )
@@ -242,3 +246,22 @@ def test_coverage_reports_the_span_actually_returned():
     read = earliest_regular_price(NESTED)
 
     assert "spanning 2023-10-05 to 2024-03-01" in read.coverage
+
+
+def test_a_pre_order_listing_is_the_launch_price():
+    """The record the `since` margin exists to fetch, and it must count.
+
+    Watch_Dogs came back at $59.99 observed 30 days before release — correct,
+    and its actual 2014 launch price. A bound of -1 discarded all twenty rows
+    of the first working run for being exactly what was asked for.
+    """
+    found = LaunchPrice(
+        price_cents=5999,
+        observed_on=date(2014, 4, 26),
+        days_after_release=-30,
+        coverage="parsed 5 of 5 history entries, spanning 2014-04-26 to 2014-06-01",
+    )
+
+    assert found.is_launch_price
+    assert "pre-order listing, 30d before release" in found.note
+    assert "not necessarily" not in found.note

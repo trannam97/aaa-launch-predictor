@@ -136,10 +136,22 @@ class LaunchPrice:
 
     @property
     def is_launch_price(self) -> bool:
-        """False when the earliest record is too late to speak for the launch."""
+        """Whether this record can speak for the launch.
+
+        The window opens before release on purpose. `history` is asked from
+        SINCE_MARGIN_DAYS ahead of the date, so the oldest record ITAD holds is
+        typically the pre-order listing — and a pre-order listing's *regular*
+        price is the launch price. Publishers set it once and charge it on the
+        day; a launch discount appears as a `cut` against that same regular
+        figure, which `_observe` already reads past.
+
+        An earlier bound of -1 rejected exactly the records the margin exists
+        to fetch: every row in the first working run sat at -25 to -30 days and
+        was thrown away as "too late".
+        """
         if self.suspect_shape or self.days_after_release is None:
             return False
-        return -1 <= self.days_after_release <= LAUNCH_WINDOW_DAYS
+        return -SINCE_MARGIN_DAYS <= self.days_after_release <= LAUNCH_WINDOW_DAYS
 
     @property
     def note(self) -> str:
@@ -150,9 +162,14 @@ class LaunchPrice:
         if self.days_after_release is None:
             return "no release date to measure against"
         if self.is_launch_price:
+            if self.days_after_release < 0:
+                return f"pre-order listing, {-self.days_after_release}d before release"
             return f"observed {self.days_after_release}d after release"
         if self.days_after_release < 0:
-            return f"observed {-self.days_after_release}d BEFORE release — pre-order listing"
+            return (
+                f"observed {-self.days_after_release}d before release — earlier than the "
+                "window asked for, so not necessarily the launch listing"
+            )
         return (
             f"earliest record is {self.days_after_release}d after release, "
             f"not the launch price ({self.coverage})"
