@@ -27,7 +27,7 @@ corpus with 35 labels (32 scored — day-one Steam releases only, MMOs excluded)
 
 | Component | Result | Note |
 |---|---|---|
-| Outcome rubric (post-launch) | **100%** met-expectations, 90.6% exact | Works on the falsifiable axis. Not wired into any endpoint. |
+| Outcome rubric (post-launch) | **100%** met-expectations, 93.8% exact | Measured against the live database. Works on the falsifiable axis. Not wired into any endpoint. Read the resolution note below before comparing this figure to another. |
 | Rule-based baseline (pre-launch) | **31.2%** | Loses to always guessing `underperform` (**34.4%**) |
 | Ordinal model (pre-launch) | **38.8%** | Beats the baseline, loses to the constant on ordinal distance; gate refuses it, no artifact written |
 | Company tiering clustering | **Failed** | Unstable; writes no tiers. See ml/README.md |
@@ -705,6 +705,33 @@ Two distinct mechanisms, both consequences of the correction being right:
 - **Clair Obscur: Expedition 33** did not change at all. Its cohort did: other
   2024–25 launches grew, raising the bar, and its percentile fell from 81.4 to
   79 — one point below `BREAKOUT_VOLUME_WITH_MOMENTUM` (80).
+
+**Measured against the live database, Clair Obscur crossed back.** Running
+`detect_launch_start.py` for the first time against real data shifted nine
+releases and left exact agreement at 93.8%, not the 90.6% recorded above: Space
+Marine 2 still falls to success, but Clair Obscur returned to breakout. Nothing
+about the rubric changed. Its percentile had been 79 against a threshold of 80,
+and curating three Early Access graduations into the day-one cohort moved it
+about half a point — two rows joined its window, Starship Troopers:
+Extermination at 880 launch reviews and Palworld at 23,346, both below it.
+
+That is the whole of the difference between 90.6% and 93.8%: one row, one
+point from a line.
+
+#### The metric's resolution is one row
+With 32 scored releases a single row is worth 3.1 points of exact agreement, so
+this figure moves by ±3 points whenever the cohort shifts without anything
+about the rubric changing. Every disagreement seen so far sits within a few
+points of a threshold rather than being confidently wrong:
+
+| release | miss | margin |
+|---|---|---|
+| Clair Obscur: Expedition 33 | breakout ↔ success | 1 point (79 vs `BREAKOUT_VOLUME_WITH_MOMENTUM` 80) |
+| Warhammer 40,000: Space Marine 2 | breakout → success | 4 points (86 vs `BREAKOUT_VOLUME` 90); retention 1.78 vs 2.0 |
+| Suicide Squad: Kill the Justice League | flop → underperform | 3 points (75% vs `SENTIMENT_BAR` 78%) |
+
+Quote the figure with the count it came from, and treat a 3-point move between
+runs as noise until the labeled set is large enough for it not to be.
 
 `RETENTION_STRONG` (2.5), `RETENTION_SUSTAINED` (2.0) and
 `BREAKOUT_VOLUME_WITH_MOMENTUM` (80) were all fitted against narrower windows

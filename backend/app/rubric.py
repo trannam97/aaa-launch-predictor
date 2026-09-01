@@ -223,8 +223,37 @@ def _resolve_lower(signals: RubricInput, reasons: list[str]) -> RubricResult:
         reasons.append("severe layoffs, but the studio delivered its planned support")
         return RubricResult(Outcome.UNDERPERFORM, "medium", reasons)
 
-    reasons.append("studio continued operating and the game kept being supported")
+    reasons.append(_survived_reason(studio, support))
     return RubricResult(Outcome.UNDERPERFORM, "high", reasons)
+
+
+# Studio phrasing for the branch below. GREW and CONTINUED are the only values
+# that reach it: CLOSED and SEVERE_LAYOFFS are handled above, and UNKNOWN falls
+# through to the default.
+_STUDIO_PHRASE = {
+    StudioSignal.GREW: "the studio grew",
+    StudioSignal.CONTINUED: "the studio continued operating",
+}
+
+_SUPPORT_PHRASE = {
+    SupportSignal.SUSTAINED: "the game kept being supported",
+    SupportSignal.CURTAILED: "post-launch support was curtailed",
+}
+
+
+def _survived_reason(studio: StudioSignal, support: SupportSignal) -> str:
+    """Describe the signals that put a shortfall at Underperform rather than Flop.
+
+    This is the fall-through branch, so it covers every combination the rules
+    above did not claim — including `CURTAILED` support, which only decides an
+    outcome when paired with severe layoffs. The sentence therefore has to read
+    the signals rather than assert the common case: it previously said the game
+    "kept being supported" for curtailed rows too, which the data contradicts.
+    """
+    return (
+        f"{_STUDIO_PHRASE.get(studio, 'no studio-outcome signal')} and "
+        f"{_SUPPORT_PHRASE.get(support, 'no post-launch support signal')}"
+    )
 
 
 def _confidence(signals: RubricInput, *, strong: bool) -> str:
