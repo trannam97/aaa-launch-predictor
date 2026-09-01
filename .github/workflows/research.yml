@@ -20,7 +20,10 @@ on:
           - launch-prices
           - signal-drafts
       limit:
-        description: "How many rows to process. Blank runs the whole queue."
+        # Not "leave blank for all": GitHub substitutes an input's default when
+        # the field is submitted empty, so blank can only ever mean 20. The
+        # whole queue needs a value of its own.
+        description: "How many rows to process, or `all` for the whole queue (launch-prices only)."
         type: string
         default: "20"
       dump_raw:
@@ -60,14 +63,15 @@ jobs:
           DUMP_RAW: ${{ inputs.dump_raw }}
         run: |
           case "$LIMIT" in
-            ''|*[!0-9]*) [ -z "$LIMIT" ] || { echo "::error::limit must be a whole number: $LIMIT"; exit 1; } ;;
+            all) ;;
+            ''|*[!0-9]*) echo "::error::limit must be a whole number or 'all': $LIMIT"; exit 1 ;;
           esac
           # tee succeeds even when the job exits non-zero, so without pipefail
           # a total failure reports green — which is exactly what the first run
           # of this workflow did.
           set -o pipefail
           args=()
-          [ -n "$LIMIT" ] && args+=(--limit "$LIMIT")
+          [ "$LIMIT" = "all" ] || args+=(--limit "$LIMIT")
           [ "$DUMP_RAW" = "true" ] && args+=(--dump-raw itad-history-shape.json)
           status=0
           python jobs/backfill_launch_prices.py "${args[@]}" | tee prices.log || status=$?
@@ -116,6 +120,7 @@ jobs:
           LIMIT: ${{ inputs.limit }}
         run: |
           case "$LIMIT" in
+            all) echo "::error::signal-drafts will not run 'all' — each row is a Claude call with web search. Name a number."; exit 1 ;;
             ''|*[!0-9]*) echo "::error::signal-drafts needs a numeric limit; each row costs a call"; exit 1 ;;
           esac
           set -o pipefail
