@@ -415,9 +415,45 @@ Crucially the rubric got *better*, with no threshold retuned:
 | All releases (previous) | 100% | 93.8% | 0.06 |
 | Day-one only | 100% | **96.9%** | **0.03** |
 
-(The launch-window correction that followed took exact agreement to 90.6% —
-see the Retention Thresholds note in `PROJECT_SPEC.md`. Met-expectations
-stayed at 100% throughout.)
+(The launch-window correction that followed took exact agreement to 90.6%, and
+running it against the live database returned 93.8% — one row, Clair Obscur,
+sitting a point from a threshold. See the Retention Thresholds note in
+`PROJECT_SPEC.md`. Met-expectations stayed at 100% throughout.)
+
+### The one remaining disagreement is a label, not a rubric gap
+
+Suicide Squad is hand-labeled `flop` where the rubric says `underperform`, and
+it is tempting to read that as the flop/underperform separator being too
+lenient. Grouping every labeled row by the two signals that separator reads
+says otherwise:
+
+| studio signal | support signal | hand labels |
+|---|---|---|
+| closed | abandoned | flop ×3 |
+| continued | abandoned | flop ×2 |
+| **continued** | **curtailed** | **flop ×1, underperform ×5** |
+| continued | sustained | underperform ×5, success ×5, breakout ×2 |
+| severe layoffs | abandoned | flop ×1 |
+| severe layoffs | curtailed | flop ×1 |
+| severe layoffs | sustained | underperform ×2 |
+
+Suicide Squad is the lone `flop` in a signal class where five other rows are
+`underperform`. The rubric is making the majority call for that class; the hand
+label is the exception, argued from commercial magnitude — a ~$200M write-down
+and a 41% fall in WB's game division revenue — rather than from studio fate or
+support. Changing the rubric to agree with it would break the five rows it
+currently gets right, on a sample of one.
+
+What the row actually shows is that the flop/underperform separator measures
+*consequence* (did the studio die, was the game abandoned) while the label
+sometimes measures *magnitude*. Both are defensible; they are not the same
+question, and only one of them is answerable from signals we can research
+consistently.
+
+One narrower thing is worth fixing, and is not tuning: the rubric's fall-through
+branch reports "studio continued operating and the game kept being supported"
+for any row that reaches it, including `curtailed` ones like this. The tier is
+defensible, the sentence is not — it asserts something the data contradicts.
 
 That is the evidence this is a correction rather than a recalibration: the
 thresholds were tuned against the contaminated distribution and still improved
