@@ -54,9 +54,9 @@ the prediction logic stays inspectable rather than a black box.
 
 ## Tech stack
 
-FastAPI (backend) · Next.js (frontend) · Postgres via Supabase · XGBoost/
-LightGBM (ML model) · Claude (LLM reasoning layer) · GitHub Actions
-(scheduled jobs)
+FastAPI (backend) · Next.js (frontend) · Postgres via Supabase · scikit-learn
+gradient boosting, ordinally decomposed (ML model) · Claude (LLM reasoning
+layer) · GitHub Actions (setup, analysis, research and retraining)
 
 ## Repo layout
 
@@ -65,7 +65,7 @@ LightGBM (ML model) · Claude (LLM reasoning layer) · GitHub Actions
 | `/backend` | FastAPI app — Steam client, ingestion pipeline, API, DB migrations |
 | `/frontend` | Next.js dashboard |
 | `/data` | Curated datasets shared by the backend, jobs and ML code |
-| `/jobs` | Scripts GitHub Actions runs on a schedule |
+| `/jobs` | Scripts run from the Actions tab — setup, analysis and research. Only retraining is scheduled; see `jobs/README.md` |
 | `/ml` | Model fitting, cross-validation and company-tiering clustering |
 | `/reports` | Per-phase reports on what shipped and what the data showed |
 

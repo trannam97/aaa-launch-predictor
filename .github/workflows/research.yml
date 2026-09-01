@@ -1,0 +1,132 @@
+name: Research
+
+# Passes that propose curated values for a human to verify. Neither writes the
+# database or the curated CSV — each uploads a review file you download, check,
+# and copy from by hand. That is the whole point: these columns are curated
+# because the obvious automated answer is wrong often enough to matter.
+#
+# Separate from Database (which writes) and Analysis (which reports to the step
+# summary) because the deliverable here is a file, and because both cost money
+# or quota per row.
+
+on:
+  workflow_dispatch:
+    inputs:
+      job:
+        description: "Which research pass to run"
+        type: choice
+        default: launch-prices
+        options:
+          - launch-prices
+          - signal-drafts
+      limit:
+        description: "How many rows to process. Blank runs the whole queue."
+        type: string
+        default: "20"
+      dump_raw:
+        description: "launch-prices only — capture the first raw ITAD response to settle its shape"
+        type: boolean
+        default: false
+
+# Two runs of the same pass would spend the quota twice for the same rows.
+concurrency:
+  group: research-${{ inputs.job }}
+  cancel-in-progress: false
+
+jobs:
+  launch-prices:
+    if: inputs.job == 'launch-prices'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      # No research extra: the ITAD client uses httpx, already a core dependency.
+      - name: Install
+        run: pip install -e './backend[postgres]'
+
+      - uses: ./.github/actions/database-url
+        with:
+          url: ${{ secrets.DATABASE_URL }}
+
+      - name: Propose launch prices from ITAD
+        env:
+          ITAD_API_KEY: ${{ secrets.ITAD_API_KEY }}
+          LIMIT: ${{ inputs.limit }}
+          DUMP_RAW: ${{ inputs.dump_raw }}
+        run: |
+          case "$LIMIT" in
+            ''|*[!0-9]*) [ -z "$LIMIT" ] || { echo "::error::limit must be a whole number: $LIMIT"; exit 1; } ;;
+          esac
+          args=()
+          [ -n "$LIMIT" ] && args+=(--limit "$LIMIT")
+          [ "$DUMP_RAW" = "true" ] && args+=(--dump-raw itad-history-shape.json)
+          python jobs/backfill_launch_prices.py "${args[@]}" | tee prices.log
+          {
+            echo "## Launch price proposals"
+            echo
+            echo '```'
+            tail -12 prices.log
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Keep the proposals
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: launch-price-proposals
+          path: |
+            data/launch_price_proposals.csv
+            itad-history-shape.json
+          if-no-files-found: warn
+
+  signal-drafts:
+    if: inputs.job == 'signal-drafts'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install
+        run: pip install -e './backend[postgres,research]'
+
+      - uses: ./.github/actions/database-url
+        with:
+          url: ${{ secrets.DATABASE_URL }}
+
+      # One Claude call with web search per game, so the limit is not optional
+      # here the way it is for ITAD — a blank runs the whole queue and bills it.
+      - name: Draft studio and support signals
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          LIMIT: ${{ inputs.limit }}
+        run: |
+          case "$LIMIT" in
+            ''|*[!0-9]*) echo "::error::signal-drafts needs a numeric limit; each row costs a call"; exit 1 ;;
+          esac
+          python jobs/draft_studio_signals.py --limit "$LIMIT" | tee drafts.log
+          {
+            echo "## Signal drafts"
+            echo
+            echo '```'
+            tail -12 drafts.log
+            echo '```'
+            echo
+            echo "Drafts, not labels. Rows flagged **CLOSED-verify** must be read before use."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Keep the drafts
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: signal-drafts
+          path: data/signal_drafts.csv
+          if-no-files-found: warn
