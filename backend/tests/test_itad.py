@@ -10,12 +10,14 @@ from __future__ import annotations
 
 from datetime import date
 
+import httpx
 import pytest
 
 from app.itad import (
     LAUNCH_WINDOW_DAYS,
     STEAM_SHOP_ID,
     ItadClient,
+    ItadError,
     ItadShapeError,
     LaunchPrice,
     _explain_403,
@@ -193,3 +195,50 @@ def test_a_suspect_read_is_never_called_a_launch_price():
     assert not found.is_launch_price
     assert "UNRELIABLE" in found.note
     assert "parsed 1 of 340" in found.note
+
+
+# --- reaching past the default window ---------------------------------------
+
+
+def test_history_asks_from_before_release():
+    """Without `since`, ITAD answers with a recent window only.
+
+    A captured response held five change events across eleven weeks, every one
+    carrying the title's present regular price rather than anything it launched
+    at. `since` is the difference between reading history and reading today.
+    """
+    seen: dict[str, object] = {}
+
+    class Recorder:
+        def get(self, url, params=None):
+            seen["url"], seen["params"] = url, params
+            raise httpx.HTTPError("stop here — the request is what is under test")
+
+    client = ItadClient("k", client=Recorder())
+    with pytest.raises(ItadError):
+        client.history("abc", since=date(2014, 4, 26))
+
+    assert seen["params"]["since"].startswith("2014-04-26")
+    assert seen["params"]["shops"] == STEAM_SHOP_ID
+    assert seen["params"]["country"] == "US"
+
+
+def test_history_omits_since_when_there_is_no_release_date():
+    seen: dict[str, object] = {}
+
+    class Recorder:
+        def get(self, url, params=None):
+            seen["params"] = params
+            raise httpx.HTTPError("stop")
+
+    with pytest.raises(ItadError):
+        ItadClient("k", client=Recorder()).history("abc")
+
+    assert "since" not in seen["params"]
+
+
+def test_coverage_reports_the_span_actually_returned():
+    """The evidence that `since` was honoured, or silently ignored."""
+    read = earliest_regular_price(NESTED)
+
+    assert "spanning 2023-10-05 to 2024-03-01" in read.coverage

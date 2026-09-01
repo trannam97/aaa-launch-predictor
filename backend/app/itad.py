@@ -42,7 +42,7 @@ why the response body is reported rather than summarised:
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from typing import Any, Self
 
 import httpx
@@ -57,6 +57,10 @@ LAUNCH_REGION = "US"
 # Publishers re-tier on a scale of years, not weeks, and the *regular* price is
 # read rather than the deal price, so a launch discount does not disturb this.
 LAUNCH_WINDOW_DAYS = 60
+
+# How far before release to start asking. A premium tier can list days ahead of
+# the standard edition, and the request should not cut that off.
+SINCE_MARGIN_DAYS = 30
 
 TIMEOUT_SECONDS = 20.0
 
@@ -96,10 +100,15 @@ class HistoryRead:
     observation: PriceObservation | None
     parsed: int
     total: int
+    oldest: date | None = None
+    newest: date | None = None
 
     @property
     def coverage(self) -> str:
-        return f"parsed {self.parsed} of {self.total} history entries"
+        span = ""
+        if self.oldest and self.newest:
+            span = f", spanning {self.oldest} to {self.newest}"
+        return f"parsed {self.parsed} of {self.total} history entries{span}"
 
     @property
     def is_suspect(self) -> bool:
@@ -144,7 +153,10 @@ class LaunchPrice:
             return f"observed {self.days_after_release}d after release"
         if self.days_after_release < 0:
             return f"observed {-self.days_after_release}d BEFORE release — pre-order listing"
-        return f"earliest record is {self.days_after_release}d after release, not the launch price"
+        return (
+            f"earliest record is {self.days_after_release}d after release, "
+            f"not the launch price ({self.coverage})"
+        )
 
 
 def _amount_to_cents(value: Any) -> int | None:
@@ -224,10 +236,13 @@ def earliest_regular_price(history: Any) -> HistoryRead:
     if not seen:
         keys = sorted(entries[0].keys()) if isinstance(entries[0], dict) else repr(entries[0])[:80]
         raise ItadShapeError(f"no price/date pair in a history entry; keys seen: {keys}")
+    dates = [obs.recorded_on for obs in seen]
     return HistoryRead(
         observation=min(seen, key=lambda obs: obs.recorded_on),
         parsed=len(seen),
         total=len(entries),
+        oldest=min(dates),
+        newest=max(dates),
     )
 
 
@@ -296,19 +311,30 @@ class ItadClient:
             return game["id"]
         return None
 
-    def history(self, itad_id: str) -> Any:
-        """Raw Steam-only, US price history. Returned unparsed for --dump-raw."""
-        return self._get(
-            "/games/history/v2",
-            {"id": itad_id, "shops": STEAM_SHOP_ID, "country": LAUNCH_REGION},
-        )
+    def history(self, itad_id: str, since: date | None = None) -> Any:
+        """Raw Steam-only, US price history. Returned unparsed for --dump-raw.
+
+        Without `since` the endpoint answers with a recent window only — a
+        captured response held five change events spanning eleven weeks, whose
+        regular price was the title's present re-tier rather than anything it
+        launched at. `since` is what reaches back past that.
+        """
+        params: dict[str, Any] = {
+            "id": itad_id,
+            "shops": STEAM_SHOP_ID,
+            "country": LAUNCH_REGION,
+        }
+        if since is not None:
+            params["since"] = f"{since.isoformat()}T00:00:00Z"
+        return self._get("/games/history/v2", params)
 
     def launch_price(self, steam_appid: int, release_date: date | None) -> LaunchPrice | None:
         """Earliest US Steam regular price, with how far from launch it sits."""
         itad_id = self.lookup(steam_appid)
         if itad_id is None:
             return None
-        read = earliest_regular_price(self.history(itad_id))
+        since = release_date - timedelta(days=SINCE_MARGIN_DAYS) if release_date else None
+        read = earliest_regular_price(self.history(itad_id, since=since))
         if read.observation is None:
             return None
         oldest = read.observation
