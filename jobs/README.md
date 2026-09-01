@@ -171,3 +171,34 @@ Per `PROJECT_SPEC.md`:
 `retrain.yml` is the only scheduled workflow so far. The rest land with the
 hosted database, so scheduled runs don't start failing against a
 `DATABASE_URL` that doesn't exist.
+
+### `draft_studio_signals.py`
+
+```
+DATABASE_URL=... python jobs/draft_studio_signals.py --list          # free, no API call
+DATABASE_URL=... ANTHROPIC_API_KEY=... python jobs/draft_studio_signals.py --limit 5
+```
+
+Drafts `studio_signal` and `support_signal` with Claude and web search, for the
+rows the rubric refuses to call. Needs the `research` extra (`pip install -e
+'./backend[postgres,research]'`).
+
+**It writes a review file, never the database and never the curated CSV.** A
+draft is not a label: a reviewer opens the sources, and only a verified value is
+copied into `historical_releases.csv` by hand. The failure mode here is not a
+wrong tier — it is a wrong tier with a plausible sentence attached, which is
+exactly what survives a skim.
+
+Selection runs the real rubric over unlabeled day-one releases and keeps the
+ones it cannot resolve, so nothing is researched whose signals the rubric would
+not have read. About 40% of unlabeled rows meet expectations and get a tier from
+Steam data alone; researching those would spend a call to learn something
+nothing consumes.
+
+Output carries a `needs_attention` column. `CLOSED-verify` is the one that
+matters: `closed` is a hard override straight to Flop, and it is also the value
+the evidence is biased towards, since closures are announced while quiet
+absorptions are not. Never merge one unread.
+
+One Claude call with web search per game, so start with `--limit`.
+
