@@ -62,10 +62,15 @@ jobs:
           case "$LIMIT" in
             ''|*[!0-9]*) [ -z "$LIMIT" ] || { echo "::error::limit must be a whole number: $LIMIT"; exit 1; } ;;
           esac
+          # tee succeeds even when the job exits non-zero, so without pipefail
+          # a total failure reports green — which is exactly what the first run
+          # of this workflow did.
+          set -o pipefail
           args=()
           [ -n "$LIMIT" ] && args+=(--limit "$LIMIT")
           [ "$DUMP_RAW" = "true" ] && args+=(--dump-raw itad-history-shape.json)
-          python jobs/backfill_launch_prices.py "${args[@]}" | tee prices.log
+          status=0
+          python jobs/backfill_launch_prices.py "${args[@]}" | tee prices.log || status=$?
           {
             echo "## Launch price proposals"
             echo
@@ -73,6 +78,7 @@ jobs:
             tail -12 prices.log
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
+          exit $status
 
       - name: Keep the proposals
         if: always()
@@ -112,7 +118,9 @@ jobs:
           case "$LIMIT" in
             ''|*[!0-9]*) echo "::error::signal-drafts needs a numeric limit; each row costs a call"; exit 1 ;;
           esac
-          python jobs/draft_studio_signals.py --limit "$LIMIT" | tee drafts.log
+          set -o pipefail
+          status=0
+          python jobs/draft_studio_signals.py --limit "$LIMIT" | tee drafts.log || status=$?
           {
             echo "## Signal drafts"
             echo
@@ -122,6 +130,7 @@ jobs:
             echo
             echo "Drafts, not labels. Rows flagged **CLOSED-verify** must be read before use."
           } >> "$GITHUB_STEP_SUMMARY"
+          exit $status
 
       - name: Keep the drafts
         if: always()
