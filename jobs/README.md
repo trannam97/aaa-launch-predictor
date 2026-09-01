@@ -202,3 +202,42 @@ absorptions are not. Never merge one unread.
 
 One Claude call with web search per game, so start with `--limit`.
 
+### `backfill_launch_prices.py`
+
+```
+DATABASE_URL=... python jobs/backfill_launch_prices.py --list       # free, no API call
+DATABASE_URL=... ITAD_API_KEY=... python jobs/backfill_launch_prices.py --limit 20
+```
+
+Proposes `launch_price_usd` from IsThereAnyDeal's Steam price history. Needs a
+free key from isthereanydeal.com/apps/dev; no new Python dependency.
+
+170 of 206 rows have no launch price, and a missing one does not read as
+missing — `app/features.py` turns it into `0.0`, which the model reads as a free
+game rather than an unknown. Every one of those rows carries that value into
+training the moment it gets a label, which is what the signal-research queue is
+about to start doing.
+
+An LLM is the wrong tool for this: a launch price is a fact with a database
+behind it, the same reason release dates come from Wikidata rather than from
+asking a model.
+
+Three constraints are structural rather than configured:
+
+- **Standard edition** — the join is on Steam appid, and a deluxe or gold tier
+  is a separate Steam app. Nothing has to filter for it.
+- **US** — `country=US`, which is what `launch_price_usd` has always meant.
+- **Regular price, not the sale price** — every ITAD record carries the
+  undiscounted regular price alongside what was charged, so a launch-week
+  discount never has to be filtered out.
+
+Writes a **review file**, never the database and never the curated CSV. The
+`verdict` column triages: `launch_price` means ITAD's earliest record sits
+within 60 days of release; `too_late` means ITAD only began tracking that title
+years later, so its earliest price is a re-tier and not the launch price. Those
+are the rows left for a human or an LLM pass.
+
+`--dump-raw` writes the first raw history response to a file. ITAD's history
+shape is not publicly documented and the parser was written without a key, so
+this captures the real shape rather than guessing at it twice.
+
