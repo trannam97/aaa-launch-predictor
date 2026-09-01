@@ -22,6 +22,10 @@ on:
         description: "Backfill only — fetch and report, write nothing"
         type: boolean
         default: false
+      appids:
+        description: "Backfill only these Steam appids, comma or space separated. Blank = all 206."
+        type: string
+        default: ""
 
 # Never let two of these overlap; both write to the same database.
 concurrency:
@@ -34,8 +38,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.11"
           cache: pip
@@ -133,8 +137,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 240
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.11"
           cache: pip
@@ -201,9 +205,28 @@ jobs:
 
       # Paced by SteamClient's own 1.5s minimum request interval, so this is
       # slow by design: roughly 40-90 minutes for the full corpus.
+      # Inputs arrive through the environment rather than being interpolated
+      # into the script text: a ${{ }} expansion of a free-text input is a
+      # shell-injection vector. Each appid is checked numeric before use.
       - name: Load the corpus
+        env:
+          DRY_RUN: ${{ inputs.dry_run }}
+          APPIDS: ${{ inputs.appids }}
         run: |
-          python jobs/backfill_historical.py ${{ inputs.dry_run && '--dry-run' || '' }}
+          args=()
+          [ "$DRY_RUN" = "true" ] && args+=(--dry-run)
+          for id in ${APPIDS//,/ }; do
+            case "$id" in
+              *[!0-9]*|'') echo "::error::Not a numeric Steam appid: $id"; exit 1 ;;
+              *) args+=(--appid "$id") ;;
+            esac
+          done
+          if [ ${#args[@]} -eq 0 ]; then
+            echo "Backfilling the whole corpus."
+          else
+            echo "Arguments: ${args[*]}"
+          fi
+          python jobs/backfill_historical.py "${args[@]}"
 
       - name: Report
         if: ${{ !inputs.dry_run }}

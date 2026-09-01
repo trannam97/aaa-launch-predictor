@@ -18,9 +18,9 @@ jobs:
   retrain:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.11"
           cache: pip
@@ -32,7 +32,7 @@ jobs:
       # since last time. Without persistence every scheduled run would look
       # like a first run and retrain an unchanged corpus.
       - name: Restore the previous run record
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ml/models
           key: model-${{ github.run_id }}
@@ -51,7 +51,7 @@ jobs:
       # when the corpus has grown enough for a model to clear the bar.
       - name: Keep the result
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: model
           path: ml/models
