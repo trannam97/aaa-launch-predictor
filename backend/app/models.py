@@ -310,6 +310,13 @@ class StudioSignal(enum.StrEnum):
     Ordered by severity so a rule can compare them. This is the axis the spec
     says launch-window numbers cannot supply — peak players and review scores
     will not tell you whether a studio survived.
+
+    **Measured over 16 months from the Steam release date.** The value describes
+    a consequence *of this launch*, so it needs a bound: unbounded, a 2014 title
+    picks up the 2023-25 industry contraction and reads as `severe_layoffs`,
+    while the same studio's 2017 expansion reads as `grew`. Both are true of
+    Ubisoft Montreal, which is why the first live research run asked for this
+    window on every row. See `app/research.SIGNAL_WINDOW_MONTHS` for why 16.
     """
 
     GREW = "grew"
@@ -339,6 +346,9 @@ class SupportSignal(enum.StrEnum):
     still finish the season pass (The Callisto Protocol), and a healthy studio
     can walk away from a title (Marvel's Avengers). Distinguishing Flop from
     Underperform needs both.
+
+    Bounded by the same 16-month window as StudioSignal: a game delisted
+    years later was not abandoned at launch.
     """
 
     SUSTAINED = "sustained"
