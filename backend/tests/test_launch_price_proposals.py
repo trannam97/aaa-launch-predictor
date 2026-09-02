@@ -171,3 +171,32 @@ def test_an_interrupted_run_leaves_a_valid_file(tmp_path):
         raise RuntimeError("the runner was killed here")
 
     assert [r["game_name"] for r in csv.DictReader(out.open())] == ["Kept"]
+
+
+# --- validate composes with the batch flags ---------------------------------
+
+
+def _signals():
+    import sys
+    from pathlib import Path as _Path
+
+    sys.path.insert(0, str(_Path(__file__).resolve().parents[2] / "jobs"))
+    import draft_studio_signals
+
+    return draft_studio_signals
+
+
+def test_validate_is_orthogonal_to_how_the_rows_are_run():
+    """It changes *which* rows are researched, not *how*, so it has to pair
+    with the batch path. Running the whole labelled set synchronously is what
+    the 90-minute job ceiling killed with nothing written."""
+    signals = _signals()
+
+    submit = signals.parse_args(["--validate", "--batch"])
+    assert submit.validate and submit.batch
+
+    collect = signals.parse_args(["--validate", "--collect", "msgbatch_x"])
+    assert collect.validate and collect.collect == "msgbatch_x"
+
+    alone = signals.parse_args(["--validate", "--appid", "2443720"])
+    assert alone.validate and not alone.batch and alone.collect is None

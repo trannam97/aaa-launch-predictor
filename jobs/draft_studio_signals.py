@@ -387,6 +387,40 @@ def main(argv: list[str] | None = None) -> int:
     client = anthropic.Anthropic()
     by_key = {str(appid): (appid, target) for appid, target in targets}
 
+    if args.collect and args.validate:
+        outcomes = collect_batch(
+            client.beta.messages.batches,
+            args.collect,
+            {key: target.game_name for key, (_, target) in by_key.items()},
+        )
+        out = args.out if args.out != DEFAULT_OUT else VALIDATION_OUT
+        compared, failed = [], 0
+        with incremental_csv(out, VALIDATION_FIELDS) as emit:
+            for outcome in outcomes:
+                known = by_key.get(outcome.key)
+                if outcome.draft is None or known is None:
+                    failed += 1
+                    logger.warning("%s", outcome.error or f"appid {outcome.key} left the set")
+                    continue
+                appid, target = known
+                curated_studio, curated_support = curated[appid]
+                row = compare_to_curated(
+                    str(appid), target.game_name, curated_studio, curated_support, outcome.draft
+                )
+                compared.append(row)
+                emit(as_validation_row(row))
+                logger.info(
+                    "%-38s %-13s studio %s/%s  support %s/%s",
+                    target.game_name[:38],
+                    row.verdict.upper(),
+                    outcome.draft.studio_signal,
+                    curated_studio,
+                    outcome.draft.support_signal,
+                    curated_support,
+                )
+        report_validation(compared, out, failed)
+        return 0
+
     if args.collect:
         outcomes = collect_batch(
             client.beta.messages.batches,
@@ -423,18 +457,25 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.batch:
         batch_id = submit_batch(client.beta.messages.batches, list(by_key.items()))
-        logger.info("queued %d row(s) at half the token cost", len(by_key))
+        kind = "validation row" if args.validate else "row"
+        logger.info("queued %d %s(s) at half the token cost", len(by_key), kind)
+        collect_flags = f"--collect {batch_id}" + (" --validate" if args.validate else "")
         print()
         print(f"  batch id     {batch_id}")
         print()
-        print("  Nothing is written yet. Most batches finish within the hour; the")
-        print("  cap is 24 hours and results keep for 29 days. When it has ended:")
+        print("  Nothing is written yet, and no runner is waiting — which is the")
+        print("  point: the synchronous path spent 90 minutes on 35 rows and was")
+        print("  killed by the job ceiling with nothing to show. A batch has no")
+        print("  such ceiling. Most finish within the hour; the cap is 24 hours")
+        print("  and results keep for 29 days. When it has ended:")
         print()
-        print(f"    python jobs/draft_studio_signals.py --collect {batch_id}")
+        print(f"    python jobs/draft_studio_signals.py {collect_flags}")
         print()
         return 0
 
     if args.validate:
+        # Reached only without --batch/--collect: a small, named subset worth
+        # waiting on. The whole labelled set belongs in a batch.
         out = args.out if args.out != DEFAULT_OUT else VALIDATION_OUT
         compared, failed = [], 0
         with incremental_csv(out, VALIDATION_FIELDS) as emit:
