@@ -12,6 +12,7 @@ from app.research import (
     CACHE_CONTROL,
     FALLBACK_BETA,
     RESPONSE_SCHEMA,
+    SIGNAL_WINDOW_MONTHS,
     SYSTEM_PROMPT,
     WEB_SEARCH_TOOL,
     ResearchError,
@@ -21,6 +22,7 @@ from app.research import (
     build_prompt,
     collect_batch,
     draft_signals,
+    parse_response,
     request_kwargs,
     submit_batch,
 )
@@ -311,3 +313,75 @@ def test_a_batch_entry_uses_only_fields_the_sdk_defines():
     allowed = set(typing.get_type_hints(MessageCreateParamsNonStreaming))
     unknown = set(entry["params"]) - allowed
     assert not unknown, f"not parameters of the beta batch request: {sorted(unknown)}"
+
+
+# --- hitting the token cap ---------------------------------------------------
+
+
+def test_a_truncated_answer_blames_the_budget_not_the_parser():
+    """The first live run lost a row to this and reported it as malformed JSON.
+
+    Structured output guarantees schema-valid JSON only if generation finishes;
+    stopping at the cap yields a truncated string, and "unparseable response"
+    sends the reader to the parser instead of to max_tokens.
+    """
+    truncated = stub_message('{"studio_signal": "grew", "studio_evid', "max_tokens")
+
+    with pytest.raises(ResearchError, match="token cap"):
+        parse_response(truncated, "Just Cause 3")
+
+
+def test_an_unparseable_response_names_the_stop_reason():
+    """So an unknown cause is still diagnosable from the log alone."""
+    with pytest.raises(ResearchError, match="stop_reason=end_turn"):
+        parse_response(stub_message("not json"), "Some Game")
+
+
+# --- the window the signals are measured over -------------------------------
+#
+# Undefined until the first live run, where all four drafts independently asked
+# for it. Unbounded, "after this launch" spans a decade for an older game, and
+# the 2023-25 industry contraction would drag every pre-2020 row toward
+# severe_layoffs -- which with non-sustained support is a hard route to Flop.
+
+
+def test_the_prompt_states_the_window_in_months():
+    assert f"{SIGNAL_WINDOW_MONTHS} months from the Steam release date" in SYSTEM_PROMPT
+
+
+def test_the_window_contains_every_dated_consequence_in_the_corpus():
+    """16 months is not a round number picked for feel.
+
+    These are the seven dated studio consequences the corpus records, and they
+    fall in two clusters with nothing between them: immediate, and a fiscal-year
+    lag. A 12-month window misses the whole second cluster -- Volition closed 8
+    days past a year after Saints Row, Arkane Austin 5 days past a year after
+    Redfall, and 343 Industries was cut 14 months after Halo Infinite.
+    """
+    gaps_in_months = {
+        "Forspoken": 1.0,
+        "Immortals of Aveum": 1.0,
+        "Dragon Age: The Veilguard": 2.9,
+        "Concord": 5.3,
+        "Redfall": 12.2,
+        "Saints Row": 12.3,
+        "Halo Infinite": 14.1,
+    }
+    missed = [name for name, gap in gaps_in_months.items() if gap > SIGNAL_WINDOW_MONTHS]
+
+    assert not missed, f"the window excludes real consequences: {missed}"
+    # And it is not so wide that a decade of industry cycles leaks in.
+    assert SIGNAL_WINDOW_MONTHS < 24
+
+
+def test_the_prompt_says_what_to_do_with_events_outside_the_window():
+    """Finding a later closure and silently ignoring it is not the ask —
+    reporting it unscored is, so a reviewer can see it was considered."""
+    assert "reviewer_note" in SYSTEM_PROMPT
+    assert "does not change either value" in SYSTEM_PROMPT
+
+
+def test_evidence_must_also_sit_inside_the_window():
+    """Three of the first four drafts supported `grew` with a 2017 expansion
+    announcement about a 2014 launch."""
+    assert "Evidence *for* a value must also sit inside the window" in SYSTEM_PROMPT

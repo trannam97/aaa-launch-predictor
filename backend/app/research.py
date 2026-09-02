@@ -35,7 +35,16 @@ from typing import Any, Literal, Protocol
 from pydantic import BaseModel, ValidationError
 
 MODEL = "claude-opus-5"
-MAX_TOKENS = 16000
+
+# Adaptive thinking spends this budget too, and a row that thinks hard can leave
+# too little for the answer. When that happens the JSON is cut off mid-string
+# and the failure reads as a parser bug rather than a budget one — which is
+# exactly what Just Cause 3 did on the first live run, truncating at character
+# 2701 after the longest generation of the five. `parse_response` now names the
+# cause; this gives it room not to happen. The batch path has no HTTP timeout to
+# worry about, and the synchronous path's slowest observed row was 167s against
+# the SDK's ten-minute default.
+MAX_TOKENS = 32000
 
 # Enough searches to check the studio, the publisher and the game separately,
 # without letting one row run away with the budget.
@@ -66,6 +75,23 @@ CACHE_CONTROL: dict[str, Any] = {"type": "ephemeral"}
 USE_SERVER_FALLBACK = True
 FALLBACK_BETA = "server-side-fallback-2026-07-01"
 
+# How long after launch a studio or support event still counts as a consequence
+# *of this launch*. Undefined until now, and every draft in the first live run
+# independently asked for it: for a 2014 game, "after this launch" spans twelve
+# years, and Ubisoft Montreal both grew (2015-19) and cut staff (2023-25).
+# Unbounded, the 2023-25 industry contraction would drag every older row toward
+# `severe_layoffs`, and that plus non-sustained support is a hard route to Flop.
+#
+# 16 months contains all seven dated consequences in the corpus. They fall in
+# two clusters and nothing lands between them — immediate (Forspoken and
+# Immortals of Aveum at ~1 month, Veilguard 2.9, Concord 5.3) and fiscal-lag
+# (Redfall 12.2, Saints Row 12.3, Halo Infinite 14.1), where a publisher takes a
+# quarter or two of sales, runs a review, and restructures the next year. A
+# 12-month window misses that whole second cluster, including the two clearest
+# studio deaths of the era: Volition closed 8 days past a year after Saints Row,
+# Arkane Austin 5 days past a year after Redfall.
+SIGNAL_WINDOW_MONTHS = 16
+
 STUDIO_VALUES = ("grew", "continued", "severe_layoffs", "closed", "unknown")
 SUPPORT_VALUES = ("sustained", "curtailed", "abandoned", "unknown")
 
@@ -92,11 +118,27 @@ RESPONSE_SCHEMA: dict[str, Any] = {
     "additionalProperties": False,
 }
 
-SYSTEM_PROMPT = """\
+SYSTEM_PROMPT = f"""\
 You research what happened to a game's developer and to the game's post-launch \
 support, so a human can verify your findings and label a dataset. You report \
 facts with sources. You do not assign an outcome tier — a separate rule does \
 that from the two values you return.
+
+## The window: {SIGNAL_WINDOW_MONTHS} months from the Steam release date
+
+Both signals describe consequences **of this launch**, so only events within \
+{SIGNAL_WINDOW_MONTHS} months of the Steam release date you are given are \
+scored. This is not a detail — for an older game, "after this launch" can span \
+a decade, and a studio may have both expanded and contracted in that time.
+
+- An event outside the window does not change either value, however dramatic. A \
+studio that closed four years and two projects later did not close because of \
+this launch.
+- Report such events in `reviewer_note` instead, with their dates, so a human \
+can see you found them and chose not to score them.
+- Evidence *for* a value must also sit inside the window. Do not support `grew` \
+with an expansion announced three years afterwards.
+- If nothing inside the window settles a value, that value is `unknown`.
 
 Return `studio_signal`, one of:
 - `grew` — the studio hired, expanded, or opened a new team after this launch.
@@ -249,6 +291,15 @@ def parse_response(response: Any, game_name: str) -> SignalDraft:
         # so surface it rather than parsing half an answer. In a batch there is
         # no way to continue a paused turn, so the row is simply re-run.
         raise ResearchError(f"{game_name}: turn paused before completing")
+    if stop == "max_tokens":
+        # Structured output guarantees schema-valid JSON only if generation
+        # finishes. Cut it off and the text is a truncated string, which the
+        # parser reports as malformed — blaming the wrong thing entirely.
+        raise ResearchError(
+            f"{game_name}: hit the {MAX_TOKENS}-token cap before finishing the "
+            "answer; thinking spends the same budget, so raise MAX_TOKENS or "
+            "lower output_config.effort"
+        )
 
     text = next(
         (block.text for block in response.content if getattr(block, "type", None) == "text"),
@@ -260,7 +311,11 @@ def parse_response(response: Any, game_name: str) -> SignalDraft:
     try:
         return SignalDraft.model_validate(json.loads(text))
     except (json.JSONDecodeError, ValidationError) as exc:
-        raise ResearchError(f"{game_name}: unparseable response — {exc}") from exc
+        # Carry the stop reason: the first unparseable row in production was a
+        # truncation, and the message named neither the cause nor where to look.
+        raise ResearchError(
+            f"{game_name}: unparseable response (stop_reason={stop}) — {exc}"
+        ) from exc
 
 
 def draft_signals(client: MessagesClient, target: ResearchTarget) -> SignalDraft:
