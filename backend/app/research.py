@@ -35,7 +35,16 @@ from typing import Any, Literal, Protocol
 from pydantic import BaseModel, ValidationError
 
 MODEL = "claude-opus-5"
-MAX_TOKENS = 16000
+
+# Adaptive thinking spends this budget too, and a row that thinks hard can leave
+# too little for the answer. When that happens the JSON is cut off mid-string
+# and the failure reads as a parser bug rather than a budget one — which is
+# exactly what Just Cause 3 did on the first live run, truncating at character
+# 2701 after the longest generation of the five. `parse_response` now names the
+# cause; this gives it room not to happen. The batch path has no HTTP timeout to
+# worry about, and the synchronous path's slowest observed row was 167s against
+# the SDK's ten-minute default.
+MAX_TOKENS = 32000
 
 # Enough searches to check the studio, the publisher and the game separately,
 # without letting one row run away with the budget.
@@ -249,6 +258,15 @@ def parse_response(response: Any, game_name: str) -> SignalDraft:
         # so surface it rather than parsing half an answer. In a batch there is
         # no way to continue a paused turn, so the row is simply re-run.
         raise ResearchError(f"{game_name}: turn paused before completing")
+    if stop == "max_tokens":
+        # Structured output guarantees schema-valid JSON only if generation
+        # finishes. Cut it off and the text is a truncated string, which the
+        # parser reports as malformed — blaming the wrong thing entirely.
+        raise ResearchError(
+            f"{game_name}: hit the {MAX_TOKENS}-token cap before finishing the "
+            "answer; thinking spends the same budget, so raise MAX_TOKENS or "
+            "lower output_config.effort"
+        )
 
     text = next(
         (block.text for block in response.content if getattr(block, "type", None) == "text"),
@@ -260,7 +278,11 @@ def parse_response(response: Any, game_name: str) -> SignalDraft:
     try:
         return SignalDraft.model_validate(json.loads(text))
     except (json.JSONDecodeError, ValidationError) as exc:
-        raise ResearchError(f"{game_name}: unparseable response — {exc}") from exc
+        # Carry the stop reason: the first unparseable row in production was a
+        # truncation, and the message named neither the cause nor where to look.
+        raise ResearchError(
+            f"{game_name}: unparseable response (stop_reason={stop}) — {exc}"
+        ) from exc
 
 
 def draft_signals(client: MessagesClient, target: ResearchTarget) -> SignalDraft:

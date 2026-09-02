@@ -21,6 +21,7 @@ from app.research import (
     build_prompt,
     collect_batch,
     draft_signals,
+    parse_response,
     request_kwargs,
     submit_batch,
 )
@@ -311,3 +312,25 @@ def test_a_batch_entry_uses_only_fields_the_sdk_defines():
     allowed = set(typing.get_type_hints(MessageCreateParamsNonStreaming))
     unknown = set(entry["params"]) - allowed
     assert not unknown, f"not parameters of the beta batch request: {sorted(unknown)}"
+
+
+# --- hitting the token cap ---------------------------------------------------
+
+
+def test_a_truncated_answer_blames_the_budget_not_the_parser():
+    """The first live run lost a row to this and reported it as malformed JSON.
+
+    Structured output guarantees schema-valid JSON only if generation finishes;
+    stopping at the cap yields a truncated string, and "unparseable response"
+    sends the reader to the parser instead of to max_tokens.
+    """
+    truncated = stub_message('{"studio_signal": "grew", "studio_evid', "max_tokens")
+
+    with pytest.raises(ResearchError, match="token cap"):
+        parse_response(truncated, "Just Cause 3")
+
+
+def test_an_unparseable_response_names_the_stop_reason():
+    """So an unknown cause is still diagnosable from the log alone."""
+    with pytest.raises(ResearchError, match="stop_reason=end_turn"):
+        parse_response(stub_message("not json"), "Some Game")
