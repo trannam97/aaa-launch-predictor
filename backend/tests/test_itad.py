@@ -8,19 +8,25 @@ handle; the job's --dump-raw flag exists to settle the real one in one round.
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import UTC, date, datetime, timedelta
 
 import httpx
 import pytest
 
 from app.itad import (
     LAUNCH_WINDOW_DAYS,
+    LOOKUP_BATCH_SIZE,
+    MAX_RETRY_WAIT_SECONDS,
+    RATE_LIMIT_ATTEMPTS,
     STEAM_SHOP_ID,
+    ItadAuthError,
     ItadClient,
     ItadError,
+    ItadRateLimitError,
     ItadShapeError,
     LaunchPrice,
     _explain_403,
+    _retry_after_seconds,
     earliest_regular_price,
 )
 
@@ -265,3 +271,172 @@ def test_a_pre_order_listing_is_the_launch_price():
     assert found.is_launch_price
     assert "pre-order listing, 30d before release" in found.note
     assert "not necessarily" not in found.note
+
+
+# --- the allowance runs out, and that is not 120 separate failures ----------
+
+
+class RateLimited:
+    """An API that 429s, optionally with a Retry-After, then relents."""
+
+    def __init__(self, refusals: int, retry_after: str | None = None) -> None:
+        self.refusals = refusals
+        self.retry_after = retry_after
+        self.calls = 0
+
+    def get(self, url, params=None):
+        self.calls += 1
+        if self.calls <= self.refusals:
+            headers = {"Retry-After": self.retry_after} if self.retry_after else {}
+            return httpx.Response(429, headers=headers, request=httpx.Request("GET", url))
+        return httpx.Response(200, json={"found": False}, request=httpx.Request("GET", url))
+
+
+def test_a_429_is_retried_before_it_is_believed(monkeypatch):
+    """A short window can be outlasted, so one refusal is not the answer."""
+    slept: list[float] = []
+    monkeypatch.setattr("app.itad.time.sleep", slept.append)
+    api = RateLimited(refusals=1, retry_after="2")
+
+    client = ItadClient("k", client=api, min_request_interval=0)
+    assert client._get("/games/history/v2", {}) == {"found": False}
+    assert slept == [2.0]
+
+
+def test_a_persistent_429_stops_the_run_instead_of_burning_the_queue(monkeypatch):
+    """The failure this class exists for: 120 games asked after the budget went."""
+    monkeypatch.setattr("app.itad.time.sleep", lambda _: None)
+    api = RateLimited(refusals=99)
+
+    with pytest.raises(ItadRateLimitError, match="allowance is spent"):
+        ItadClient("k", client=api, min_request_interval=0)._get("/games/history/v2", {})
+
+    assert api.calls == RATE_LIMIT_ATTEMPTS
+
+
+def test_a_rate_limit_error_is_not_mistaken_for_a_per_row_failure():
+    """Callers catch ItadError per row; these two must escape that."""
+    assert issubclass(ItadRateLimitError, ItadError)
+    assert not issubclass(ItadRateLimitError, ItadAuthError)
+
+
+def test_a_long_retry_after_is_refused_rather_than_slept_through(monkeypatch):
+    """An hour-long wait is a stalled runner, not a retry."""
+    slept: list[float] = []
+    monkeypatch.setattr("app.itad.time.sleep", slept.append)
+    api = RateLimited(refusals=99, retry_after=str(int(MAX_RETRY_WAIT_SECONDS) + 1))
+
+    with pytest.raises(ItadRateLimitError) as raised:
+        ItadClient("k", client=api, min_request_interval=0)._get("/games/history/v2", {})
+
+    assert slept == []
+    assert api.calls == 1
+    assert raised.value.retry_after == MAX_RETRY_WAIT_SECONDS + 1
+
+
+def test_retry_after_reads_both_legal_spellings():
+    """RFC 9110 allows a delay in seconds or an HTTP date."""
+    seconds = httpx.Response(429, headers={"Retry-After": "30"})
+    assert _retry_after_seconds(seconds) == 30.0
+
+    when = (datetime.now(UTC) + timedelta(seconds=45)).strftime("%a, %d %b %Y %H:%M:%S GMT")
+    as_date = httpx.Response(429, headers={"Retry-After": when})
+    assert 30 < _retry_after_seconds(as_date) <= 46
+
+    assert _retry_after_seconds(httpx.Response(429)) is None
+    assert _retry_after_seconds(httpx.Response(429, headers={"Retry-After": "soon"})) is None
+
+
+def test_the_rate_limit_message_says_how_to_recover(monkeypatch):
+    """It is resumable, and the limit is visible — say both, not "HTTP 429"."""
+    monkeypatch.setattr("app.itad.time.sleep", lambda _: None)
+    api = RateLimited(refusals=99)
+    with pytest.raises(ItadRateLimitError) as raised:
+        ItadClient("k", client=api, min_request_interval=0)._get("/x", {})
+
+    assert "Re-run" in str(raised.value)
+    assert "isthereanydeal.com/apps/dev" in str(raised.value)
+
+
+# --- one request for the whole queue, not one per game ----------------------
+
+
+class BulkLookup:
+    def __init__(self, body: object, status: int = 200) -> None:
+        self.body, self.status = body, status
+        self.seen: dict[str, object] = {}
+        self.batches: list[list[str]] = []
+
+    def post(self, url, json=None):
+        self.seen["url"], self.seen["json"] = url, json
+        self.batches.append(list(json or []))
+        return httpx.Response(self.status, json=self.body, request=httpx.Request("POST", url))
+
+
+def test_the_whole_queue_is_resolved_in_one_request():
+    """170 games cost 170 lookups before this, which is half of why 429 hit."""
+    api = BulkLookup({"app/570": "id-570", "app/440": "id-440"})
+
+    found = ItadClient("k", client=api, min_request_interval=0).lookup_many([570, 440])
+
+    assert found == {570: "id-570", 440: "id-440"}
+    assert api.seen["url"].endswith(f"/lookup/id/shop/{STEAM_SHOP_ID}/v1")
+    assert api.seen["json"] == ["app/440", "app/570"]
+
+
+def test_the_bulk_lookup_sends_no_api_key():
+    """Verified keyless against the live API, and a keyless request cannot
+    spend an allowance that is counted per app."""
+    api = BulkLookup({})
+
+    ItadClient("secret", client=api, min_request_interval=0).lookup_many([570])
+
+    assert "secret" not in str(api.seen)
+
+
+def test_an_appid_itad_does_not_know_is_simply_absent():
+    api = BulkLookup({"app/570": "id-570"})
+
+    found = ItadClient("k", client=api, min_request_interval=0).lookup_many([570, 999999])
+
+    assert found == {570: "id-570"}
+
+
+def test_looking_up_nothing_makes_no_request():
+    api = BulkLookup({})
+
+    assert ItadClient("k", client=api, min_request_interval=0).lookup_many([]) == {}
+    assert api.seen == {}
+
+
+def test_a_single_lookup_goes_through_the_same_keyless_endpoint():
+    api = BulkLookup({"app/570": "id-570"})
+    client = ItadClient("k", client=api, min_request_interval=0)
+
+    assert client.lookup(570) == "id-570"
+    assert client.lookup(440) is None
+
+
+def test_the_throttle_spaces_requests_out(monkeypatch):
+    """Unthrottled, the first run spent the whole allowance in eighteen seconds."""
+    slept: list[float] = []
+    monkeypatch.setattr("app.itad.time.sleep", slept.append)
+    monkeypatch.setattr("app.itad.time.monotonic", lambda: 100.0)
+    api = RateLimited(refusals=0)
+
+    client = ItadClient("k", client=api, min_request_interval=1.0)
+    client._get("/x", {})
+    client._get("/x", {})
+
+    assert slept == [1.0]  # the second request waited out the interval
+
+
+def test_a_queue_larger_than_one_batch_is_split():
+    """206 in one POST is verified; a corpus grown past 300 must not discover
+    an undocumented ceiling as a blanket failure."""
+    api = BulkLookup({})
+    appids = list(range(1, LOOKUP_BATCH_SIZE * 2 + 3))
+
+    ItadClient("k", client=api, min_request_interval=0).lookup_many(appids)
+
+    assert [len(batch) for batch in api.batches] == [LOOKUP_BATCH_SIZE, LOOKUP_BATCH_SIZE, 2]

@@ -21,7 +21,15 @@ record sits within 60 days of release and can be taken at face value.
 earliest price is a later re-tier, not the launch price — those rows are the
 ones worth a human or an LLM pass.
 
-Costs two ITAD requests per game and writes nothing, so it is safe to re-run.
+Costs one ITAD request per game — plus a single keyless lookup for the whole
+queue — and writes nothing but the review file, so it is safe to re-run.
+
+**Re-running is the point.** ITAD's allowance is small and tiered, and the first
+full run spent it after 50 games. So the review file is read back at the start
+and games already in it are skipped: run it, wait, run it again, and the file
+fills up. Nothing gathered is thrown away when the budget runs out mid-run —
+that is what turned a 50-game success into a 120-failure report the first time.
+`--refresh` re-asks about rows already proposed.
 """
 
 from __future__ import annotations
@@ -40,7 +48,12 @@ sys.path.insert(0, str(REPO_ROOT / "backend"))
 from sqlalchemy import select  # noqa: E402
 
 from app.db import session_scope  # noqa: E402
-from app.itad import ItadAuthError, ItadClient, ItadError  # noqa: E402
+from app.itad import (  # noqa: E402
+    ItadAuthError,
+    ItadClient,
+    ItadError,
+    ItadRateLimitError,
+)
 from app.models import HistoricalRelease  # noqa: E402
 
 logger = logging.getLogger("backfill_launch_prices")
@@ -70,6 +83,13 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--list", action="store_true", dest="list_only", help="Print the queue and exit."
     )
     parser.add_argument(
+        "--refresh",
+        action="store_true",
+        help="Re-ask about games already in the review file. Off by default so "
+        "repeated runs continue the queue rather than re-spending the "
+        "allowance on rows that are already answered.",
+    )
+    parser.add_argument(
         "--dump-raw",
         type=Path,
         help="Write the first raw history response here. The response shape is "
@@ -89,6 +109,54 @@ def needs_price(session) -> list[HistoricalRelease]:
     )
 
 
+def read_proposals(path: Path) -> dict[int, dict[str, object]]:
+    """Whatever an earlier run already answered, keyed by appid.
+
+    A partial run is the normal case, not the exception: ITAD's allowance runs
+    out long before 170 games do. Reading the file back is what makes the next
+    run continue instead of repeat.
+    """
+    if not path.exists():
+        return {}
+    with path.open(newline="") as handle:
+        rows = list(csv.DictReader(handle))
+    kept: dict[int, dict[str, object]] = {}
+    for row in rows:
+        try:
+            kept[int(row["steam_appid"])] = row
+        except (KeyError, TypeError, ValueError):
+            continue
+    return kept
+
+
+def write_proposals(path: Path, rows: dict[int, dict[str, object]]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=FIELDS)
+        writer.writeheader()
+        for appid in sorted(rows):
+            writer.writerow({field: rows[appid].get(field, "") for field in FIELDS})
+
+
+def as_row(appid: int, name: str, released, found) -> dict[str, object]:
+    return {
+        "steam_appid": appid,
+        "game_name": name,
+        "verdict": (
+            "suspect_shape"
+            if found.suspect_shape
+            else "launch_price"
+            if found.is_launch_price
+            else "too_late"
+        ),
+        "launch_price_usd": f"{found.price_cents / 100:.2f}",
+        "observed_on": found.observed_on.isoformat(),
+        "days_after_release": found.days_after_release,
+        "steam_release_date": released.isoformat() if released else "",
+        "note": found.note,
+    }
+
+
 def main(argv: list[str] | None = None) -> int:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
     logging.getLogger("httpx").setLevel(logging.WARNING)
@@ -103,13 +171,23 @@ def main(argv: list[str] | None = None) -> int:
             for release in queue:
                 print(f"  {release.steam_appid:<10}{release.game_name}")
             return 0
-        targets = [
-            (r.steam_appid, r.game_name, r.steam_release_date)
-            for r in (queue[: args.limit] if args.limit else queue)
-        ]
+        pending = [(r.steam_appid, r.game_name, r.steam_release_date) for r in queue]
 
+    proposals = read_proposals(args.out)
+    if proposals and not args.refresh:
+        before = len(pending)
+        pending = [row for row in pending if row[0] not in proposals]
+        if before != len(pending):
+            logger.info(
+                "%d already in %s; continuing with the other %d",
+                before - len(pending),
+                args.out.name,
+                len(pending),
+            )
+
+    targets = pending[: args.limit] if args.limit else pending
     if not targets:
-        logger.info("Nothing to look up.")
+        logger.info("Nothing left to look up.")
         return 0
 
     api_key = os.environ.get("ITAD_API_KEY")
@@ -117,67 +195,64 @@ def main(argv: list[str] | None = None) -> int:
         logger.error("ITAD_API_KEY is not set. Register an app at isthereanydeal.com/apps/dev")
         return 1
 
-    rows: list[dict[str, object]] = []
-    missing = failed = 0
-    dumped = False
+    missing = failed = added = 0
+    stopped: str | None = None
     with ItadClient(api_key) as client:
+        # One request for every appid, before any of the per-game history calls.
+        # Asking per game is what doubled the traffic and spent the allowance.
+        try:
+            ids = client.lookup_many([appid for appid, _, _ in targets])
+        except ItadError as exc:
+            logger.error("could not resolve appids: %s", exc)
+            return 1
+        logger.info("%d of %d appids known to ITAD", len(ids), len(targets))
+
+        dumped = False
         for appid, name, released in targets:
+            itad_id = ids.get(appid)
+            if itad_id is None:
+                missing += 1
+                logger.info("%-40s not tracked by ITAD", name[:40])
+                continue
             try:
                 if args.dump_raw and not dumped:
-                    itad_id = client.lookup(appid)
-                    if itad_id is not None:
-                        args.dump_raw.write_text(json.dumps(client.history(itad_id), indent=2))
-                        logger.info("wrote the raw history for %s to %s", name, args.dump_raw)
-                        dumped = True
-                found = client.launch_price(appid, released)
-            except ItadAuthError as exc:
-                # Never per-row: the next 169 would fail identically. Say it
-                # once and stop rather than filling the log with one message.
+                    args.dump_raw.write_text(json.dumps(client.history(itad_id), indent=2))
+                    logger.info("wrote the raw history for %s to %s", name, args.dump_raw)
+                    dumped = True
+                found = client.launch_price_for(itad_id, released)
+            except (ItadAuthError, ItadRateLimitError) as exc:
+                # Neither is per-row: the next 169 games would fail the same
+                # way. The first run asked anyway and logged 120 identical
+                # warnings. Stop, and keep everything gathered so far.
                 logger.error("%s", exc)
-                logger.error(
-                    "Stopped after %d of %d; nothing was written.", len(rows), len(targets)
-                )
-                return 1
+                stopped = f"stopped after {added} of {len(targets)}"
+                break
             except ItadError as exc:
                 failed += 1
                 logger.warning("%-40s %s", name[:40], exc)
                 continue
             if found is None:
                 missing += 1
-                logger.info("%-40s not tracked by ITAD", name[:40])
+                logger.info("%-40s no price history", name[:40])
                 continue
-            rows.append(
-                {
-                    "steam_appid": appid,
-                    "game_name": name,
-                    "verdict": (
-                        "suspect_shape"
-                        if found.suspect_shape
-                        else "launch_price"
-                        if found.is_launch_price
-                        else "too_late"
-                    ),
-                    "launch_price_usd": f"{found.price_cents / 100:.2f}",
-                    "observed_on": found.observed_on.isoformat(),
-                    "days_after_release": found.days_after_release,
-                    "steam_release_date": released.isoformat() if released else "",
-                    "note": found.note,
-                }
-            )
+            proposals[appid] = as_row(appid, name, released, found)
+            added += 1
             logger.info("%-40s $%-7s %s", name[:40], f"{found.price_cents / 100:.2f}", found.note)
 
-    args.out.parent.mkdir(parents=True, exist_ok=True)
-    with args.out.open("w", newline="") as handle:
-        writer = csv.DictWriter(handle, fieldnames=FIELDS)
-        writer.writeheader()
-        writer.writerows(rows)
+    # Written even when the run stopped early — the rows are the whole point,
+    # and throwing away 50 good ones to report a failure helps nobody.
+    write_proposals(args.out, proposals)
 
-    usable = sum(1 for r in rows if r["verdict"] == "launch_price")
-    suspect = sum(1 for r in rows if r["verdict"] == "suspect_shape")
+    usable = sum(1 for r in proposals.values() if r.get("verdict") == "launch_price")
+    suspect = sum(1 for r in proposals.values() if r.get("verdict") == "suspect_shape")
     print()
+    if stopped:
+        print(f"  {stopped} — re-run to continue")
     print(f"  looked up          {len(targets)}")
+    print(f"  new this run       {added}")
+    print(f"  in the file        {len(proposals)}")
     print(f"  usable at face     {usable}")
-    print(f"  too late to trust  {len(rows) - usable - suspect}")
+    print(f"  too late to trust  {len(proposals) - usable - suspect}")
     if suspect:
         print(f"  UNRELIABLE shape   {suspect}   <- the parser understood only part of the")
         print("                            response; these numbers mean nothing yet")
@@ -187,7 +262,7 @@ def main(argv: list[str] | None = None) -> int:
     print()
     print("  Proposals, not values. Copy verified prices into")
     print("  data/historical_releases.csv by hand.")
-    return 0
+    return 1 if stopped else 0
 
 
 if __name__ == "__main__":

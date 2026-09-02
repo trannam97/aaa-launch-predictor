@@ -26,6 +26,13 @@ on:
         description: "How many rows to process, or `all` for the whole queue (launch-prices only)."
         type: string
         default: "20"
+      refresh:
+        # The proposals file survives between runs (see the cache steps), which
+        # is what makes a rate-limited run resumable. The same persistence keeps
+        # a bad row alive forever, so there has to be a way to re-ask.
+        description: "launch-prices only — re-ask about rows already proposed instead of continuing the queue"
+        type: boolean
+        default: false
       dump_raw:
         description: "launch-prices only — capture the first raw ITAD response to settle its shape"
         type: boolean
@@ -56,11 +63,30 @@ jobs:
         with:
           url: ${{ secrets.DATABASE_URL }}
 
+      # ITAD's allowance does not cover 170 games in one run — the first attempt
+      # got 50 through and took HTTP 429 for the other 120. The job skips games
+      # already in the proposals file, so carrying that file between runs is
+      # what turns "re-run it" into progress instead of a repeat. The artifact
+      # cannot do this (a run cannot read its predecessor's), and committing the
+      # file would need write access to the branch; a cache needs neither.
+      # Restored even for a refresh run: refresh means re-ask, not start over.
+      # Dropping the file first would let `refresh` with a limit of 20 replace
+      # fifty answered rows with twenty.
+      - name: Restore the proposals so far
+        uses: actions/cache/restore@v4
+        with:
+          path: data/launch_price_proposals.csv
+          # The primary key never hits, which is the point: every run restores
+          # the newest previous file and saves a fresh one under its own key.
+          key: launch-price-proposals-${{ github.run_id }}
+          restore-keys: launch-price-proposals-
+
       - name: Propose launch prices from ITAD
         env:
           ITAD_API_KEY: ${{ secrets.ITAD_API_KEY }}
           LIMIT: ${{ inputs.limit }}
           DUMP_RAW: ${{ inputs.dump_raw }}
+          REFRESH: ${{ inputs.refresh }}
         run: |
           case "$LIMIT" in
             all) ;;
@@ -73,16 +99,33 @@ jobs:
           args=()
           [ "$LIMIT" = "all" ] || args+=(--limit "$LIMIT")
           [ "$DUMP_RAW" = "true" ] && args+=(--dump-raw itad-history-shape.json)
+          [ "$REFRESH" = "true" ] && args+=(--refresh)
           status=0
           python jobs/backfill_launch_prices.py "${args[@]}" | tee prices.log || status=$?
           {
             echo "## Launch price proposals"
             echo
             echo '```'
-            tail -12 prices.log
+            tail -14 prices.log
             echo '```'
+            if [ "$status" -ne 0 ]; then
+              echo
+              echo "The run stopped early. Everything it gathered is in the"
+              echo "artifact and carried to the next run — re-run this workflow"
+              echo "to continue the queue rather than repeat it."
+            fi
           } >> "$GITHUB_STEP_SUMMARY"
           exit $status
+
+      # Saved even when the job failed: a run that spent its allowance halfway
+      # still gathered real rows, and losing them is what made the first attempt
+      # report 120 failures instead of 50 successes.
+      - name: Carry the proposals to the next run
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: data/launch_price_proposals.csv
+          key: launch-price-proposals-${{ github.run_id }}
 
       - name: Keep the proposals
         if: always()
