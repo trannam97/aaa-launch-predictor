@@ -194,6 +194,51 @@ Drafts `studio_signal` and `support_signal` with Claude and web search, for the
 rows the rubric refuses to call. Needs the `research` extra (`pip install -e
 './backend[postgres,research]'`).
 
+### Measuring it before trusting it
+
+    DATABASE_URL=... ANTHROPIC_API_KEY=... python jobs/draft_studio_signals.py --validate
+
+The queue cannot check the thing most worth checking. It is unlabelled rows by
+construction, and **every documented closure in the corpus is already
+labelled** — so no row in it can tell you whether `closed` is ever returned when
+it should be. Two live runs produced zero, and that is equally consistent with
+correct restraint and with a prompt that has over-corrected.
+
+`--validate` researches the 35 rows whose signals are already curated and
+reports where the drafts disagree. The curated answer is never in the prompt.
+It writes `data/signal_validation.csv` and no labels.
+
+The report separates the direction of each miss, because a single accuracy
+figure would hide the only thing that matters:
+
+- `false_benign` — a gutted studio reported as fine. Buries a Flop as an
+  Underperform, and is the failure this whole exercise exists to rule out.
+- `false_alarm` — a healthy studio reported as gutted. The failure the prompt
+  was written against.
+- `refused` — answered `unknown` where a value exists. Honest rather than wrong,
+  but many of them means the 16-month window is starving the search.
+
+Read the result as evidence, not a score. It is far more informative about
+failure than success: three documented closures with heavy coverage, so missing
+two of them is decisive, while getting all three is necessary and weak — one row
+is a third of that class. **Do not tune the prompt against these counts.** Fix a
+named reasoning error in a named row, or accept that a disagreement is the
+label rather than the draft; some were curated early, and a draft that
+contradicts one with better sources is a finding about the corpus.
+
+### The `alternative_reading` field
+
+Every draft carries a value the model seriously considered and did not pick,
+dated, or an empty string. It exists because a reviewer with dozens of rows
+triages by flag: Marvel's Midnight Suns came back `severe_layoffs`/`sustained`
+and unflagged while its own note argued for `curtailed` — and `severe_layoffs`
+plus `curtailed` is Flop, not Underperform. The row closest to changing tier was
+the one nothing surfaced. A non-empty value adds `alternative` to
+`needs_attention`.
+
+If the validation run comes back with an alternative on every row, the field is
+noise and should be dropped rather than kept as a flag nobody can act on.
+
 ### Do the whole queue as a batch
 
 `--limit 5` runs synchronously and is what to smoke-test with. For the rest,

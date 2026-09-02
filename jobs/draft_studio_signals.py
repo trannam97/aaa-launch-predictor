@@ -64,14 +64,17 @@ from app.research import (  # noqa: E402
     ResearchError,
     ResearchTarget,
     collect_batch,
+    compare_to_curated,
     draft_signals,
     submit_batch,
+    summarise_comparisons,
 )
 from app.rubric import RubricInput, classify  # noqa: E402
 
 logger = logging.getLogger("draft_studio_signals")
 
 DEFAULT_OUT = REPO_ROOT / "data" / "signal_drafts.csv"
+VALIDATION_OUT = REPO_ROOT / "data" / "signal_validation.csv"
 
 # Small on purpose: every synchronous row is a call someone is waiting on.
 SYNC_DEFAULT_LIMIT = 5
@@ -86,6 +89,22 @@ FIELDS = [
     "sources",
     "studio_evidence",
     "support_evidence",
+    "alternative_reading",
+    "reviewer_note",
+]
+
+VALIDATION_FIELDS = [
+    "steam_appid",
+    "game_name",
+    "verdict",
+    "curated_studio",
+    "drafted_studio",
+    "curated_support",
+    "drafted_support",
+    "confidence",
+    "alternative_reading",
+    "sources",
+    "studio_evidence",
     "reviewer_note",
 ]
 
@@ -114,6 +133,14 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help="Queue the run through the Batches API at half the token cost and "
         "exit with the batch id. Nothing is written until --collect.",
+    )
+    parser.add_argument(
+        "--validate",
+        action="store_true",
+        help="Research rows whose signals are already curated and report where "
+        "the drafts disagree. The queue cannot test this: every documented "
+        "closure in the corpus is already labelled, so no unlabelled row can "
+        "check whether `closed` is ever called when it should be.",
     )
     parser.add_argument(
         "--collect",
@@ -183,6 +210,7 @@ def as_row(appid: int, game_name: str, draft) -> dict[str, object]:
         "steam_appid": appid,
         "game_name": game_name,
         "needs_attention": draft.review_flags,
+        "alternative_reading": draft.alternative_reading,
         "studio_signal": draft.studio_signal,
         "support_signal": draft.support_signal,
         "confidence": draft.confidence,
@@ -212,16 +240,63 @@ def report(rows: list[dict[str, object]], failed: int, out: Path) -> None:
     print("  values into data/historical_releases.csv by hand.")
 
 
+def already_answered(session) -> list[HistoricalRelease]:
+    """Rows whose two signals are already curated, to measure the drafts against.
+
+    Not `candidates()`: that returns unlabelled rows, and the answers live in
+    the labelled ones. Deliberately not filtered to day_one_steam either — the
+    researcher's job does not depend on how a game reached Steam, and the
+    corpus has only three `closed` rows to spare.
+    """
+    return list(
+        session.scalars(
+            select(HistoricalRelease)
+            .where(HistoricalRelease.studio_signal.is_not(None))
+            .where(HistoricalRelease.support_signal.is_not(None))
+            .order_by(HistoricalRelease.steam_release_date)
+        )
+    )
+
+
+def report_validation(rows, out: Path, failed: int) -> None:
+    tally = summarise_comparisons(rows)
+    print()
+    print(f"  compared           {tally['compared']}")
+    print(f"  failed             {failed}")
+    print(f"  studio agrees      {tally['studio_agrees']}/{tally['compared']}")
+    print(f"  support agrees     {tally['support_agrees']}/{tally['compared']}")
+    print(f"  both agree         {tally['both_agree']}/{tally['compared']}")
+    print()
+    print("  Direction of the studio misses — these do not average together:")
+    print(f"    false benign     {tally['false_benign']}   <- called a gutted studio fine;")
+    print("                           buries a Flop as an Underperform")
+    print(f"    false alarm      {tally['false_alarm']}   <- called a healthy studio gutted;")
+    print("                           the failure the prompt was written against")
+    print(f"    refused          {tally['refused']}   <- answered `unknown`; honest, but")
+    print("                           many means the window is starving the search")
+    print(f"    differs          {tally['differs']}")
+    print()
+    print(f"  named an alternative  {tally['flagged_alternative']}/{tally['compared']}")
+    print(f"  written to         {out}")
+    print()
+    print("  Measurement, not a target. Fix a named error in a named row; do not")
+    print("  tune the prompt against this number. A disagreement may also be the")
+    print("  label rather than the draft.")
+
+
 def main(argv: list[str] | None = None) -> int:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
     logging.getLogger("httpx").setLevel(logging.WARNING)
     args = parse_args(argv)
 
     with session_scope() as session:
-        queue = candidates(session)
+        queue = already_answered(session) if args.validate else candidates(session)
         if args.appids:
             queue = [r for r in queue if r.steam_appid in args.appids]
-        logger.info("%d release(s) the rubric cannot resolve without signals", len(queue))
+        if args.validate:
+            logger.info("%d release(s) with curated signals to measure against", len(queue))
+        else:
+            logger.info("%d release(s) the rubric cannot resolve without signals", len(queue))
 
         if args.list_only:
             for release in queue:
@@ -231,7 +306,7 @@ def main(argv: list[str] | None = None) -> int:
         # --collect maps results back by appid, so it needs the whole queue as
         # its key space: a batch submitted before someone labelled a row would
         # otherwise return a key this run cannot name.
-        if args.collect:
+        if args.collect or args.validate:
             selected = queue
         elif args.batch:
             selected = queue[: args.limit] if args.limit else queue
@@ -242,6 +317,13 @@ def main(argv: list[str] | None = None) -> int:
         else:
             selected = queue[: args.limit or SYNC_DEFAULT_LIMIT]
 
+        curated = {
+            r.steam_appid: (
+                r.studio_signal.value if r.studio_signal else "",
+                r.support_signal.value if r.support_signal else "",
+            )
+            for r in selected
+        }
         targets = [
             (
                 r.steam_appid,
@@ -309,6 +391,54 @@ def main(argv: list[str] | None = None) -> int:
         print()
         print(f"    python jobs/draft_studio_signals.py --collect {batch_id}")
         print()
+        return 0
+
+    if args.validate:
+        out = args.out if args.out != DEFAULT_OUT else VALIDATION_OUT
+        compared, failed = [], 0
+        for appid, target in targets:
+            try:
+                draft = draft_signals(client.beta.messages, target)
+            except ResearchError as exc:
+                failed += 1
+                logger.warning("%s", exc)
+                continue
+            curated_studio, curated_support = curated[appid]
+            row = compare_to_curated(
+                str(appid), target.game_name, curated_studio, curated_support, draft
+            )
+            compared.append(row)
+            logger.info(
+                "%-38s %-13s studio %s/%s  support %s/%s",
+                target.game_name[:38],
+                row.verdict.upper(),
+                draft.studio_signal,
+                curated_studio,
+                draft.support_signal,
+                curated_support,
+            )
+        out.parent.mkdir(parents=True, exist_ok=True)
+        with out.open("w", newline="") as handle:
+            writer = csv.DictWriter(handle, fieldnames=VALIDATION_FIELDS)
+            writer.writeheader()
+            for row in compared:
+                writer.writerow(
+                    {
+                        "steam_appid": row.key,
+                        "game_name": row.game_name,
+                        "verdict": row.verdict,
+                        "curated_studio": row.curated_studio,
+                        "drafted_studio": row.draft.studio_signal,
+                        "curated_support": row.curated_support,
+                        "drafted_support": row.draft.support_signal,
+                        "confidence": row.draft.confidence,
+                        "alternative_reading": row.draft.alternative_reading,
+                        "sources": " | ".join(row.draft.sources),
+                        "studio_evidence": row.draft.studio_evidence,
+                        "reviewer_note": row.draft.reviewer_note,
+                    }
+                )
+        report_validation(compared, out, failed)
         return 0
 
     rows, failed = [], 0

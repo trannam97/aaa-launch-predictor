@@ -23,10 +23,12 @@ from app.research import (
     batch_requests,
     build_prompt,
     collect_batch,
+    compare_to_curated,
     draft_signals,
     parse_response,
     request_kwargs,
     submit_batch,
+    summarise_comparisons,
 )
 
 TARGET = ResearchTarget(
@@ -43,6 +45,7 @@ VALID = {
     "support_evidence": "Final update shipped, roadmap not completed.",
     "sources": ["https://example.com/report"],
     "confidence": "medium",
+    "alternative_reading": "",
     "reviewer_note": "Check whether the studio was merged rather than reduced.",
 }
 
@@ -432,3 +435,105 @@ def test_the_synchronous_path_streams():
 def test_the_client_protocol_asks_for_stream_not_create():
     assert hasattr(MessagesClient, "stream")
     assert not hasattr(MessagesClient, "create")
+
+
+# --- measuring the researcher against known answers -------------------------
+
+
+def draft_with(studio, support="sustained", alternative=""):
+    return SignalDraft(
+        studio_signal=studio,
+        support_signal=support,
+        studio_evidence="",
+        support_evidence="",
+        sources=["https://example.com/x"],
+        confidence="high",
+        alternative_reading=alternative,
+        reviewer_note="",
+    )
+
+
+@pytest.mark.parametrize(
+    ("drafted", "curated", "expected"),
+    [
+        ("closed", "closed", "agrees"),
+        # The expensive miss: a gutted studio reported as fine buries a Flop.
+        ("continued", "closed", "false_benign"),
+        ("grew", "severe_layoffs", "false_benign"),
+        # The miss the prompt was written against.
+        ("closed", "continued", "false_alarm"),
+        ("severe_layoffs", "grew", "false_alarm"),
+        # An honest refusal is neither, and must not be averaged with either.
+        ("unknown", "closed", "refused"),
+        ("unknown", "continued", "refused"),
+        # Wrong, but within the same direction.
+        ("closed", "severe_layoffs", "differs"),
+    ],
+)
+def test_a_miss_is_classified_by_direction_not_just_counted(drafted, curated, expected):
+    """One accuracy figure hides the only thing that matters here.
+
+    Reporting a gutted studio as fine and reporting a healthy one as gutted are
+    opposite failures with opposite costs, and averaging them together would
+    let a run that buries every Flop look like a run that is merely noisy.
+    """
+    row = compare_to_curated("1", "G", curated, "sustained", draft_with(drafted))
+
+    assert row.verdict == expected
+
+
+def test_the_summary_separates_the_two_directions():
+    rows = [
+        compare_to_curated("1", "A", "closed", "abandoned", draft_with("continued")),
+        compare_to_curated("2", "B", "closed", "abandoned", draft_with("closed", "abandoned")),
+        compare_to_curated("3", "C", "continued", "sustained", draft_with("severe_layoffs")),
+        compare_to_curated("4", "D", "grew", "sustained", draft_with("unknown")),
+    ]
+
+    tally = summarise_comparisons(rows)
+
+    assert tally["compared"] == 4
+    assert tally["false_benign"] == 1
+    assert tally["false_alarm"] == 1
+    assert tally["refused"] == 1
+    assert tally["studio_agrees"] == 1
+    assert tally["both_agree"] == 1  # only B matches on both
+
+
+def test_support_agreement_is_scored_separately_from_studio():
+    """severe_layoffs plus curtailed is Flop; plus sustained it is Underperform.
+    Getting the studio right and the support wrong is not a half-success."""
+    row = compare_to_curated(
+        "1", "G", "severe_layoffs", "curtailed", draft_with("severe_layoffs", "sustained")
+    )
+
+    assert row.studio_agrees
+    assert not row.support_agrees
+
+
+# --- flagging a doubt that would change the tier ----------------------------
+
+
+def test_an_alternative_reading_is_flagged():
+    """Marvel's Midnight Suns came back severe_layoffs/sustained and unflagged
+    while its own note argued for curtailed — and severe_layoffs plus curtailed
+    is Flop. The row closest to changing tier was invisible to triage."""
+    draft = draft_with(
+        "severe_layoffs",
+        alternative="support_signal=curtailed — the Switch version was cancelled 2 May 2023",
+    )
+
+    assert "alternative" in draft.review_flags
+
+
+def test_no_alternative_means_no_flag():
+    """Filling it on every row would make the flag noise, so the empty case
+    must stay silent."""
+    assert draft_with("continued").review_flags == ""
+    assert draft_with("continued", alternative="   ").review_flags == ""
+
+
+def test_the_prompt_asks_for_a_near_miss_not_a_habit():
+    assert "alternative_reading" in SYSTEM_PROMPT
+    assert "empty string" in SYSTEM_PROMPT
+    assert "alternative_reading" in RESPONSE_SCHEMA["required"]
