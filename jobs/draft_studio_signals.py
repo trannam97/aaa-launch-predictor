@@ -45,6 +45,7 @@ import argparse
 import csv
 import logging
 import sys
+from contextlib import contextmanager
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -221,6 +222,29 @@ def as_row(appid: int, game_name: str, draft) -> dict[str, object]:
     }
 
 
+@contextmanager
+def incremental_csv(path: Path, fields: list[str]):
+    """Write rows as they arrive, flushed, so an interrupted run keeps them.
+
+    Each row here is a paid call. Writing only after the loop means a job that
+    is killed -- the 90-minute ceiling is reachable at 35 rows, and a rate limit
+    or a network fault would do the same -- discards everything it gathered and
+    bills the re-run from zero. This is the lesson the launch-price job already
+    learned, applied late.
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=fields)
+        writer.writeheader()
+        handle.flush()
+
+        def emit(row: dict[str, object]) -> None:
+            writer.writerow(row)
+            handle.flush()
+
+        yield emit
+
+
 def write_drafts(path: Path, rows: list[dict[str, object]]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", newline="") as handle:
@@ -256,6 +280,23 @@ def already_answered(session) -> list[HistoricalRelease]:
             .order_by(HistoricalRelease.steam_release_date)
         )
     )
+
+
+def as_validation_row(row) -> dict[str, object]:
+    return {
+        "steam_appid": row.key,
+        "game_name": row.game_name,
+        "verdict": row.verdict,
+        "curated_studio": row.curated_studio,
+        "drafted_studio": row.draft.studio_signal,
+        "curated_support": row.curated_support,
+        "drafted_support": row.draft.support_signal,
+        "confidence": row.draft.confidence,
+        "alternative_reading": row.draft.alternative_reading,
+        "sources": " | ".join(row.draft.sources),
+        "studio_evidence": row.draft.studio_evidence,
+        "reviewer_note": row.draft.reviewer_note,
+    }
 
 
 def report_validation(rows, out: Path, failed: int) -> None:
@@ -396,6 +437,34 @@ def main(argv: list[str] | None = None) -> int:
     if args.validate:
         out = args.out if args.out != DEFAULT_OUT else VALIDATION_OUT
         compared, failed = [], 0
+        with incremental_csv(out, VALIDATION_FIELDS) as emit:
+            for appid, target in targets:
+                try:
+                    draft = draft_signals(client.beta.messages, target)
+                except ResearchError as exc:
+                    failed += 1
+                    logger.warning("%s", exc)
+                    continue
+                curated_studio, curated_support = curated[appid]
+                row = compare_to_curated(
+                    str(appid), target.game_name, curated_studio, curated_support, draft
+                )
+                compared.append(row)
+                emit(as_validation_row(row))
+                logger.info(
+                    "%-38s %-13s studio %s/%s  support %s/%s",
+                    target.game_name[:38],
+                    row.verdict.upper(),
+                    draft.studio_signal,
+                    curated_studio,
+                    draft.support_signal,
+                    curated_support,
+                )
+        report_validation(compared, out, failed)
+        return 0
+
+    rows, failed = [], 0
+    with incremental_csv(args.out, FIELDS) as emit:
         for appid, target in targets:
             try:
                 draft = draft_signals(client.beta.messages, target)
@@ -403,62 +472,17 @@ def main(argv: list[str] | None = None) -> int:
                 failed += 1
                 logger.warning("%s", exc)
                 continue
-            curated_studio, curated_support = curated[appid]
-            row = compare_to_curated(
-                str(appid), target.game_name, curated_studio, curated_support, draft
-            )
-            compared.append(row)
+            row = as_row(appid, target.game_name, draft)
+            rows.append(row)
+            emit(row)
             logger.info(
-                "%-38s %-13s studio %s/%s  support %s/%s",
-                target.game_name[:38],
-                row.verdict.upper(),
+                "%-40s studio=%-15s support=%-10s %s",
+                target.game_name[:40],
                 draft.studio_signal,
-                curated_studio,
                 draft.support_signal,
-                curated_support,
+                draft.review_flags,
             )
-        out.parent.mkdir(parents=True, exist_ok=True)
-        with out.open("w", newline="") as handle:
-            writer = csv.DictWriter(handle, fieldnames=VALIDATION_FIELDS)
-            writer.writeheader()
-            for row in compared:
-                writer.writerow(
-                    {
-                        "steam_appid": row.key,
-                        "game_name": row.game_name,
-                        "verdict": row.verdict,
-                        "curated_studio": row.curated_studio,
-                        "drafted_studio": row.draft.studio_signal,
-                        "curated_support": row.curated_support,
-                        "drafted_support": row.draft.support_signal,
-                        "confidence": row.draft.confidence,
-                        "alternative_reading": row.draft.alternative_reading,
-                        "sources": " | ".join(row.draft.sources),
-                        "studio_evidence": row.draft.studio_evidence,
-                        "reviewer_note": row.draft.reviewer_note,
-                    }
-                )
-        report_validation(compared, out, failed)
-        return 0
 
-    rows, failed = [], 0
-    for appid, target in targets:
-        try:
-            draft = draft_signals(client.beta.messages, target)
-        except ResearchError as exc:
-            failed += 1
-            logger.warning("%s", exc)
-            continue
-        rows.append(as_row(appid, target.game_name, draft))
-        logger.info(
-            "%-40s studio=%-15s support=%-10s %s",
-            target.game_name[:40],
-            draft.studio_signal,
-            draft.support_signal,
-            draft.review_flags,
-        )
-
-    write_drafts(args.out, rows)
     report(rows, failed, args.out)
     return 0
 

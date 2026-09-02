@@ -174,7 +174,11 @@ jobs:
   signal-drafts:
     if: inputs.job == 'signal-drafts'
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    # A row takes 45-170 seconds, so 35 of them can reach 100 minutes and the
+    # whole labelled set could be run more than once. The rows are written as
+    # they arrive now, so a ceiling reached is no longer a run lost -- but the
+    # ceiling was doing nothing useful at 90.
+    timeout-minutes: 180
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7

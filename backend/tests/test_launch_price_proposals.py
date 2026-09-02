@@ -9,6 +9,7 @@ is written even when the run stops, and the next run continues from it.
 
 from __future__ import annotations
 
+import csv
 import sys
 from datetime import date
 from pathlib import Path
@@ -125,3 +126,48 @@ def test_naming_appids_is_the_selection_not_a_filter_on_the_default():
     # An explicit --limit still wins over the named list.
     explicit = signals.parse_args(["--appid", "1", "--limit", "2"])
     assert explicit.limit == 2
+
+
+# --- a killed run must keep what it gathered --------------------------------
+
+
+def test_rows_are_readable_before_the_run_ends(tmp_path):
+    """Each row is a paid call, and the 90-minute ceiling was reachable at 35
+    rows. Writing only after the loop meant a job killed at 34 rows discarded
+    all 34 and billed the re-run from zero."""
+    import sys
+    from pathlib import Path as _Path
+
+    sys.path.insert(0, str(_Path(__file__).resolve().parents[2] / "jobs"))
+    import draft_studio_signals as signals
+
+    out = tmp_path / "partial.csv"
+    fields = ["steam_appid", "game_name"]
+
+    with signals.incremental_csv(out, fields) as emit:
+        emit({"steam_appid": 570, "game_name": "First"})
+        # Mid-loop: the file already holds the header and the first row.
+        mid = list(csv.DictReader(out.open()))
+        assert [r["game_name"] for r in mid] == ["First"]
+        emit({"steam_appid": 440, "game_name": "Second"})
+
+    assert [r["game_name"] for r in csv.DictReader(out.open())] == ["First", "Second"]
+
+
+def test_an_interrupted_run_leaves_a_valid_file(tmp_path):
+    """Even when the loop raises, what was written must still parse."""
+    import sys
+    from pathlib import Path as _Path
+
+    sys.path.insert(0, str(_Path(__file__).resolve().parents[2] / "jobs"))
+    import draft_studio_signals as signals
+
+    out = tmp_path / "killed.csv"
+    with (
+        pytest.raises(RuntimeError),
+        signals.incremental_csv(out, ["steam_appid", "game_name"]) as emit,
+    ):
+        emit({"steam_appid": 570, "game_name": "Kept"})
+        raise RuntimeError("the runner was killed here")
+
+    assert [r["game_name"] for r in csv.DictReader(out.open())] == ["Kept"]
