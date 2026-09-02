@@ -11,10 +11,12 @@ import pytest
 from app.research import (
     CACHE_CONTROL,
     FALLBACK_BETA,
+    MAX_TOKENS,
     RESPONSE_SCHEMA,
     SIGNAL_WINDOW_MONTHS,
     SYSTEM_PROMPT,
     WEB_SEARCH_TOOL,
+    MessagesClient,
     ResearchError,
     ResearchTarget,
     SignalDraft,
@@ -51,9 +53,29 @@ def stub_message(text=None, stop_reason="end_turn"):
     return SimpleNamespace(stop_reason=stop_reason, content=blocks)
 
 
+class _Stream:
+    """What `client.beta.messages.stream(...)` gives back: a context manager
+    whose `.get_final_message()` is the finished message."""
+
+    def __init__(self, response, seen):
+        self._response, self._seen = response, seen
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+    def get_final_message(self):
+        return self._response
+
+
 def stub(*, stop_reason="end_turn", text=None):
     response = stub_message(text, stop_reason)
-    return SimpleNamespace(create=lambda **kwargs: response)
+    seen: dict = {}
+    client = SimpleNamespace(seen=seen)
+    client.stream = lambda **kwargs: (seen.update(kwargs), _Stream(response, seen))[1]
+    return client
 
 
 def test_parses_a_well_formed_response():
@@ -385,3 +407,28 @@ def test_evidence_must_also_sit_inside_the_window():
     """Three of the first four drafts supported `grew` with a 2017 expansion
     announcement about a 2014 launch."""
     assert "Evidence *for* a value must also sit inside the window" in SYSTEM_PROMPT
+
+
+# --- the cap and the transport are one decision ------------------------------
+
+
+def test_the_synchronous_path_streams():
+    """MAX_TOKENS=32000 makes the SDK refuse a non-streaming request outright —
+    client-side, before anything is sent — so raising the cap without switching
+    transport fails every row. The highest this model takes non-streaming is
+    21,333 tokens, which is why 16000 worked and 32000 did not:
+
+        ValueError: Streaming is required for operations that may take longer
+        than 10 minutes.
+    """
+    client = stub(text=json.dumps(VALID))
+
+    draft_signals(client, TARGET)
+
+    assert client.seen["max_tokens"] == MAX_TOKENS
+    assert not hasattr(client, "create"), "the sync path must not fall back to create()"
+
+
+def test_the_client_protocol_asks_for_stream_not_create():
+    assert hasattr(MessagesClient, "stream")
+    assert not hasattr(MessagesClient, "create")

@@ -41,9 +41,19 @@ MODEL = "claude-opus-5"
 # and the failure reads as a parser bug rather than a budget one — which is
 # exactly what Just Cause 3 did on the first live run, truncating at character
 # 2701 after the longest generation of the five. `parse_response` now names the
-# cause; this gives it room not to happen. The batch path has no HTTP timeout to
-# worry about, and the synchronous path's slowest observed row was 167s against
-# the SDK's ten-minute default.
+# cause; this gives it room not to happen.
+#
+# The cap and the transport are one decision, not two. The SDK estimates a
+# non-streaming request's duration from max_tokens and raises ValueError before
+# sending anything once that passes ten minutes. For this model the highest it
+# accepts non-streaming is 21,333 — measured against the installed SDK, not
+# guessed — so 16000 was fine and 32000 is refused on every row:
+#
+#     ValueError: Streaming is required for operations that may take longer
+#     than 10 minutes.
+#
+# Hence `draft_signals` streams. The batch path has no such check and is
+# unaffected either way.
 MAX_TOKENS = 32000
 
 # Enough searches to check the studio, the publisher and the game separately,
@@ -235,9 +245,17 @@ class ResearchTarget:
 
 
 class MessagesClient(Protocol):
-    """The slice of the Anthropic client this module uses, so tests can stub it."""
+    """The slice of the Anthropic client this module uses, so tests can stub it.
 
-    def create(self, **kwargs: Any) -> Any: ...
+    `stream`, not `create`: the SDK derives a non-streaming timeout from
+    `max_tokens` and refuses outright — client-side, before any request is sent
+    — when the estimate passes ten minutes. At MAX_TOKENS=32000 it does.
+    Streaming is the documented pairing for a raised cap, and
+    `.get_final_message()` returns the same finished message
+    `parse_response` already reads.
+    """
+
+    def stream(self, **kwargs: Any) -> Any: ...
 
 
 class ResearchError(RuntimeError):
@@ -320,7 +338,9 @@ def parse_response(response: Any, game_name: str) -> SignalDraft:
 
 def draft_signals(client: MessagesClient, target: ResearchTarget) -> SignalDraft:
     """Research one game now. Raises ResearchError rather than inventing a value."""
-    return parse_response(client.create(**request_kwargs(target)), target.game_name)
+    with client.stream(**request_kwargs(target)) as stream:
+        response = stream.get_final_message()
+    return parse_response(response, target.game_name)
 
 
 # --- the batch path ---------------------------------------------------------
