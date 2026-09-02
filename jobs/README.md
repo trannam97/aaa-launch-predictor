@@ -186,11 +186,41 @@ Run it from **Actions -> Research -> `signal-drafts`**, or locally:
 ```
 DATABASE_URL=... python jobs/draft_studio_signals.py --list          # free, no API call
 DATABASE_URL=... ANTHROPIC_API_KEY=... python jobs/draft_studio_signals.py --limit 5
+DATABASE_URL=... ANTHROPIC_API_KEY=... python jobs/draft_studio_signals.py --batch
+DATABASE_URL=... ANTHROPIC_API_KEY=... python jobs/draft_studio_signals.py --collect msgbatch_...
 ```
 
 Drafts `studio_signal` and `support_signal` with Claude and web search, for the
 rows the rubric refuses to call. Needs the `research` extra (`pip install -e
 './backend[postgres,research]'`).
+
+### Do the whole queue as a batch
+
+`--limit 5` runs synchronously and is what to smoke-test with. For the rest,
+`--batch` queues the run through the Batches API, which takes **50% off every
+token, cache reads and writes included**. Nobody is waiting on a backfill, so
+there is no reason to pay twice for it.
+
+Submit and collect are separate commands rather than one that waits. A batch may
+take up to 24 hours; a CI runner blocked on a poll loop bills for every minute
+of it. `--batch` prints a batch id and exits, `--collect <id>` writes the review
+file. Results keep for 29 days.
+
+Both paths build the request from the same `research.request_kwargs`, so a batch
+cannot drift from what `--limit 5` was checked with. A test asserts that, and
+another checks every field against the SDK's own types — a misspelled parameter
+is otherwise a 400 discovered after the whole queue has been built.
+
+What batching does **not** discount is the per-search fee: web search is $10 per
+1,000 searches on either path. At around four searches a row that fee is a third
+of what this costs on Opus 5, which is also why moving to a cheaper model saves
+much less than its per-token price suggests.
+
+Two things do not survive a batch. A refusal or a paused turn cannot be
+continued mid-batch, so those rows come back as errors and are re-run — the same
+outcome the synchronous path already had, since a refused draft was never
+trustworthy. And a row that leaves the queue between submit and collect (someone
+labelled it) is reported rather than written.
 
 **It writes a review file, never the database and never the curated CSV.** A
 draft is not a label: a reviewer opens the sources, and only a verified value is

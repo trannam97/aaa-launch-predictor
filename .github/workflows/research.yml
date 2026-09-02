@@ -23,9 +23,24 @@ on:
         # Not "leave blank for all": GitHub substitutes an input's default when
         # the field is submitted empty, so blank can only ever mean 20. The
         # whole queue needs a value of its own.
-        description: "How many rows to process, or `all` for the whole queue (launch-prices only)."
+        description: "How many rows to process, or `all` for the whole queue (launch-prices, or signal-drafts in batch mode)."
         type: string
         default: "20"
+      signal_mode:
+        # Submit and collect are separate runs because a batch can take up to
+        # 24 hours, and a runner blocked on a poll loop bills for every minute
+        # of it. The batch id is the handle between them.
+        description: "signal-drafts only — `now` calls per row and waits; `batch` queues the run at half the token cost; `collect` writes the file from a finished batch"
+        type: choice
+        default: now
+        options:
+          - now
+          - batch
+          - collect
+      batch_id:
+        description: "signal-drafts + collect — the batch id the submit run printed"
+        type: string
+        default: ""
       refresh:
         # The proposals file survives between runs (see the cache steps), which
         # is what makes a rate-limited run resumable. The same persistence keeps
@@ -159,28 +174,55 @@ jobs:
         with:
           url: ${{ secrets.DATABASE_URL }}
 
-      # One Claude call with web search per game, so the limit is not optional
-      # here the way it is for ITAD — a blank runs the whole queue and bills it.
+      # One Claude call with web search per game. `now` bills a call per row
+      # while the runner waits, so it refuses `all`; `batch` is the whole-queue
+      # path and costs half as many token dollars, which is what `all` is for.
       - name: Draft studio and support signals
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           LIMIT: ${{ inputs.limit }}
+          MODE: ${{ inputs.signal_mode }}
+          BATCH_ID: ${{ inputs.batch_id }}
         run: |
-          case "$LIMIT" in
-            all) echo "::error::signal-drafts will not run 'all' — each row is a Claude call with web search. Name a number."; exit 1 ;;
-            ''|*[!0-9]*) echo "::error::signal-drafts needs a numeric limit; each row costs a call"; exit 1 ;;
+          args=()
+          case "$MODE" in
+            collect)
+              [ -n "$BATCH_ID" ] || { echo "::error::collect needs the batch id the submit run printed"; exit 1; }
+              args+=(--collect "$BATCH_ID")
+              ;;
+            batch)
+              args+=(--batch)
+              case "$LIMIT" in
+                all) ;;
+                ''|*[!0-9]*) echo "::error::limit must be a whole number or 'all': $LIMIT"; exit 1 ;;
+                *) args+=(--limit "$LIMIT") ;;
+              esac
+              ;;
+            now)
+              case "$LIMIT" in
+                all) echo "::error::'all' bills a call per row with the runner waiting. Use signal_mode=batch for the whole queue — same work, half the token cost."; exit 1 ;;
+                ''|*[!0-9]*) echo "::error::signal-drafts needs a numeric limit; each row costs a call"; exit 1 ;;
+              esac
+              args+=(--limit "$LIMIT")
+              ;;
+            *) echo "::error::unknown signal_mode: $MODE"; exit 1 ;;
           esac
           set -o pipefail
           status=0
-          python jobs/draft_studio_signals.py --limit "$LIMIT" | tee drafts.log || status=$?
+          python jobs/draft_studio_signals.py "${args[@]}" | tee drafts.log || status=$?
           {
-            echo "## Signal drafts"
+            echo "## Signal drafts — $MODE"
             echo
             echo '```'
-            tail -12 drafts.log
+            tail -14 drafts.log
             echo '```'
             echo
-            echo "Drafts, not labels. Rows flagged **CLOSED-verify** must be read before use."
+            if [ "$MODE" = "batch" ]; then
+              echo "Nothing is written yet. Re-run this workflow with **signal_mode: collect**"
+              echo "and the batch id above once it has finished."
+            else
+              echo "Drafts, not labels. Rows flagged **CLOSED-verify** must be read before use."
+            fi
           } >> "$GITHUB_STEP_SUMMARY"
           exit $status
 
