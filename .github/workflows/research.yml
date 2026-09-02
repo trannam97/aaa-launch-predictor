@@ -73,12 +73,16 @@ jobs:
       # Dropping the file first would let `refresh` with a limit of 20 replace
       # fifty answered rows with twenty.
       - name: Restore the proposals so far
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           path: data/launch_price_proposals.csv
           # The primary key never hits, which is the point: every run restores
           # the newest previous file and saves a fresh one under its own key.
-          key: launch-price-proposals-${{ github.run_id }}
+          # run_attempt is in the key because run_id is *not* unique across
+          # re-runs: a rate-limited attempt and the re-run that finishes the
+          # queue share one run_id, so without it the second save collides with
+          # the first and the cache keeps the shorter file.
+          key: launch-price-proposals-${{ github.run_id }}-${{ github.run_attempt }}
           restore-keys: launch-price-proposals-
 
       - name: Propose launch prices from ITAD
@@ -122,10 +126,10 @@ jobs:
       # report 120 failures instead of 50 successes.
       - name: Carry the proposals to the next run
         if: always()
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v5
         with:
           path: data/launch_price_proposals.csv
-          key: launch-price-proposals-${{ github.run_id }}
+          key: launch-price-proposals-${{ github.run_id }}-${{ github.run_attempt }}
 
       - name: Keep the proposals
         if: always()

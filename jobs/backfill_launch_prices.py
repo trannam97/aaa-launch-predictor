@@ -195,7 +195,7 @@ def main(argv: list[str] | None = None) -> int:
         logger.error("ITAD_API_KEY is not set. Register an app at isthereanydeal.com/apps/dev")
         return 1
 
-    missing = failed = added = 0
+    unknown = no_history = failed = added = 0
     stopped: str | None = None
     with ItadClient(api_key) as client:
         # One request for every appid, before any of the per-game history calls.
@@ -211,8 +211,8 @@ def main(argv: list[str] | None = None) -> int:
         for appid, name, released in targets:
             itad_id = ids.get(appid)
             if itad_id is None:
-                missing += 1
-                logger.info("%-40s not tracked by ITAD", name[:40])
+                unknown += 1
+                logger.info("%-40s no ITAD entry for this appid", name[:40])
                 continue
             try:
                 if args.dump_raw and not dumped:
@@ -232,8 +232,19 @@ def main(argv: list[str] | None = None) -> int:
                 logger.warning("%-40s %s", name[:40], exc)
                 continue
             if found is None:
-                missing += 1
-                logger.info("%-40s no price history", name[:40])
+                # Not the same failure as having no ITAD entry, and reporting
+                # both as "not tracked" sent the first investigation to the
+                # wrong place. /games/history/v2 answers with price *change*
+                # events, so a title whose price has not moved inside the
+                # window asked about comes back empty -- which is what happens
+                # when steam_release_date is NULL and there is no `since` to
+                # reach back with.
+                no_history += 1
+                logger.info(
+                    "%-40s ITAD knows it, but returned no price changes%s",
+                    name[:40],
+                    "" if released else " (no steam_release_date, so no `since`)",
+                )
                 continue
             proposals[appid] = as_row(appid, name, released, found)
             added += 1
@@ -256,7 +267,8 @@ def main(argv: list[str] | None = None) -> int:
     if suspect:
         print(f"  UNRELIABLE shape   {suspect}   <- the parser understood only part of the")
         print("                            response; these numbers mean nothing yet")
-    print(f"  not tracked        {missing}")
+    print(f"  no ITAD entry      {unknown}")
+    print(f"  no price changes   {no_history}")
     print(f"  failed             {failed}")
     print(f"  written to         {args.out}")
     print()
