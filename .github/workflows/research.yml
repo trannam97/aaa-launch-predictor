@@ -41,6 +41,13 @@ on:
         description: "signal-drafts + collect — the batch id the submit run printed"
         type: string
         default: ""
+      appids:
+        # Both jobs accept --appid; without a way to pass it from here, picking
+        # a deliberate sample meant having a local Python toolchain, which is
+        # the thing these workflows exist to avoid.
+        description: "Research only these Steam appids, comma or space separated. Blank = the whole queue."
+        type: string
+        default: ""
       refresh:
         # The proposals file survives between runs (see the cache steps), which
         # is what makes a rate-limited run resumable. The same persistence keeps
@@ -106,6 +113,7 @@ jobs:
           LIMIT: ${{ inputs.limit }}
           DUMP_RAW: ${{ inputs.dump_raw }}
           REFRESH: ${{ inputs.refresh }}
+          APPIDS: ${{ inputs.appids }}
         run: |
           case "$LIMIT" in
             all) ;;
@@ -119,6 +127,12 @@ jobs:
           [ "$LIMIT" = "all" ] || args+=(--limit "$LIMIT")
           [ "$DUMP_RAW" = "true" ] && args+=(--dump-raw itad-history-shape.json)
           [ "$REFRESH" = "true" ] && args+=(--refresh)
+          for id in ${APPIDS//,/ }; do
+            case "$id" in
+              *[!0-9]*|'') echo "::error::Not a numeric Steam appid: $id"; exit 1 ;;
+              *) args+=(--appid "$id") ;;
+            esac
+          done
           status=0
           python jobs/backfill_launch_prices.py "${args[@]}" | tee prices.log || status=$?
           {
@@ -183,6 +197,7 @@ jobs:
           LIMIT: ${{ inputs.limit }}
           MODE: ${{ inputs.signal_mode }}
           BATCH_ID: ${{ inputs.batch_id }}
+          APPIDS: ${{ inputs.appids }}
         run: |
           args=()
           case "$MODE" in
@@ -207,6 +222,12 @@ jobs:
               ;;
             *) echo "::error::unknown signal_mode: $MODE"; exit 1 ;;
           esac
+          for id in ${APPIDS//,/ }; do
+            case "$id" in
+              *[!0-9]*|'') echo "::error::Not a numeric Steam appid: $id"; exit 1 ;;
+              *) args+=(--appid "$id") ;;
+            esac
+          done
           set -o pipefail
           status=0
           python jobs/draft_studio_signals.py "${args[@]}" | tee drafts.log || status=$?

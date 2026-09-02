@@ -96,3 +96,32 @@ def test_the_verdict_is_the_triage(gap, suspect, expected):
     )
 
     assert job.as_row(570, "Game", date(2023, 11, 4), found)["verdict"] == expected
+
+
+# --- selecting rows by appid ------------------------------------------------
+
+
+def test_naming_appids_is_the_selection_not_a_filter_on_the_default():
+    """Six named appids must research six rows.
+
+    The synchronous default of five exists so an unqualified run cannot bill a
+    call per row of the whole queue. Applied on top of an explicit list it would
+    silently drop the sixth — and the row a reviewer named is exactly the one
+    they wanted.
+    """
+    import sys
+    from pathlib import Path as _Path
+
+    sys.path.insert(0, str(_Path(__file__).resolve().parents[2] / "jobs"))
+    import draft_studio_signals as signals
+
+    queue = list(range(6))  # six rows survived the appid filter
+
+    args = signals.parse_args(["--appid", "1", "--appid", "2"])
+    selected = queue[: args.limit] if args.limit else queue
+    assert args.appids and args.limit is None
+    assert len(selected) == 6
+
+    # An explicit --limit still wins over the named list.
+    explicit = signals.parse_args(["--appid", "1", "--limit", "2"])
+    assert explicit.limit == 2

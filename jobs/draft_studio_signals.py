@@ -235,6 +235,10 @@ def main(argv: list[str] | None = None) -> int:
             selected = queue
         elif args.batch:
             selected = queue[: args.limit] if args.limit else queue
+        elif args.appids:
+            # Naming appids is the selection. Silently trimming six named rows
+            # to five because a default exists would be its own bug.
+            selected = queue[: args.limit] if args.limit else queue
         else:
             selected = queue[: args.limit or SYNC_DEFAULT_LIMIT]
 
