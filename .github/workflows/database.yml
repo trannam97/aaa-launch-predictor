@@ -128,17 +128,53 @@ jobs:
         working-directory: backend
         run: |
           python - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          # Counts, then the columns whose absence is silent. A missing
+          # launch_price_cents reads as 0.0 in app/features.py, which the model
+          # cannot tell from a free game, and a missing steam_release_date
+          # leaves a row with no launch window at all. Neither shows up as a
+          # failure, so the run has to say so or nobody finds out until they go
+          # looking in the database by hand.
           from sqlalchemy import create_engine, func, select
           from sqlalchemy.orm import Session
           from app.config import get_settings
           from app.models import HistoricalRelease
+
+          def count(session, *where):
+              return session.scalar(
+                  select(func.count()).select_from(HistoricalRelease).where(*where)
+              )
+
           with Session(create_engine(get_settings().sqlalchemy_url)) as s:
               total = s.scalar(select(func.count()).select_from(HistoricalRelease))
-              labeled = s.scalar(
-                  select(func.count()).select_from(HistoricalRelease)
-                  .where(HistoricalRelease.resolved_outcome.is_not(None))
+              labeled = count(s, HistoricalRelease.resolved_outcome.is_not(None))
+              priced = count(s, HistoricalRelease.launch_price_cents.is_not(None))
+              free = count(s, HistoricalRelease.launch_price_cents == 0)
+              labeled_priced = count(
+                  s,
+                  HistoricalRelease.resolved_outcome.is_not(None),
+                  HistoricalRelease.launch_price_cents.is_not(None),
               )
+              unpriced = s.scalars(
+                  select(HistoricalRelease.game_name)
+                  .where(HistoricalRelease.launch_price_cents.is_(None))
+                  .order_by(HistoricalRelease.game_name)
+              ).all()
+              undated = s.scalars(
+                  select(HistoricalRelease.game_name)
+                  .where(HistoricalRelease.steam_release_date.is_(None))
+                  .order_by(HistoricalRelease.game_name)
+              ).all()
+
           print(f"### Corpus loaded\n\n- **{total}** releases\n- **{labeled}** carrying a label")
+          print(f"- **{priced}/{total}** with a launch price"
+                f" ({labeled_priced}/{labeled} of the labelled ones)")
+          if free:
+              print(f"  - {free} priced at 0, which should only ever be free-to-play titles")
+          for title, missing in (("no launch price", unpriced), ("no Steam release date", undated)):
+              if missing:
+                  print(f"\n<details><summary>{len(missing)} with {title}</summary>\n")
+                  print("\n".join(f"- {name}" for name in missing))
+                  print("\n</details>")
           PY
 
   # Opening the window at 1.0 rather than the store date is a correction the
