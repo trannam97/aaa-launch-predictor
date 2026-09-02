@@ -27,6 +27,7 @@ reason this returns a draft rather than a value.
 from __future__ import annotations
 
 import json
+from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import date
 from typing import Any, Literal, Protocol
@@ -40,11 +41,23 @@ MAX_TOKENS = 16000
 # without letting one row run away with the budget.
 MAX_SEARCHES = 8
 
+# `response_inclusion: "excluded"` drops the raw search blocks from the response
+# once dynamic filtering has consumed them. Safe here specifically: `_parse` reads
+# the first text block and nothing else, so the search blocks were only ever
+# billed output tokens nobody looked at. It needs `_20260318` or later.
 WEB_SEARCH_TOOL: dict[str, Any] = {
-    "type": "web_search_20260209",
+    "type": "web_search_20260318",
     "name": "web_search",
     "max_uses": MAX_SEARCHES,
+    "response_inclusion": "excluded",
 }
+
+# The system prompt, tool definition and schema are byte-identical on every row
+# — about 830 tokens re-billed 71 times. Caching reprices that at 0.1x after the
+# first write. It clears Opus 5's 512-token minimum with room; on Sonnet 5 (1024)
+# or Haiku 4.5 (4096) the same prefix would silently not cache at all, which is
+# worth knowing before anyone swaps the model for a cheaper one.
+CACHE_CONTROL: dict[str, Any] = {"type": "ephemeral"}
 
 # A refusal costs one draft, and every draft is reviewed by a human anyway, so
 # the local degradation (record `unknown`, move on) is already safe. The
@@ -202,7 +215,14 @@ def build_prompt(target: ResearchTarget) -> str:
     )
 
 
-def _request_kwargs(target: ResearchTarget) -> dict[str, Any]:
+def request_kwargs(target: ResearchTarget) -> dict[str, Any]:
+    """The request for one game, shared by the live and batch paths.
+
+    One builder deliberately: a batch that differs from the request it was smoke
+    -tested with is a batch whose results answer a different question. The beta
+    batch request type accepts `betas` and `fallbacks` inside each request's
+    params, so this dict maps into a batch entry unchanged.
+    """
     kwargs: dict[str, Any] = {
         "model": MODEL,
         "max_tokens": MAX_TOKENS,
@@ -210,6 +230,7 @@ def _request_kwargs(target: ResearchTarget) -> dict[str, Any]:
         "thinking": {"type": "adaptive"},
         "tools": [WEB_SEARCH_TOOL],
         "output_config": {"format": {"type": "json_schema", "schema": RESPONSE_SCHEMA}},
+        "cache_control": CACHE_CONTROL,
         "messages": [{"role": "user", "content": build_prompt(target)}],
     }
     if USE_SERVER_FALLBACK:
@@ -218,26 +239,109 @@ def _request_kwargs(target: ResearchTarget) -> dict[str, Any]:
     return kwargs
 
 
-def draft_signals(client: MessagesClient, target: ResearchTarget) -> SignalDraft:
-    """Research one game. Raises ResearchError rather than inventing a value."""
-    response = client.create(**_request_kwargs(target))
-
+def parse_response(response: Any, game_name: str) -> SignalDraft:
+    """Read one finished message, from either path. Never invents a value."""
     stop = getattr(response, "stop_reason", None)
     if stop == "refusal":
-        raise ResearchError(f"{target.game_name}: the request was declined")
+        raise ResearchError(f"{game_name}: the request was declined")
     if stop == "pause_turn":
         # A long web-search turn can pause. Nothing partial is trustworthy here,
-        # so surface it rather than parsing half an answer.
-        raise ResearchError(f"{target.game_name}: turn paused before completing")
+        # so surface it rather than parsing half an answer. In a batch there is
+        # no way to continue a paused turn, so the row is simply re-run.
+        raise ResearchError(f"{game_name}: turn paused before completing")
 
     text = next(
         (block.text for block in response.content if getattr(block, "type", None) == "text"),
         None,
     )
     if not text:
-        raise ResearchError(f"{target.game_name}: no text block in the response")
+        raise ResearchError(f"{game_name}: no text block in the response")
 
     try:
         return SignalDraft.model_validate(json.loads(text))
     except (json.JSONDecodeError, ValidationError) as exc:
-        raise ResearchError(f"{target.game_name}: unparseable response — {exc}") from exc
+        raise ResearchError(f"{game_name}: unparseable response — {exc}") from exc
+
+
+def draft_signals(client: MessagesClient, target: ResearchTarget) -> SignalDraft:
+    """Research one game now. Raises ResearchError rather than inventing a value."""
+    return parse_response(client.create(**request_kwargs(target)), target.game_name)
+
+
+# --- the batch path ---------------------------------------------------------
+#
+# Nobody waits on a 71-row backfill, and the Batches API takes 50% off every
+# token including cache reads and writes. The per-search fee is *not*
+# discounted, so the saving is real but bounded — at four searches a row the
+# fee is a majority of what a cheap model would cost and a third of Opus 5's.
+#
+# Server tools are what make this possible. A batch request is single-shot, so
+# a *client* tool loop cannot run inside one; web search runs server-side
+# within the single turn, and the Batches API supports it explicitly at the
+# same price. Nothing about the request shape changes — `request_kwargs` is
+# shared, so a batch cannot drift from what was smoke-tested live.
+
+
+@dataclass(slots=True)
+class BatchOutcome:
+    """One row's result, matched back to its key. Exactly one of draft/error."""
+
+    key: str
+    draft: SignalDraft | None = None
+    error: str | None = None
+
+
+class BatchesClient(Protocol):
+    """The slice of `client.beta.messages.batches` this module uses."""
+
+    def create(self, **kwargs: Any) -> Any: ...
+    def retrieve(self, batch_id: str, /) -> Any: ...
+    def results(self, batch_id: str, /) -> Iterable[Any]: ...
+
+
+def batch_requests(targets: Iterable[tuple[str, ResearchTarget]]) -> list[dict[str, Any]]:
+    """The queue as batch entries, keyed so results can be matched back.
+
+    Results come back in any order, so `custom_id` is the only way to know
+    which game a row belongs to — never position.
+    """
+    return [{"custom_id": key, "params": request_kwargs(target)} for key, target in targets]
+
+
+def submit_batch(batches: BatchesClient, targets: Iterable[tuple[str, ResearchTarget]]) -> str:
+    """Queue the whole run and return the batch id. Does not wait."""
+    requests = batch_requests(targets)
+    if not requests:
+        raise ResearchError("nothing to submit")
+    # The beta goes in both places on purpose: at the batch level it sets the
+    # anthropic-beta header that authorises the field, and inside each request's
+    # params it is what actually applies the fallback to that message.
+    batch = batches.create(requests=requests, betas=[FALLBACK_BETA])
+    return batch.id
+
+
+def collect_batch(
+    batches: BatchesClient, batch_id: str, names: dict[str, str]
+) -> list[BatchOutcome]:
+    """Read a finished batch. Every entry comes back, failures included.
+
+    A row that errored, expired or was cancelled is reported rather than
+    dropped: the queue is the unit of work, and a silently missing row reads as
+    a game nobody needed to research.
+    """
+    outcomes: list[BatchOutcome] = []
+    for result in batches.results(batch_id):
+        key = result.custom_id
+        name = names.get(key, key)
+        kind = getattr(result.result, "type", None)
+        if kind != "succeeded":
+            detail = getattr(getattr(result.result, "error", None), "type", kind)
+            outcomes.append(BatchOutcome(key=key, error=f"{name}: batch entry {kind} ({detail})"))
+            continue
+        try:
+            outcomes.append(
+                BatchOutcome(key=key, draft=parse_response(result.result.message, name))
+            )
+        except ResearchError as exc:
+            outcomes.append(BatchOutcome(key=key, error=str(exc)))
+    return outcomes
