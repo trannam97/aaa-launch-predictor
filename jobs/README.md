@@ -218,6 +218,7 @@ Run it from **Actions -> Research -> `launch-prices`**, or locally:
 ```
 DATABASE_URL=... python jobs/backfill_launch_prices.py --list       # free, no API call
 DATABASE_URL=... ITAD_API_KEY=... python jobs/backfill_launch_prices.py --limit 20
+DATABASE_URL=... ITAD_API_KEY=... python jobs/backfill_launch_prices.py           # the rest
 ```
 
 Proposes `launch_price_usd` from IsThereAnyDeal's Steam price history. Needs a
@@ -255,4 +256,29 @@ nothing until the shape is settled.
 `--dump-raw` writes the first raw history response to a file. ITAD's history
 shape is not publicly documented and the parser was written without a key, so
 this captures the real shape rather than guessing at it twice.
+
+### Run it more than once
+
+ITAD's request allowance is small and tiered — higher once the account is
+verified, and shown with recent usage on the app's page at
+isthereanydeal.com/apps/dev. The first run over the whole queue got 50 games
+through and then took HTTP 429 for each of the remaining 120 in twenty seconds
+flat.
+
+So the job is built to be run repeatedly rather than to fit inside one budget:
+
+- It reads the review file back at the start and **skips games already in it**,
+  so a second run continues the queue instead of repeating it. `--refresh`
+  re-asks about rows already answered, keeping the rest.
+- It **writes what it gathered even when it stops early**. The run that produced
+  this behaviour reported "120 failed" while holding 50 correct prices.
+- It **stops when the budget is gone** rather than asking 120 more times. A 429
+  is no more per-row than a bad API key is.
+- It asks for less: one keyless request resolves the entire queue's appids to
+  ITAD ids, where asking per game used to double the traffic for no extra
+  information.
+
+In CI the review file is carried between runs by `actions/cache`, so re-running
+the workflow picks up where the last one stopped. Ticking **refresh** re-asks
+rather than starting over.
 

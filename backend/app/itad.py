@@ -37,12 +37,34 @@ why the response body is reported rather than summarised:
   key is stripped.
 - ``error code: 1010`` in a non-JSON body — Cloudflare, not ITAD, refusing the
   request outright. Sending no ``User-Agent`` at all triggers it.
+
+## The budget is small, and it is per app
+
+The first run over the whole queue got 50 games through and then took HTTP 429
+for each of the remaining 120 in twenty seconds flat — 100 requests spent, and
+no recovery inside the run. Three things follow, and all three are here:
+
+- **Ask for less.** Resolving appids one at a time cost a keyed request per
+  game, doubling the traffic for no information. ``lookup_many`` resolves the
+  entire queue in a single keyless POST, so only the history calls are left.
+- **Space them out.** ``MIN_REQUEST_INTERVAL_SECONDS`` throttles, the same way
+  ``app/steam.py`` does.
+- **Stop when the budget is gone.** ``ItadRateLimitError`` is separate from
+  ``ItadError`` because a 429 is never per-row either: burning through 120
+  games to collect 120 identical warnings is what the first run did.
+
+ITAD sends ``Retry-After`` with a 429 and rate-limits in tiers, higher for a
+verified account. The exact allowance is not a constant to hardcode — it is
+shown on your app's page at isthereanydeal.com/apps/dev, and the first 429 of a
+run logs what ITAD asked us to wait.
 """
 
 from __future__ import annotations
 
+import time
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
+from email.utils import parsedate_to_datetime
 from typing import Any, Self
 
 import httpx
@@ -64,6 +86,26 @@ SINCE_MARGIN_DAYS = 30
 
 TIMEOUT_SECONDS = 20.0
 
+# Space requests out. The unthrottled first run spent the whole allowance in
+# eighteen seconds; at this interval the same 170 games take about three
+# minutes, which is nothing next to a run that returns 120 failures.
+MIN_REQUEST_INTERVAL_SECONDS = 1.0
+
+# What to do when the allowance runs out anyway. ITAD sends `Retry-After`; when
+# it does not, back off geometrically from this.
+RATE_LIMIT_ATTEMPTS = 3
+RATE_LIMIT_BACKOFF_SECONDS = 20.0
+
+# Waiting longer than this is not a retry, it is a stalled CI job. A budget that
+# needs more than a two-minute pause is a budget this run cannot finish, and the
+# job resumes from its proposals file rather than sitting on a paid runner.
+MAX_RETRY_WAIT_SECONDS = 120.0
+
+# How many appids to resolve per bulk lookup. The whole 206-row corpus goes in
+# one request today, verified against the live API; the batch exists so a corpus
+# grown past 300 does not discover an undocumented ceiling as a blanket failure.
+LOOKUP_BATCH_SIZE = 200
+
 
 class ItadError(RuntimeError):
     """ITAD could not answer."""
@@ -76,6 +118,20 @@ class ItadAuthError(ItadError):
     be wrong for every remaining game, so the caller should stop rather than
     repeat the same failure once per title.
     """
+
+
+class ItadRateLimitError(ItadError):
+    """The request allowance is spent.
+
+    Separate from ItadError for the same reason ItadAuthError is: it is never
+    per-row. The run that produced this class asked 120 more times after the
+    budget was gone and logged 120 identical warnings, when the true answer was
+    "stop, keep what you have, come back later".
+    """
+
+    def __init__(self, message: str, retry_after: float | None = None) -> None:
+        super().__init__(message)
+        self.retry_after = retry_after
 
 
 class ItadShapeError(ItadError):
@@ -263,6 +319,34 @@ def earliest_regular_price(history: Any) -> HistoryRead:
     )
 
 
+def _retry_after_seconds(response: httpx.Response) -> float | None:
+    """`Retry-After` as seconds. It is legal as either a count or an HTTP date."""
+    raw = (response.headers.get("Retry-After") or "").strip()
+    if not raw:
+        return None
+    try:
+        return max(0.0, float(raw))
+    except ValueError:
+        pass
+    try:
+        when = parsedate_to_datetime(raw)
+    except (TypeError, ValueError):
+        return None
+    if when is None:
+        return None
+    now = datetime.now(when.tzinfo)
+    return max(0.0, (when - now).total_seconds())
+
+
+def _describe_wait(seconds: float | None) -> str:
+    """What ITAD asked us to wait, or that it declined to say."""
+    if seconds is None:
+        return "no Retry-After header"
+    if seconds >= 90:
+        return f"Retry-After {seconds / 60:.0f} min"
+    return f"Retry-After {seconds:.0f}s"
+
+
 def _explain_403(body: str) -> str:
     """Turn ITAD's 403 body into something that says what to fix."""
     text = (body or "").strip()
@@ -287,10 +371,17 @@ def _explain_403(body: str) -> str:
 class ItadClient:
     """Thin ITAD client. Pass a client in tests to stub the network."""
 
-    def __init__(self, api_key: str, client: httpx.Client | None = None) -> None:
+    def __init__(
+        self,
+        api_key: str,
+        client: httpx.Client | None = None,
+        min_request_interval: float = MIN_REQUEST_INTERVAL_SECONDS,
+    ) -> None:
         # A secret pasted with a trailing newline reaches the API as %0A and is
         # rejected as invalid, which looks nothing like the cause.
         self._key = api_key.strip()
+        self._min_interval = min_request_interval
+        self._last_request_at: float | None = None
         self._owns_client = client is None
         self._client = client or httpx.Client(
             timeout=TIMEOUT_SECONDS,
@@ -307,26 +398,105 @@ class ItadClient:
     def __exit__(self, *exc_info: object) -> None:
         self.close()
 
+    def _throttle(self) -> None:
+        """Space requests out so a burst cannot spend the whole allowance."""
+        if self._min_interval <= 0:
+            return
+        if self._last_request_at is not None:
+            elapsed = time.monotonic() - self._last_request_at
+            if elapsed < self._min_interval:
+                time.sleep(self._min_interval - elapsed)
+        self._last_request_at = time.monotonic()
+
     def _get(self, path: str, params: dict[str, Any]) -> Any:
+        """One GET, retried only for 429 and only while the wait is short.
+
+        A 429 is retried rather than raised straight away because the allowance
+        may be a short window that a pause outlasts. It is *not* retried
+        indefinitely: past MAX_RETRY_WAIT_SECONDS the honest answer is that this
+        run cannot finish, and ItadRateLimitError says so once.
+        """
+        for attempt in range(1, RATE_LIMIT_ATTEMPTS + 1):
+            self._throttle()
+            try:
+                response = self._client.get(
+                    f"{ITAD_BASE}{path}", params={**params, "key": self._key}
+                )
+            except httpx.HTTPError as exc:
+                raise ItadError(f"{path}: {exc}") from exc
+
+            if response.status_code == 429:
+                asked = _retry_after_seconds(response)
+                wait = asked if asked is not None else RATE_LIMIT_BACKOFF_SECONDS * attempt
+                if attempt == RATE_LIMIT_ATTEMPTS or wait > MAX_RETRY_WAIT_SECONDS:
+                    raise ItadRateLimitError(
+                        f"{path}: HTTP 429, the request allowance is spent "
+                        f"({_describe_wait(asked)}). Re-run to continue from the "
+                        "proposals already written; isthereanydeal.com/apps/dev "
+                        "shows this app's limit and recent usage.",
+                        retry_after=asked,
+                    )
+                time.sleep(wait)
+                continue
+
+            if response.status_code == 403:
+                raise ItadAuthError(f"{path}: {_explain_403(response.text)}")
+            if response.status_code >= 400:
+                raise ItadError(f"{path}: HTTP {response.status_code} {response.text[:120]}")
+            return response.json()
+        raise AssertionError("unreachable: the loop returns or raises")
+
+    def lookup_many(self, steam_appids: list[int]) -> dict[int, str]:
+        """Resolve every appid to an ITAD game id in one request.
+
+        `/games/lookup/v1` answers for a single appid and costs a keyed request
+        to do it — which is how a 170-game queue turned into 340 requests and
+        spent the allowance halfway through. This endpoint takes the whole list
+        at once and needs no key at all: the full 206-row corpus resolves in a
+        single POST, verified against the live API.
+
+        No key is sent for exactly that reason. It is not needed, and a request
+        that does not carry one cannot spend a budget that is counted per app.
+
+        Appids ITAD does not know are simply absent from the result, which is
+        what `not tracked` means downstream.
+        """
+        by_shop_id = {f"app/{appid}": appid for appid in steam_appids}
+        keys = sorted(by_shop_id)
+        found: dict[int, str] = {}
+        for start in range(0, len(keys), LOOKUP_BATCH_SIZE):
+            payload = self._lookup_batch(keys[start : start + LOOKUP_BATCH_SIZE])
+            found.update(
+                {
+                    by_shop_id[key]: value
+                    for key, value in payload.items()
+                    if key in by_shop_id and isinstance(value, str) and value
+                }
+            )
+        return found
+
+    def _lookup_batch(self, shop_ids: list[str]) -> dict[str, Any]:
+        path = f"/lookup/id/shop/{STEAM_SHOP_ID}/v1"
+        self._throttle()
         try:
-            response = self._client.get(f"{ITAD_BASE}{path}", params={**params, "key": self._key})
+            response = self._client.post(f"{ITAD_BASE}{path}", json=shop_ids)
         except httpx.HTTPError as exc:
             raise ItadError(f"{path}: {exc}") from exc
-        if response.status_code == 403:
-            raise ItadAuthError(f"{path}: {_explain_403(response.text)}")
+        if response.status_code == 429:
+            raise ItadRateLimitError(
+                f"{path}: HTTP 429 before a single game was looked up "
+                f"({_describe_wait(_retry_after_seconds(response))})"
+            )
         if response.status_code >= 400:
             raise ItadError(f"{path}: HTTP {response.status_code} {response.text[:120]}")
-        return response.json()
+        payload = response.json()
+        if not isinstance(payload, dict):
+            raise ItadShapeError(f"expected a shop-id to game-id map, got {type(payload).__name__}")
+        return payload
 
     def lookup(self, steam_appid: int) -> str | None:
-        """Resolve a Steam appid to an ITAD game id, or None if unknown to ITAD."""
-        payload = self._get("/games/lookup/v1", {"appid": steam_appid})
-        if not isinstance(payload, dict) or not payload.get("found"):
-            return None
-        game = payload.get("game")
-        if isinstance(game, dict) and isinstance(game.get("id"), str):
-            return game["id"]
-        return None
+        """Resolve one Steam appid, via the same keyless bulk endpoint."""
+        return self.lookup_many([steam_appid]).get(steam_appid)
 
     def history(self, itad_id: str, since: date | None = None) -> Any:
         """Raw Steam-only, US price history. Returned unparsed for --dump-raw.
@@ -350,6 +520,10 @@ class ItadClient:
         itad_id = self.lookup(steam_appid)
         if itad_id is None:
             return None
+        return self.launch_price_for(itad_id, release_date)
+
+    def launch_price_for(self, itad_id: str, release_date: date | None) -> LaunchPrice | None:
+        """The same, for an id already resolved by `lookup_many`. One request."""
         since = release_date - timedelta(days=SINCE_MARGIN_DAYS) if release_date else None
         read = earliest_regular_price(self.history(itad_id, since=since))
         if read.observation is None:
