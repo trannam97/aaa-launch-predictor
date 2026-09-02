@@ -30,13 +30,14 @@ on:
         # Submit and collect are separate runs because a batch can take up to
         # 24 hours, and a runner blocked on a poll loop bills for every minute
         # of it. The batch id is the handle between them.
-        description: "signal-drafts only — `now` calls per row and waits; `batch` queues the run at half the token cost; `collect` writes the file from a finished batch"
+        description: "signal-drafts only — `now` calls per row and waits; `batch` queues the run at half the token cost; `collect` writes the file from a finished batch; `validate` measures the drafts against rows already labelled"
         type: choice
         default: now
         options:
           - now
           - batch
           - collect
+          - validate
       batch_id:
         description: "signal-drafts + collect — the batch id the submit run printed"
         type: string
@@ -213,6 +214,12 @@ jobs:
                 *) args+=(--limit "$LIMIT") ;;
               esac
               ;;
+            validate)
+              # Researches every row whose signals are already curated and
+              # reports where the drafts disagree. The queue cannot test this:
+              # every documented closure in the corpus is already labelled.
+              args+=(--validate)
+              ;;
             now)
               case "$LIMIT" in
                 all) echo "::error::'all' bills a call per row with the runner waiting. Use signal_mode=batch for the whole queue — same work, half the token cost."; exit 1 ;;
@@ -241,6 +248,10 @@ jobs:
             if [ "$MODE" = "batch" ]; then
               echo "Nothing is written yet. Re-run this workflow with **signal_mode: collect**"
               echo "and the batch id above once it has finished."
+            elif [ "$MODE" = "validate" ]; then
+              echo "Measurement, not a target. Fix a named error in a named row rather than"
+              echo "tuning the prompt against these counts — and check whether a disagreement"
+              echo "is the label rather than the draft."
             else
               echo "Drafts, not labels. Rows flagged **CLOSED-verify** must be read before use."
             fi
@@ -252,5 +263,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: signal-drafts
-          path: data/signal_drafts.csv
+          path: |
+            data/signal_drafts.csv
+            data/signal_validation.csv
           if-no-files-found: warn

@@ -114,6 +114,7 @@ RESPONSE_SCHEMA: dict[str, Any] = {
         "support_evidence": {"type": "string"},
         "sources": {"type": "array", "items": {"type": "string"}},
         "confidence": {"type": "string", "enum": ["high", "medium", "low"]},
+        "alternative_reading": {"type": "string"},
         "reviewer_note": {"type": "string"},
     },
     "required": [
@@ -123,6 +124,7 @@ RESPONSE_SCHEMA: dict[str, Any] = {
         "support_evidence",
         "sources",
         "confidence",
+        "alternative_reading",
         "reviewer_note",
     ],
     "additionalProperties": False,
@@ -193,7 +195,23 @@ that a reviewer can open and check. If you cannot produce one, the value is \
 
 Set `confidence` to `low` whenever you are extrapolating, whenever sources \
 disagree, or whenever you found only one source. Use `reviewer_note` to say \
-what you would check next, or what made this one hard.\
+what you would check next, or what made this one hard.
+
+## When you nearly chose differently
+
+If a different value for either signal was genuinely arguable on what you \
+found, put it in `alternative_reading` as the value and the reason, dated:
+
+    support_signal=curtailed — the announced Switch version was cancelled on \
+2 May 2023, and a platform was part of the post-launch roadmap
+
+This is not the same as `reviewer_note`, which is what to check next. This is a \
+value you weighed and did not pick, and it exists because a reviewer with \
+dozens of rows triages by flag: a close call that would land the game in a \
+different tier has to be visible without reading every note.
+
+Leave it as an empty string when there was no real second reading. Filling it \
+on every row would make it useless, so only a genuine near-miss belongs here.\
 """
 
 
@@ -206,6 +224,7 @@ class SignalDraft(BaseModel):
     support_evidence: str
     sources: list[str]
     confidence: Literal["high", "medium", "low"]
+    alternative_reading: str
     reviewer_note: str
 
     @property
@@ -226,6 +245,12 @@ class SignalDraft(BaseModel):
             flags.append("no-sources")
         if self.confidence == "low":
             flags.append("low-confidence")
+        if self.alternative_reading.strip():
+            # Marvel's Midnight Suns came back severe_layoffs/sustained and
+            # unflagged, while its own note argued for curtailed — and
+            # severe_layoffs plus curtailed is Flop, not Underperform. The row
+            # closest to changing tier was the one triage would not surface.
+            flags.append("alternative")
         return " ".join(flags)
 
 
@@ -420,3 +445,93 @@ def collect_batch(
         except ResearchError as exc:
             outcomes.append(BatchOutcome(key=key, error=str(exc)))
     return outcomes
+
+
+# --- measuring the researcher against known answers -------------------------
+#
+# Every documented closure in the corpus is already labelled, so the research
+# queue cannot contain one: it is unlabelled rows by construction. Two live runs
+# produced zero `closed` values and there was no way to tell correct restraint
+# from over-correction. The only ground truth available is the labelled set.
+#
+# This is measurement, not tuning. A poor result is a named reasoning error in a
+# named row, to be fixed as such -- not a number to adjust wording against until
+# it climbs. And a disagreement may be the label rather than the draft: some
+# were curated early, and a draft that contradicts one with better sources is a
+# finding about the corpus.
+
+BENIGN_STUDIO = frozenset({"grew", "continued"})
+NEGATIVE_STUDIO = frozenset({"severe_layoffs", "closed"})
+
+
+@dataclass(slots=True)
+class SignalComparison:
+    """One drafted row set against its curated answer."""
+
+    key: str
+    game_name: str
+    curated_studio: str
+    curated_support: str
+    draft: SignalDraft
+
+    @property
+    def studio_agrees(self) -> bool:
+        return self.draft.studio_signal == self.curated_studio
+
+    @property
+    def support_agrees(self) -> bool:
+        return self.draft.support_signal == self.curated_support
+
+    @property
+    def verdict(self) -> str:
+        """Which *direction* the studio signal missed in, not merely whether.
+
+        A single accuracy figure hides the thing that matters. Reporting a
+        studio as fine when it was gutted buries a Flop as an Underperform;
+        reporting the reverse is the failure the prompt was written against.
+        They are not interchangeable and must not average together.
+        """
+        drafted, curated = self.draft.studio_signal, self.curated_studio
+        if drafted == curated:
+            return "agrees"
+        if drafted == "unknown":
+            # An honest refusal, not a wrong answer. Counted apart because too
+            # many of them means the window is starving the search.
+            return "refused"
+        if curated in NEGATIVE_STUDIO and drafted in BENIGN_STUDIO:
+            return "false_benign"
+        if curated in BENIGN_STUDIO and drafted in NEGATIVE_STUDIO:
+            return "false_alarm"
+        return "differs"
+
+
+def compare_to_curated(
+    key: str, game_name: str, curated_studio: str, curated_support: str, draft: SignalDraft
+) -> SignalComparison:
+    return SignalComparison(
+        key=key,
+        game_name=game_name,
+        curated_studio=curated_studio,
+        curated_support=curated_support,
+        draft=draft,
+    )
+
+
+def summarise_comparisons(rows: list[SignalComparison]) -> dict[str, int]:
+    """Counts a reviewer can act on, keyed by what each one means."""
+    tally = {
+        "compared": len(rows),
+        "studio_agrees": sum(1 for r in rows if r.studio_agrees),
+        "support_agrees": sum(1 for r in rows if r.support_agrees),
+        "both_agree": sum(1 for r in rows if r.studio_agrees and r.support_agrees),
+        "false_benign": 0,
+        "false_alarm": 0,
+        "refused": 0,
+        "differs": 0,
+        "flagged_alternative": sum(1 for r in rows if r.draft.alternative_reading.strip()),
+    }
+    for row in rows:
+        verdict = row.verdict
+        if verdict in tally and verdict != "agrees":
+            tally[verdict] += 1
+    return tally
