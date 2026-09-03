@@ -9,6 +9,8 @@ is written even when the run stops, and the next run continues from it.
 
 from __future__ import annotations
 
+import csv
+import inspect
 import sys
 from datetime import date
 from pathlib import Path
@@ -125,3 +127,114 @@ def test_naming_appids_is_the_selection_not_a_filter_on_the_default():
     # An explicit --limit still wins over the named list.
     explicit = signals.parse_args(["--appid", "1", "--limit", "2"])
     assert explicit.limit == 2
+
+
+# --- a killed run must keep what it gathered --------------------------------
+
+
+def test_rows_are_readable_before_the_run_ends(tmp_path):
+    """Each row is a paid call, and the 90-minute ceiling was reachable at 35
+    rows. Writing only after the loop meant a job killed at 34 rows discarded
+    all 34 and billed the re-run from zero."""
+    import sys
+    from pathlib import Path as _Path
+
+    sys.path.insert(0, str(_Path(__file__).resolve().parents[2] / "jobs"))
+    import draft_studio_signals as signals
+
+    out = tmp_path / "partial.csv"
+    fields = ["steam_appid", "game_name"]
+
+    with signals.incremental_csv(out, fields) as emit:
+        emit({"steam_appid": 570, "game_name": "First"})
+        # Mid-loop: the file already holds the header and the first row.
+        mid = list(csv.DictReader(out.open()))
+        assert [r["game_name"] for r in mid] == ["First"]
+        emit({"steam_appid": 440, "game_name": "Second"})
+
+    assert [r["game_name"] for r in csv.DictReader(out.open())] == ["First", "Second"]
+
+
+def test_an_interrupted_run_leaves_a_valid_file(tmp_path):
+    """Even when the loop raises, what was written must still parse."""
+    import sys
+    from pathlib import Path as _Path
+
+    sys.path.insert(0, str(_Path(__file__).resolve().parents[2] / "jobs"))
+    import draft_studio_signals as signals
+
+    out = tmp_path / "killed.csv"
+    with (
+        pytest.raises(RuntimeError),
+        signals.incremental_csv(out, ["steam_appid", "game_name"]) as emit,
+    ):
+        emit({"steam_appid": 570, "game_name": "Kept"})
+        raise RuntimeError("the runner was killed here")
+
+    assert [r["game_name"] for r in csv.DictReader(out.open())] == ["Kept"]
+
+
+# --- validate composes with the batch flags ---------------------------------
+
+
+def _signals():
+    import sys
+    from pathlib import Path as _Path
+
+    sys.path.insert(0, str(_Path(__file__).resolve().parents[2] / "jobs"))
+    import draft_studio_signals
+
+    return draft_studio_signals
+
+
+def test_validate_is_orthogonal_to_how_the_rows_are_run():
+    """It changes *which* rows are researched, not *how*, so it has to pair
+    with the batch path. Running the whole labelled set synchronously is what
+    the 90-minute job ceiling killed with nothing written."""
+    signals = _signals()
+
+    submit = signals.parse_args(["--validate", "--batch"])
+    assert submit.validate and submit.batch
+
+    collect = signals.parse_args(["--validate", "--collect", "msgbatch_x"])
+    assert collect.validate and collect.collect == "msgbatch_x"
+
+    alone = signals.parse_args(["--validate", "--appid", "2443720"])
+    assert alone.validate and not alone.batch and alone.collect is None
+
+
+# --- the validation set must be the labelled corner, not the corpus ---------
+
+
+def test_the_validation_query_excludes_unknown_not_null():
+    """`unknown` is not an answer, and both columns are nullable=False with a
+    default of UNKNOWN — so an is-not-null test selects all 206 rows.
+
+    The first live run did exactly that: it queued 206 where 35 were meant,
+    spent 90 minutes researching 66 against a curated side reading `unknown`,
+    and was killed having written nothing. Every comparison was meaningless and
+    only the bill showed it.
+    """
+    import sys
+    from pathlib import Path as _Path
+
+    sys.path.insert(0, str(_Path(__file__).resolve().parents[2] / "jobs"))
+    import draft_studio_signals as signals
+
+    source = inspect.getsource(signals.already_answered)
+
+    assert "StudioSignal.UNKNOWN" in source and "SupportSignal.UNKNOWN" in source
+    assert "is_not(None)" not in source, "a null test matches every row in the corpus"
+
+
+def test_a_validation_set_the_size_of_the_corpus_is_refused():
+    """Each row is a paid call, so a wrong selection must stop the run rather
+    than be discovered on the invoice."""
+    import sys
+    from pathlib import Path as _Path
+
+    sys.path.insert(0, str(_Path(__file__).resolve().parents[2] / "jobs"))
+    import draft_studio_signals as signals
+
+    # 35 labelled rows out of 206 is the real shape; the cap sits between them.
+    assert 35 < signals.VALIDATION_SANITY_CAP < 206

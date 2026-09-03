@@ -30,14 +30,22 @@ on:
         # Submit and collect are separate runs because a batch can take up to
         # 24 hours, and a runner blocked on a poll loop bills for every minute
         # of it. The batch id is the handle between them.
-        description: "signal-drafts only — `now` calls per row and waits; `batch` queues the run at half the token cost; `collect` writes the file from a finished batch; `validate` measures the drafts against rows already labelled"
+        description: "signal-drafts only — `now` calls per row and waits; `batch` queues the run at half the token cost; `collect` writes the file from a finished batch"
         type: choice
         default: now
         options:
           - now
           - batch
           - collect
-          - validate
+      validate:
+        # A checkbox rather than a fourth mode, because it is orthogonal to
+        # them: it changes *which rows* are researched (the labelled ones,
+        # measured against their curated answers) not *how*. The full set
+        # belongs in a batch — the synchronous path spent 90 minutes on 35 rows
+        # and was killed by the job ceiling with nothing written.
+        description: "signal-drafts only — research rows already labelled and report where the drafts disagree. Combine with batch, then collect."
+        type: boolean
+        default: false
       batch_id:
         description: "signal-drafts + collect — the batch id the submit run printed"
         type: string
@@ -174,7 +182,11 @@ jobs:
   signal-drafts:
     if: inputs.job == 'signal-drafts'
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    # A row takes 45-170 seconds, so 35 of them can reach 100 minutes and the
+    # whole labelled set could be run more than once. The rows are written as
+    # they arrive now, so a ceiling reached is no longer a run lost -- but the
+    # ceiling was doing nothing useful at 90.
+    timeout-minutes: 180
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
@@ -199,8 +211,10 @@ jobs:
           MODE: ${{ inputs.signal_mode }}
           BATCH_ID: ${{ inputs.batch_id }}
           APPIDS: ${{ inputs.appids }}
+          VALIDATE: ${{ inputs.validate }}
         run: |
           args=()
+          [ "$VALIDATE" = "true" ] && args+=(--validate)
           case "$MODE" in
             collect)
               [ -n "$BATCH_ID" ] || { echo "::error::collect needs the batch id the submit run printed"; exit 1; }
@@ -214,18 +228,22 @@ jobs:
                 *) args+=(--limit "$LIMIT") ;;
               esac
               ;;
-            validate)
-              # Researches every row whose signals are already curated and
-              # reports where the drafts disagree. The queue cannot test this:
-              # every documented closure in the corpus is already labelled.
-              args+=(--validate)
-              ;;
             now)
-              case "$LIMIT" in
-                all) echo "::error::'all' bills a call per row with the runner waiting. Use signal_mode=batch for the whole queue — same work, half the token cost."; exit 1 ;;
-                ''|*[!0-9]*) echo "::error::signal-drafts needs a numeric limit; each row costs a call"; exit 1 ;;
-              esac
-              args+=(--limit "$LIMIT")
+              if [ "$VALIDATE" = "true" ]; then
+                # The row count comes from the labelled set, not the limit. Say
+                # so rather than silently ignoring what was typed.
+                echo "::warning::validate ignores limit; name appids to research a subset."
+                if [ -z "$APPIDS" ]; then
+                  echo "::error::validating the whole labelled set synchronously is what the 90-minute timeout killed. Use signal_mode=batch, or name appids."
+                  exit 1
+                fi
+              else
+                case "$LIMIT" in
+                  all) echo "::error::'all' bills a call per row with the runner waiting. Use signal_mode=batch for the whole queue — same work, half the token cost."; exit 1 ;;
+                  ''|*[!0-9]*) echo "::error::signal-drafts needs a numeric limit; each row costs a call"; exit 1 ;;
+                esac
+                args+=(--limit "$LIMIT")
+              fi
               ;;
             *) echo "::error::unknown signal_mode: $MODE"; exit 1 ;;
           esac
@@ -248,7 +266,7 @@ jobs:
             if [ "$MODE" = "batch" ]; then
               echo "Nothing is written yet. Re-run this workflow with **signal_mode: collect**"
               echo "and the batch id above once it has finished."
-            elif [ "$MODE" = "validate" ]; then
+            elif [ "$VALIDATE" = "true" ] && [ "$MODE" != "batch" ]; then
               echo "Measurement, not a target. Fix a named error in a named row rather than"
               echo "tuning the prompt against these counts — and check whether a disagreement"
               echo "is the label rather than the draft."

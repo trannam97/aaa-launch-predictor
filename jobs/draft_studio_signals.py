@@ -45,6 +45,7 @@ import argparse
 import csv
 import logging
 import sys
+from contextlib import contextmanager
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -58,6 +59,8 @@ from app.models import (  # noqa: E402
     HistoricalRelease,
     PlatformLaunchType,
     ReleaseWindow,
+    StudioSignal,
+    SupportSignal,
     WindowKey,
 )
 from app.research import (  # noqa: E402
@@ -78,6 +81,11 @@ VALIDATION_OUT = REPO_ROOT / "data" / "signal_validation.csv"
 
 # Small on purpose: every synchronous row is a call someone is waiting on.
 SYNC_DEFAULT_LIMIT = 5
+
+# A validation set is the labelled corner of a 206-row corpus. Anything
+# approaching the whole thing means the selection is wrong, and each row is
+# a paid call — so refuse rather than discover it on the invoice.
+VALIDATION_SANITY_CAP = 60
 
 FIELDS = [
     "steam_appid",
@@ -221,6 +229,29 @@ def as_row(appid: int, game_name: str, draft) -> dict[str, object]:
     }
 
 
+@contextmanager
+def incremental_csv(path: Path, fields: list[str]):
+    """Write rows as they arrive, flushed, so an interrupted run keeps them.
+
+    Each row here is a paid call. Writing only after the loop means a job that
+    is killed -- the 90-minute ceiling is reachable at 35 rows, and a rate limit
+    or a network fault would do the same -- discards everything it gathered and
+    bills the re-run from zero. This is the lesson the launch-price job already
+    learned, applied late.
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=fields)
+        writer.writeheader()
+        handle.flush()
+
+        def emit(row: dict[str, object]) -> None:
+            writer.writerow(row)
+            handle.flush()
+
+        yield emit
+
+
 def write_drafts(path: Path, rows: list[dict[str, object]]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", newline="") as handle:
@@ -247,15 +278,43 @@ def already_answered(session) -> list[HistoricalRelease]:
     the labelled ones. Deliberately not filtered to day_one_steam either — the
     researcher's job does not depend on how a game reached Steam, and the
     corpus has only three `closed` rows to spare.
+
+    **`unknown` is not an answer, and excluding it is the whole query.** Both
+    columns are `nullable=False, default=UNKNOWN` (app/models.py), so an
+    is-not-null test matches all 206 rows rather than the 35 that carry a value.
+    The first live run queued every one of them, spent 90 minutes researching 66
+    against a curated side that read `unknown`, and was killed having written
+    nothing. Every comparison it did make was meaningless.
+
+    The 35 came from counting the CSV, where an uncurated signal is an empty
+    string. The job reads the database, where it is UNKNOWN. Checking the number
+    against the wrong source is what let the query look right.
     """
     return list(
         session.scalars(
             select(HistoricalRelease)
-            .where(HistoricalRelease.studio_signal.is_not(None))
-            .where(HistoricalRelease.support_signal.is_not(None))
+            .where(HistoricalRelease.studio_signal != StudioSignal.UNKNOWN)
+            .where(HistoricalRelease.support_signal != SupportSignal.UNKNOWN)
             .order_by(HistoricalRelease.steam_release_date)
         )
     )
+
+
+def as_validation_row(row) -> dict[str, object]:
+    return {
+        "steam_appid": row.key,
+        "game_name": row.game_name,
+        "verdict": row.verdict,
+        "curated_studio": row.curated_studio,
+        "drafted_studio": row.draft.studio_signal,
+        "curated_support": row.curated_support,
+        "drafted_support": row.draft.support_signal,
+        "confidence": row.draft.confidence,
+        "alternative_reading": row.draft.alternative_reading,
+        "sources": " | ".join(row.draft.sources),
+        "studio_evidence": row.draft.studio_evidence,
+        "reviewer_note": row.draft.reviewer_note,
+    }
 
 
 def report_validation(rows, out: Path, failed: int) -> None:
@@ -295,6 +354,20 @@ def main(argv: list[str] | None = None) -> int:
             queue = [r for r in queue if r.steam_appid in args.appids]
         if args.validate:
             logger.info("%d release(s) with curated signals to measure against", len(queue))
+            if len(queue) > VALIDATION_SANITY_CAP:
+                # The run this guard exists for queued 206 rows where 35 were
+                # meant, and only the bill said so. A validation set is the
+                # labelled corner of the corpus; if it is most of the corpus,
+                # the query is wrong and every row is money spent on a
+                # comparison against `unknown`.
+                logger.error(
+                    "%d rows is not a validation set — expected at most %d. The "
+                    "signal columns default to UNKNOWN rather than NULL, so a "
+                    "null test selects everything. Nothing was researched.",
+                    len(queue),
+                    VALIDATION_SANITY_CAP,
+                )
+                return 1
         else:
             logger.info("%d release(s) the rubric cannot resolve without signals", len(queue))
 
@@ -346,6 +419,40 @@ def main(argv: list[str] | None = None) -> int:
     client = anthropic.Anthropic()
     by_key = {str(appid): (appid, target) for appid, target in targets}
 
+    if args.collect and args.validate:
+        outcomes = collect_batch(
+            client.beta.messages.batches,
+            args.collect,
+            {key: target.game_name for key, (_, target) in by_key.items()},
+        )
+        out = args.out if args.out != DEFAULT_OUT else VALIDATION_OUT
+        compared, failed = [], 0
+        with incremental_csv(out, VALIDATION_FIELDS) as emit:
+            for outcome in outcomes:
+                known = by_key.get(outcome.key)
+                if outcome.draft is None or known is None:
+                    failed += 1
+                    logger.warning("%s", outcome.error or f"appid {outcome.key} left the set")
+                    continue
+                appid, target = known
+                curated_studio, curated_support = curated[appid]
+                row = compare_to_curated(
+                    str(appid), target.game_name, curated_studio, curated_support, outcome.draft
+                )
+                compared.append(row)
+                emit(as_validation_row(row))
+                logger.info(
+                    "%-38s %-13s studio %s/%s  support %s/%s",
+                    target.game_name[:38],
+                    row.verdict.upper(),
+                    outcome.draft.studio_signal,
+                    curated_studio,
+                    outcome.draft.support_signal,
+                    curated_support,
+                )
+        report_validation(compared, out, failed)
+        return 0
+
     if args.collect:
         outcomes = collect_batch(
             client.beta.messages.batches,
@@ -382,20 +489,55 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.batch:
         batch_id = submit_batch(client.beta.messages.batches, list(by_key.items()))
-        logger.info("queued %d row(s) at half the token cost", len(by_key))
+        kind = "validation row" if args.validate else "row"
+        logger.info("queued %d %s(s) at half the token cost", len(by_key), kind)
+        collect_flags = f"--collect {batch_id}" + (" --validate" if args.validate else "")
         print()
         print(f"  batch id     {batch_id}")
         print()
-        print("  Nothing is written yet. Most batches finish within the hour; the")
-        print("  cap is 24 hours and results keep for 29 days. When it has ended:")
+        print("  Nothing is written yet, and no runner is waiting — which is the")
+        print("  point: the synchronous path spent 90 minutes on 35 rows and was")
+        print("  killed by the job ceiling with nothing to show. A batch has no")
+        print("  such ceiling. Most finish within the hour; the cap is 24 hours")
+        print("  and results keep for 29 days. When it has ended:")
         print()
-        print(f"    python jobs/draft_studio_signals.py --collect {batch_id}")
+        print(f"    python jobs/draft_studio_signals.py {collect_flags}")
         print()
         return 0
 
     if args.validate:
+        # Reached only without --batch/--collect: a small, named subset worth
+        # waiting on. The whole labelled set belongs in a batch.
         out = args.out if args.out != DEFAULT_OUT else VALIDATION_OUT
         compared, failed = [], 0
+        with incremental_csv(out, VALIDATION_FIELDS) as emit:
+            for appid, target in targets:
+                try:
+                    draft = draft_signals(client.beta.messages, target)
+                except ResearchError as exc:
+                    failed += 1
+                    logger.warning("%s", exc)
+                    continue
+                curated_studio, curated_support = curated[appid]
+                row = compare_to_curated(
+                    str(appid), target.game_name, curated_studio, curated_support, draft
+                )
+                compared.append(row)
+                emit(as_validation_row(row))
+                logger.info(
+                    "%-38s %-13s studio %s/%s  support %s/%s",
+                    target.game_name[:38],
+                    row.verdict.upper(),
+                    draft.studio_signal,
+                    curated_studio,
+                    draft.support_signal,
+                    curated_support,
+                )
+        report_validation(compared, out, failed)
+        return 0
+
+    rows, failed = [], 0
+    with incremental_csv(args.out, FIELDS) as emit:
         for appid, target in targets:
             try:
                 draft = draft_signals(client.beta.messages, target)
@@ -403,62 +545,17 @@ def main(argv: list[str] | None = None) -> int:
                 failed += 1
                 logger.warning("%s", exc)
                 continue
-            curated_studio, curated_support = curated[appid]
-            row = compare_to_curated(
-                str(appid), target.game_name, curated_studio, curated_support, draft
-            )
-            compared.append(row)
+            row = as_row(appid, target.game_name, draft)
+            rows.append(row)
+            emit(row)
             logger.info(
-                "%-38s %-13s studio %s/%s  support %s/%s",
-                target.game_name[:38],
-                row.verdict.upper(),
+                "%-40s studio=%-15s support=%-10s %s",
+                target.game_name[:40],
                 draft.studio_signal,
-                curated_studio,
                 draft.support_signal,
-                curated_support,
+                draft.review_flags,
             )
-        out.parent.mkdir(parents=True, exist_ok=True)
-        with out.open("w", newline="") as handle:
-            writer = csv.DictWriter(handle, fieldnames=VALIDATION_FIELDS)
-            writer.writeheader()
-            for row in compared:
-                writer.writerow(
-                    {
-                        "steam_appid": row.key,
-                        "game_name": row.game_name,
-                        "verdict": row.verdict,
-                        "curated_studio": row.curated_studio,
-                        "drafted_studio": row.draft.studio_signal,
-                        "curated_support": row.curated_support,
-                        "drafted_support": row.draft.support_signal,
-                        "confidence": row.draft.confidence,
-                        "alternative_reading": row.draft.alternative_reading,
-                        "sources": " | ".join(row.draft.sources),
-                        "studio_evidence": row.draft.studio_evidence,
-                        "reviewer_note": row.draft.reviewer_note,
-                    }
-                )
-        report_validation(compared, out, failed)
-        return 0
 
-    rows, failed = [], 0
-    for appid, target in targets:
-        try:
-            draft = draft_signals(client.beta.messages, target)
-        except ResearchError as exc:
-            failed += 1
-            logger.warning("%s", exc)
-            continue
-        rows.append(as_row(appid, target.game_name, draft))
-        logger.info(
-            "%-40s studio=%-15s support=%-10s %s",
-            target.game_name[:40],
-            draft.studio_signal,
-            draft.support_signal,
-            draft.review_flags,
-        )
-
-    write_drafts(args.out, rows)
     report(rows, failed, args.out)
     return 0
 
