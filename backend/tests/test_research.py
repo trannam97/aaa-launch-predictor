@@ -566,3 +566,36 @@ def test_widening_closed_did_not_reopen_the_door_to_inference():
     assert "Silence remains not evidence" in SYSTEM_PROMPT
     assert "Silence is not evidence" in SYSTEM_PROMPT
     assert "Never infer it" in SYSTEM_PROMPT
+
+
+# --- support: two boundaries, two different questions ------------------------
+
+
+def test_abandoned_is_termination_not_magnitude():
+    """Redfall came back `curtailed` because a substantial final update shipped,
+    servers stayed up and it was never delisted — all true, and all irrelevant
+    to whether support ended. Bethesda had said development would not continue.
+    """
+    assert "about support ending, not about how much shipped before" in SYSTEM_PROMPT
+
+
+def test_a_cancelled_feature_is_not_by_itself_a_curtailment():
+    """Halo Infinite lost split-screen co-op and kept shipping seasons. If one
+    dropped feature reads as `curtailed`, the value stops discriminating —
+    Redfall and Halo Infinite both came back `curtailed` on the first run.
+    """
+    assert "cancelled feature is not by itself a curtailment" in SYSTEM_PROMPT
+    assert "Ask whether the plan continued" in SYSTEM_PROMPT
+
+
+def test_the_two_boundaries_are_stated_as_different_questions():
+    assert "whether the **plan** ran its course" in SYSTEM_PROMPT
+    assert "whether support **stopped**" in SYSTEM_PROMPT
+
+
+def test_a_game_with_no_announced_plan_is_not_judged_against_one():
+    """Evil West's only stated commitment was patching. A light cadence there
+    is not a shortfall, because nothing more was ever promised."""
+    assert "does \\\nnot, and you should not read a light update cadence" in SYSTEM_PROMPT or (
+        "nothing more was ever announced" in SYSTEM_PROMPT
+    )

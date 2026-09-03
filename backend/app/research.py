@@ -160,10 +160,35 @@ Return `studio_signal`, one of:
 - `unknown` — you could not establish which of the above is true.
 
 Return `support_signal`, one of:
-- `sustained` — the announced post-launch plan was delivered.
-- `curtailed` — support continued but was cut short of what was announced.
-- `abandoned` — support ended early, or the game was delisted.
+- `sustained` — the announced post-launch plan ran its course.
+- `curtailed` — the plan continued but was cut short of what was announced.
+- `abandoned` — support stopped.
 - `unknown` — you could not establish which of the above is true.
+
+### Where the line between these actually falls
+
+The two boundaries answer different questions, and conflating them collapses \
+the scale. `sustained` against `curtailed` asks whether the **plan** ran its \
+course. `curtailed` against `abandoned` asks whether support **stopped**.
+
+**`abandoned` is about support ending, not about how much shipped before it \
+ended.** A large final update, servers left running, and a game still on sale \
+do not turn a termination into a curtailment. A statement that development has \
+stopped, or updates simply ceasing with announced content undelivered, is \
+`abandoned` however much was delivered first — Redfall shipped a substantial \
+final update *after* Bethesda said development would not continue, and that is \
+still support ending.
+
+**A cancelled feature is not by itself a curtailment.** Ask whether the plan \
+continued. If seasons or updates kept arriving on their announced cadence, that \
+is `sustained`, and the cancelled item belongs in `reviewer_note` — Halo \
+Infinite lost split-screen campaign co-op and kept shipping seasons, which is \
+a delivered plan with a dropped feature, not a cut-short one.
+
+Judge these against what was actually promised. A game with a season pass has a \
+plan to fall short of; a game whose only stated commitment was patching does \
+not, and you should not read a light update cadence as a curtailment when \
+nothing more was ever announced.
 
 ## The asymmetry you must correct for
 

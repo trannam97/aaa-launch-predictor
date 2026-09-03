@@ -113,6 +113,7 @@ VALIDATION_FIELDS = [
     "alternative_reading",
     "sources",
     "studio_evidence",
+    "support_evidence",
     "reviewer_note",
 ]
 
@@ -313,6 +314,10 @@ def as_validation_row(row) -> dict[str, object]:
         "alternative_reading": row.draft.alternative_reading,
         "sources": " | ".join(row.draft.sources),
         "studio_evidence": row.draft.studio_evidence,
+        # Missing until now, which made a support disagreement unreviewable:
+        # three of the five rows in the first run differed on support and the
+        # reasoning for it was not in the file.
+        "support_evidence": row.draft.support_evidence,
         "reviewer_note": row.draft.reviewer_note,
     }
 
