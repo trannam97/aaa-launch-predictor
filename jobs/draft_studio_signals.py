@@ -59,6 +59,8 @@ from app.models import (  # noqa: E402
     HistoricalRelease,
     PlatformLaunchType,
     ReleaseWindow,
+    StudioSignal,
+    SupportSignal,
     WindowKey,
 )
 from app.research import (  # noqa: E402
@@ -79,6 +81,11 @@ VALIDATION_OUT = REPO_ROOT / "data" / "signal_validation.csv"
 
 # Small on purpose: every synchronous row is a call someone is waiting on.
 SYNC_DEFAULT_LIMIT = 5
+
+# A validation set is the labelled corner of a 206-row corpus. Anything
+# approaching the whole thing means the selection is wrong, and each row is
+# a paid call — so refuse rather than discover it on the invoice.
+VALIDATION_SANITY_CAP = 60
 
 FIELDS = [
     "steam_appid",
@@ -271,12 +278,23 @@ def already_answered(session) -> list[HistoricalRelease]:
     the labelled ones. Deliberately not filtered to day_one_steam either — the
     researcher's job does not depend on how a game reached Steam, and the
     corpus has only three `closed` rows to spare.
+
+    **`unknown` is not an answer, and excluding it is the whole query.** Both
+    columns are `nullable=False, default=UNKNOWN` (app/models.py), so an
+    is-not-null test matches all 206 rows rather than the 35 that carry a value.
+    The first live run queued every one of them, spent 90 minutes researching 66
+    against a curated side that read `unknown`, and was killed having written
+    nothing. Every comparison it did make was meaningless.
+
+    The 35 came from counting the CSV, where an uncurated signal is an empty
+    string. The job reads the database, where it is UNKNOWN. Checking the number
+    against the wrong source is what let the query look right.
     """
     return list(
         session.scalars(
             select(HistoricalRelease)
-            .where(HistoricalRelease.studio_signal.is_not(None))
-            .where(HistoricalRelease.support_signal.is_not(None))
+            .where(HistoricalRelease.studio_signal != StudioSignal.UNKNOWN)
+            .where(HistoricalRelease.support_signal != SupportSignal.UNKNOWN)
             .order_by(HistoricalRelease.steam_release_date)
         )
     )
@@ -336,6 +354,20 @@ def main(argv: list[str] | None = None) -> int:
             queue = [r for r in queue if r.steam_appid in args.appids]
         if args.validate:
             logger.info("%d release(s) with curated signals to measure against", len(queue))
+            if len(queue) > VALIDATION_SANITY_CAP:
+                # The run this guard exists for queued 206 rows where 35 were
+                # meant, and only the bill said so. A validation set is the
+                # labelled corner of the corpus; if it is most of the corpus,
+                # the query is wrong and every row is money spent on a
+                # comparison against `unknown`.
+                logger.error(
+                    "%d rows is not a validation set — expected at most %d. The "
+                    "signal columns default to UNKNOWN rather than NULL, so a "
+                    "null test selects everything. Nothing was researched.",
+                    len(queue),
+                    VALIDATION_SANITY_CAP,
+                )
+                return 1
         else:
             logger.info("%d release(s) the rubric cannot resolve without signals", len(queue))
 
