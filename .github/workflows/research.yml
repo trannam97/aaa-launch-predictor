@@ -272,7 +272,10 @@ jobs:
             # tier -- are at the top of it. `tail -14` cut exactly those,
             # leaving four studio-only counters that read as a clean sweep
             # while support disagreed on four rows of five.
-            tail -40 drafts.log
+            # `list` prints one line per queued row, so any fixed tail
+            # truncates it — a 68-row queue showed its last 38 and read as a
+            # queue of 38. It is free text; show all of it.
+            if [ "$MODE" = "list" ]; then cat drafts.log; else tail -40 drafts.log; fi
             echo '```'
             echo
             if [ "$MODE" = "batch" ]; then
