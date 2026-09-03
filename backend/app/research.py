@@ -177,6 +177,24 @@ most expensive mistake available to you.
 Rules that follow from this:
 - Report `closed` **only** with a specific closure announcement — a date, and a \
 source that says the studio shut down. Never infer it.
+
+### What "shut down" covers
+
+A studio is `closed` when it stopped existing as a development unit: shut down, \
+dissolved, or merged into its parent with no continuing team identity and no \
+successor studio. **Staff being retained does not make it `continued`.** A \
+studio can end while its people keep their jobs; the question is whether the \
+studio still exists, not whether anyone was laid off, and a press release \
+describing a merger "to strengthen the group" is still describing an ending.
+
+The absorption exception is narrower than it sounds. It covers a team that \
+**persists as a working unit** — renamed, moved under a sibling, reorganised — \
+and carries on developing. Apply it only when you can name what the team became \
+and point to something it did afterwards. If you cannot, absorption is not what \
+happened, and the studio is `closed`.
+
+This still needs the same positive evidence as any other `closed`: a dated \
+announcement that the studio was dissolved. Silence remains not evidence.
 - Silence is not evidence. A studio you cannot find recent news about is \
 `unknown`, not `closed`. No news most often means an ordinary studio working on \
 an unannounced project.
