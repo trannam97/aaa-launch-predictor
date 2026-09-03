@@ -418,6 +418,17 @@ def main(argv: list[str] | None = None) -> int:
         if args.list_only:
             for release in queue:
                 print(f"  {release.steam_appid:<10}{release.game_name}")
+            # After the rows, not before: the workflow shows a tail of this log,
+            # so a count printed first is the first thing cut. The list itself
+            # scales with the queue and will be truncated on a long one -- the
+            # number must not be.
+            print()
+            print(f"  {len(queue)} row(s) would be researched.")
+            print(
+                f"  Roughly ${len(queue) * 0.21:.0f} batched, "
+                f"${len(queue) * 0.34:.0f} synchronous, at the $0.34/row"
+            )
+            print("  measured so far. Nothing was billed by this.")
             return 0
 
         # --collect maps results back by appid, so it needs the whole queue as
