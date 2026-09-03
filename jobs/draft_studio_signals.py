@@ -460,6 +460,7 @@ def main(argv: list[str] | None = None) -> int:
                     developer=r.developer,
                     publisher=r.publisher,
                     steam_release_date=r.steam_release_date,
+                    original_release_date=r.original_release_date,
                 ),
             )
             for r in selected

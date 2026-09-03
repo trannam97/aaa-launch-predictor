@@ -371,7 +371,63 @@ def test_an_unparseable_response_names_the_stop_reason():
 
 
 def test_the_prompt_states_the_window_in_months():
-    assert f"{SIGNAL_WINDOW_MONTHS} months from the Steam release date" in SYSTEM_PROMPT
+    assert f"{SIGNAL_WINDOW_MONTHS} months from the original release date" in SYSTEM_PROMPT
+
+
+def test_the_window_anchors_on_the_original_release_not_the_steam_one():
+    """Twelve corpus rows reach Steam between 264 and 1848 days after they
+    first released. Anchoring on the Steam date puts a 16-month window years
+    past every consequence being asked about -- Horizon Zero Dawn's window
+    would open in August 2020 for a launch that decided Guerrilla's 2017."""
+    assert "the window runs from the original release, \nnot from the Steam arrival.**".replace(
+        "\n", ""
+    ) in SYSTEM_PROMPT.replace("\n", " ").replace("  ", " ")
+
+
+def test_a_delayed_port_is_given_both_dates_and_told_which_one_counts():
+    prompt = build_prompt(
+        ResearchTarget(
+            game_name="Horizon Zero Dawn Complete Edition",
+            developer="Guerrilla Games",
+            publisher="Sony",
+            steam_release_date=date(2020, 8, 7),
+            original_release_date=date(2017, 2, 28),
+        )
+    )
+    assert "Original release date: 2017-02-28" in prompt
+    assert "Reached Steam: 2020-08-07, 1256 days later" in prompt
+    assert "not from this date" in prompt
+
+
+def test_a_day_one_release_is_not_given_a_second_date():
+    """Most rows have the two dates within a day of each other. Printing both
+    would put a distinction on every prompt that matters on twelve rows."""
+    prompt = build_prompt(
+        ResearchTarget(
+            game_name="Concord",
+            developer="Firewalk Studios",
+            publisher="Sony",
+            steam_release_date=date(2024, 8, 23),
+            original_release_date=date(2024, 8, 23),
+        )
+    )
+    assert "Original release date: 2024-08-23" in prompt
+    assert "Reached Steam" not in prompt
+
+
+def test_a_row_missing_its_curated_date_falls_back_to_the_steam_one():
+    """Losing the window entirely is worse than anchoring it a little late."""
+    prompt = build_prompt(
+        ResearchTarget(
+            game_name="Some Game",
+            developer=None,
+            publisher=None,
+            steam_release_date=date(2022, 3, 1),
+            original_release_date=None,
+        )
+    )
+    assert "Original release date: 2022-03-01" in prompt
+    assert "Reached Steam" not in prompt
 
 
 def test_the_window_contains_every_dated_consequence_in_the_corpus():
