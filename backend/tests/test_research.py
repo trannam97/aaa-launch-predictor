@@ -666,3 +666,23 @@ def test_the_summary_carries_both_tier_directions():
     assert tally["tier_softer"] == 1
     assert tally["tier_harsher"] == 1
     assert tally["studio_agrees"] == 3  # and the studio counter sees nothing wrong
+
+
+def test_an_unconfirmed_announcement_is_not_a_delivered_one():
+    """Immortals of Aveum came back `sustained` on an announced Unreal Engine
+    5.2 upgrade the draft could not confirm ever shipped — it flagged the fact
+    and defaulted to the benign reading anyway.
+
+    `sustained` means delivered, so the burden is evidence of delivery. Silence
+    about an announced item is a shortfall, not a completion.
+    """
+    assert "cannot confirm shipped has not shipped" in SYSTEM_PROMPT
+    assert "burden is evidence of delivery" in SYSTEM_PROMPT
+
+
+def test_the_two_silence_rules_are_distinguished_not_contradictory():
+    """One says silence cannot invent an event; the other says silence about an
+    announced item is a failure to deliver it. The prompt has to say why both
+    are true, or the second reads as licence to infer."""
+    assert "the difference is where the" in SYSTEM_PROMPT
+    assert "the announcement *is* the event" in SYSTEM_PROMPT
