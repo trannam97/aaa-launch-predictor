@@ -5,10 +5,16 @@
     DATABASE_URL=... python jobs/backfill_platform_launch_type.py
     DATABASE_URL=... python jobs/backfill_platform_launch_type.py --apply
 
-173 of 206 rows carry no launch type, and the column exists precisely because a
-console-first game arriving on Steam a year later is a different prediction
-problem: it brings pre-existing reputation and pent-up demand that a genuine
-day-one release does not have.
+The column exists because a console-first game arriving on Steam a year later
+is a different prediction problem: it brings pre-existing reputation and
+pent-up demand that a genuine day-one release does not have.
+
+**Against the current database this job has almost nothing to do**, and the
+first version of this docstring said otherwise. It claimed 173 of 206 rows were
+unset. That count came from `data/historical_releases.csv`, which lags the
+database -- the live table holds one UNKNOWN row, Assassin's Creed IV Black
+Flag, and that one has no Steam date to compare against. So this runs as a
+guard for rows added later, not as a backfill of a gap that exists today.
 
 The gap is not hypothetical. Comparing both dates across all 206 rows against
 live Steam listings: 142 agree within a day, 9 differ by 3 to 26 days, and 54
@@ -93,6 +99,14 @@ DAY_ONE_TOLERANCE_DAYS = 1
 # undecided, which is its own verdict rather than a coin flip either way.
 PORT_TOLERANCE_DAYS = 30
 
+# An Early Access graduation has the same shape as a port and the opposite
+# answer. Steam reports a graduated title's 1.0 date while original_release_date
+# holds the Early Access start, so Grounded reads as 791 days late and Starship
+# Troopers: Extermination as 512 -- both marked day_one_steam in the corpus,
+# under a launch-is-1.0 rule this job would otherwise contradict. The marker is
+# curated in `notes`, so the rows that need the exception announce themselves.
+EARLY_ACCESS_MARKER = "EARLY ACCESS GRADUATION"
+
 FIELDS = [
     "steam_appid",
     "game_name",
@@ -146,7 +160,9 @@ def needs_launch_type(session) -> list[HistoricalRelease]:
     )
 
 
-def classify(original: date | None, steam: date | None) -> tuple[str, str, int | None, str]:
+def classify(
+    original: date | None, steam: date | None, notes: str | None = None
+) -> tuple[str, str, int | None, str]:
     """Return (verdict, proposed launch type, gap in days, note).
 
     The proposal is empty for everything the dates cannot settle on their own.
@@ -157,6 +173,16 @@ def classify(original: date | None, steam: date | None) -> tuple[str, str, int |
     gap = (steam - original).days
     if abs(gap) <= DAY_ONE_TOLERANCE_DAYS:
         return "day_one_steam", PlatformLaunchType.DAY_ONE_STEAM.value, gap, ""
+    if notes and EARLY_ACCESS_MARKER in notes:
+        return (
+            "early_access",
+            "",
+            gap,
+            f"The {gap}-day gap is the Early Access period, not a port: "
+            "original_release_date is the Early Access start and Steam reports "
+            "the 1.0 date. Under the corpus's launch-is-1.0 rule this is a "
+            f"{PlatformLaunchType.DAY_ONE_STEAM.value} release",
+        )
     if 0 < gap <= PORT_TOLERANCE_DAYS:
         return (
             "near_day_one",
@@ -181,13 +207,15 @@ def classify(original: date | None, steam: date | None) -> tuple[str, str, int |
         f"Steam listing arrives {gap} days later. Pick "
         f"{PlatformLaunchType.DELAYED_PORT.value} if the game was console-first, "
         f"{PlatformLaunchType.FORMER_EXCLUSIVE.value} if it was on another PC "
-        "storefront first -- the dates cannot tell these apart",
+        "storefront first -- the dates cannot tell these apart. Check for an "
+        "Early Access graduation too: there the gap is the Early Access period "
+        f"and the row is {PlatformLaunchType.DAY_ONE_STEAM.value}",
     )
 
 
 def as_row(release: HistoricalRelease) -> dict[str, object]:
     verdict, proposed, gap, note = classify(
-        release.original_release_date, release.steam_release_date
+        release.original_release_date, release.steam_release_date, release.notes
     )
     return {
         "steam_appid": release.steam_appid,
