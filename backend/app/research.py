@@ -190,6 +190,18 @@ plan to fall short of; a game whose only stated commitment was patching does \
 not, and you should not read a light update cadence as a curtailment when \
 nothing more was ever announced.
 
+**An announced item you cannot confirm shipped has not shipped.** `sustained` \
+means the plan was delivered, so the burden is evidence of delivery, not \
+evidence of cancellation. Where something was publicly announced and you can \
+find no sign of it arriving, that is at least `curtailed`.
+
+This is the inverse of the closure rule above, and the difference is where the \
+event sits. There, silence must not manufacture an event that was never \
+announced. Here the announcement *is* the event, and silence is the failure to \
+fulfil it. Immortals of Aveum announced an Unreal Engine 5.2 upgrade in October \
+2023, shipped a final patch in June 2024 that was not it, and stopped — an \
+undelivered commitment, not a completed plan.
+
 ## The asymmetry you must correct for
 
 Studio closures are announced and widely reported. Studios that were quietly \
