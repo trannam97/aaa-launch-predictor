@@ -110,6 +110,42 @@ def test_a_gap_too_big_for_a_timezone_and_too_small_for_a_port_is_undecided():
         assert "timezone" in note
 
 
+def test_an_early_access_graduation_is_not_mistaken_for_a_port():
+    """The failure this guard exists for. Steam reports a graduated title's 1.0
+    date while `original_release_date` holds the Early Access start, so Grounded
+    reads as 791 days late and Starship Troopers: Extermination as 512 -- the
+    exact shape of a delayed port. Both are marked day_one_steam in the corpus
+    under its launch-is-1.0 rule, so `not_day_one` here would contradict a
+    documented project rule with a confident-looking verdict."""
+    for original, steam, name in (
+        (date(2020, 7, 28), date(2022, 9, 27), "Grounded"),
+        (date(2023, 5, 17), date(2024, 10, 10), "Starship Troopers: Extermination"),
+        (date(2024, 1, 19), date(2025, 1, 1), "Palworld"),
+    ):
+        verdict, proposed, _, note = job.classify(
+            original, steam, f"EARLY ACCESS GRADUATION: Steam Early Access from {original}"
+        )
+        assert verdict == "early_access", name
+        assert proposed == "", name
+        assert "launch-is-1.0" in note
+
+
+def test_the_same_gap_without_the_marker_is_still_a_port():
+    """The exception is driven by the curated marker, not by the size of the
+    gap -- otherwise it would swallow the twelve real ports."""
+    verdict, _, _, _ = job.classify(date(2017, 2, 28), date(2020, 8, 7), "Wikidata P577")
+    assert verdict == "not_day_one"
+    verdict, _, _, _ = job.classify(date(2017, 2, 28), date(2020, 8, 7), None)
+    assert verdict == "not_day_one"
+
+
+def test_a_port_note_names_early_access_as_a_possibility():
+    """A reviewer picking between delayed_port and former_exclusive on an
+    unmarked row needs to know there is a third answer."""
+    _, _, _, note = job.classify(date(2017, 2, 28), date(2020, 8, 7))
+    assert "Early Access" in note
+
+
 def test_the_two_thresholds_mean_different_things():
     """One day is what a worldwide rollout costs; thirty is where a gap starts
     moving a 16-month research window. Collapsing them would either call a
