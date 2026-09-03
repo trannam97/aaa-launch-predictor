@@ -30,10 +30,11 @@ on:
         # Submit and collect are separate runs because a batch can take up to
         # 24 hours, and a runner blocked on a poll loop bills for every minute
         # of it. The batch id is the handle between them.
-        description: "signal-drafts only — `now` calls per row and waits; `batch` queues the run at half the token cost; `collect` writes the file from a finished batch"
+        description: "signal-drafts only — `list` prints the queue and spends nothing; `now` calls per row and waits; `batch` queues the run at half the token cost; `collect` writes the file from a finished batch"
         type: choice
-        default: now
+        default: list
         options:
+          - list
           - now
           - batch
           - collect
@@ -216,6 +217,12 @@ jobs:
           args=()
           [ "$VALIDATE" = "true" ] && args+=(--validate)
           case "$MODE" in
+            list)
+              # Free. Prints what would be researched and exits, so the size of
+              # a run can be checked before it is paid for — the count was
+              # only ever visible in the log of a run already spending money.
+              args+=(--list)
+              ;;
             collect)
               [ -n "$BATCH_ID" ] || { echo "::error::collect needs the batch id the submit run printed"; exit 1; }
               args+=(--collect "$BATCH_ID")
@@ -271,6 +278,9 @@ jobs:
             if [ "$MODE" = "batch" ]; then
               echo "Nothing is written yet. Re-run this workflow with **signal_mode: collect**"
               echo "and the batch id above once it has finished."
+            elif [ "$MODE" = "list" ]; then
+              echo "Nothing was researched and nothing was billed. Rows above are"
+              echo "what \`now\` or \`batch\` would spend a call on."
             elif [ "$VALIDATE" = "true" ] && [ "$MODE" != "batch" ]; then
               echo "Measurement, not a target. Fix a named error in a named row rather than"
               echo "tuning the prompt against these counts — and check whether a disagreement"
