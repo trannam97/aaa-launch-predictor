@@ -509,13 +509,39 @@ NEGATIVE_STUDIO = frozenset({"severe_layoffs", "closed"})
 
 @dataclass(slots=True)
 class SignalComparison:
-    """One drafted row set against its curated answer."""
+    """One drafted row set against its curated answer.
+
+    The tiers are supplied by the caller rather than computed here: they come
+    from the real rubric, and this module has no business importing it.
+    """
 
     key: str
     game_name: str
     curated_studio: str
     curated_support: str
     draft: SignalDraft
+    drafted_tier: str = ""
+    curated_tier: str = ""
+
+    @property
+    def tier_agrees(self) -> bool:
+        return bool(self.drafted_tier) and self.drafted_tier == self.curated_tier
+
+    @property
+    def tier_direction(self) -> str:
+        """Which way a tier disagreement went — the number that actually matters.
+
+        Per-signal agreement can look fine while the label lands somewhere else
+        entirely. The first five-row run agreed on studio 5/5 and still moved
+        two rows: `severe_layoffs` reads as Underperform beside `sustained` and
+        as Flop beside anything else, and `abandoned` is a hard override on its
+        own. Softer is the expensive direction — it buries a Flop.
+        """
+        if not self.drafted_tier or not self.curated_tier:
+            return "unscored"
+        if self.drafted_tier == self.curated_tier:
+            return "agrees"
+        return "softer" if self.curated_tier == "flop" else "harsher"
 
     @property
     def studio_agrees(self) -> bool:
@@ -549,7 +575,13 @@ class SignalComparison:
 
 
 def compare_to_curated(
-    key: str, game_name: str, curated_studio: str, curated_support: str, draft: SignalDraft
+    key: str,
+    game_name: str,
+    curated_studio: str,
+    curated_support: str,
+    draft: SignalDraft,
+    drafted_tier: str = "",
+    curated_tier: str = "",
 ) -> SignalComparison:
     return SignalComparison(
         key=key,
@@ -557,6 +589,8 @@ def compare_to_curated(
         curated_studio=curated_studio,
         curated_support=curated_support,
         draft=draft,
+        drafted_tier=drafted_tier,
+        curated_tier=curated_tier,
     )
 
 
@@ -571,6 +605,9 @@ def summarise_comparisons(rows: list[SignalComparison]) -> dict[str, int]:
         "false_alarm": 0,
         "refused": 0,
         "differs": 0,
+        "tier_agrees": sum(1 for r in rows if r.tier_agrees),
+        "tier_softer": sum(1 for r in rows if r.tier_direction == "softer"),
+        "tier_harsher": sum(1 for r in rows if r.tier_direction == "harsher"),
         "flagged_alternative": sum(1 for r in rows if r.draft.alternative_reading.strip()),
     }
     for row in rows:

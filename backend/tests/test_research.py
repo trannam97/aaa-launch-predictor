@@ -599,3 +599,70 @@ def test_a_game_with_no_announced_plan_is_not_judged_against_one():
     assert "does \\\nnot, and you should not read a light update cadence" in SYSTEM_PROMPT or (
         "nothing more was ever announced" in SYSTEM_PROMPT
     )
+
+
+# --- per-signal agreement is not the question; the tier is -------------------
+
+
+def compared(drafted_studio, curated_studio, drafted_tier, curated_tier):
+    return compare_to_curated(
+        "1",
+        "G",
+        curated_studio,
+        "sustained",
+        draft_with(drafted_studio),
+        drafted_tier,
+        curated_tier,
+    )
+
+
+def test_a_row_can_agree_on_both_signals_and_still_move_the_label():
+    """The five-row run agreed on studio 5/5 and moved two rows anyway.
+
+    `severe_layoffs` reads as Underperform beside `sustained` and as Flop beside
+    anything else; `abandoned` overrides on its own. Studio-only counters cannot
+    see either, and reported zero problems.
+    """
+    moved = compared("severe_layoffs", "severe_layoffs", "underperform", "flop")
+
+    assert moved.verdict == "agrees"  # the studio counter is content
+    assert not moved.tier_agrees  # the label is not
+
+
+@pytest.mark.parametrize(
+    ("drafted_tier", "curated_tier", "expected"),
+    [
+        ("flop", "flop", "agrees"),
+        # Immortals of Aveum: drafted sustained where the label says abandoned,
+        # turning a Flop into an Underperform.
+        ("underperform", "flop", "softer"),
+        # Halo Infinite: drafted curtailed where the label says sustained.
+        ("flop", "underperform", "harsher"),
+    ],
+)
+def test_the_tier_miss_is_reported_by_direction(drafted_tier, curated_tier, expected):
+    """Softer buries a Flop; harsher only costs a false alarm. Not the same."""
+    assert compared("closed", "closed", drafted_tier, curated_tier).tier_direction == expected
+
+
+def test_a_row_without_tiers_is_unscored_rather_than_agreeing():
+    """An empty tier must not be counted as a match."""
+    row = compare_to_curated("1", "G", "closed", "abandoned", draft_with("closed"))
+
+    assert not row.tier_agrees
+    assert row.tier_direction == "unscored"
+
+
+def test_the_summary_carries_both_tier_directions():
+    rows = [
+        compared("closed", "closed", "flop", "flop"),
+        compared("severe_layoffs", "severe_layoffs", "underperform", "flop"),
+        compared("severe_layoffs", "severe_layoffs", "flop", "underperform"),
+    ]
+
+    tally = summarise_comparisons(rows)
+
+    assert tally["tier_agrees"] == 1
+    assert tally["tier_softer"] == 1
+    assert tally["tier_harsher"] == 1
+    assert tally["studio_agrees"] == 3  # and the studio counter sees nothing wrong

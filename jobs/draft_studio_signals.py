@@ -105,6 +105,9 @@ VALIDATION_FIELDS = [
     "steam_appid",
     "game_name",
     "verdict",
+    "tier",
+    "drafted_tier",
+    "curated_tier",
     "curated_studio",
     "drafted_studio",
     "curated_support",
@@ -301,11 +304,39 @@ def already_answered(session) -> list[HistoricalRelease]:
     )
 
 
+def tier_from_signals(studio, support) -> str:
+    """What the rubric would call a row carrying these two signals.
+
+    Per-signal agreement is not the question — the tier is. `severe_layoffs`
+    reads as Underperform beside `sustained` and as Flop beside anything else,
+    and `abandoned` overrides on its own, so a draft can match on studio and
+    still move the label.
+
+    Volume and sentiment are pinned low to reach the lower branch, which is the
+    only one these two signals feed. Using the public `classify` keeps this
+    honest: it is the same code path the corpus is labelled by, not a copy of
+    it that can drift.
+    """
+    verdict = classify(
+        RubricInput(
+            volume_percentile=5.0,
+            positive_pct=40.0,
+            studio_signal=StudioSignal(studio),
+            support_signal=SupportSignal(support),
+            cohort_reliable=True,
+        )
+    )
+    return verdict.outcome.value if verdict.outcome else "unresolved"
+
+
 def as_validation_row(row) -> dict[str, object]:
     return {
         "steam_appid": row.key,
         "game_name": row.game_name,
         "verdict": row.verdict,
+        "tier": "agrees" if row.tier_agrees else row.tier_direction,
+        "drafted_tier": row.drafted_tier,
+        "curated_tier": row.curated_tier,
         "curated_studio": row.curated_studio,
         "drafted_studio": row.draft.studio_signal,
         "curated_support": row.curated_support,
@@ -330,6 +361,14 @@ def report_validation(rows, out: Path, failed: int) -> None:
     print(f"  studio agrees      {tally['studio_agrees']}/{tally['compared']}")
     print(f"  support agrees     {tally['support_agrees']}/{tally['compared']}")
     print(f"  both agree         {tally['both_agree']}/{tally['compared']}")
+    print()
+    print("  RESULTING TIER — what these signals would actually label the row:")
+    print(f"    tier agrees      {tally['tier_agrees']}/{tally['compared']}")
+    print(f"    drafted softer   {tally['tier_softer']}   <- Underperform where the label")
+    print("                           says Flop. This buries a Flop, and studio")
+    print("                           agreement alone will not show it.")
+    print(f"    drafted harsher  {tally['tier_harsher']}   <- Flop where the label says")
+    print("                           Underperform")
     print()
     print("  Direction of the studio misses — these do not average together:")
     print(f"    false benign     {tally['false_benign']}   <- called a gutted studio fine;")
@@ -442,7 +481,13 @@ def main(argv: list[str] | None = None) -> int:
                 appid, target = known
                 curated_studio, curated_support = curated[appid]
                 row = compare_to_curated(
-                    str(appid), target.game_name, curated_studio, curated_support, outcome.draft
+                    str(appid),
+                    target.game_name,
+                    curated_studio,
+                    curated_support,
+                    outcome.draft,
+                    tier_from_signals(outcome.draft.studio_signal, outcome.draft.support_signal),
+                    tier_from_signals(curated_studio, curated_support),
                 )
                 compared.append(row)
                 emit(as_validation_row(row))
@@ -525,7 +570,13 @@ def main(argv: list[str] | None = None) -> int:
                     continue
                 curated_studio, curated_support = curated[appid]
                 row = compare_to_curated(
-                    str(appid), target.game_name, curated_studio, curated_support, draft
+                    str(appid),
+                    target.game_name,
+                    curated_studio,
+                    curated_support,
+                    draft,
+                    tier_from_signals(draft.studio_signal, draft.support_signal),
+                    tier_from_signals(curated_studio, curated_support),
                 )
                 compared.append(row)
                 emit(as_validation_row(row))
