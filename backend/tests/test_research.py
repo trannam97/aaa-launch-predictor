@@ -537,3 +537,32 @@ def test_the_prompt_asks_for_a_near_miss_not_a_habit():
     assert "alternative_reading" in SYSTEM_PROMPT
     assert "empty string" in SYSTEM_PROMPT
     assert "alternative_reading" in RESPONSE_SCHEMA["required"]
+
+
+# --- a studio can end while its people keep their jobs -----------------------
+
+
+def test_dissolution_into_a_parent_counts_as_closed():
+    """Luminous Productions was merged into Square Enix three months after
+    Forspoken, never shipped again, and has no successor. The first validation
+    run drafted `continued` against a curated `closed` and said why: the rule
+    listed "merged" among the things absorption covers, so a dissolution read
+    as a reorganisation. Staff retention is not studio continuity.
+    """
+    assert "Staff being retained does not make it `continued`" in SYSTEM_PROMPT
+    assert "stopped existing as a development unit" in SYSTEM_PROMPT
+
+
+def test_the_absorption_exception_requires_naming_the_successor():
+    """Otherwise it swallows every dissolution: the test has to be something
+    checkable, not the wording of the press release."""
+    assert "persists as a working unit" in SYSTEM_PROMPT
+    assert "name what the team became" in SYSTEM_PROMPT
+
+
+def test_widening_closed_did_not_reopen_the_door_to_inference():
+    """The asymmetry this prompt exists for is unchanged: a studio nobody has
+    written about is `unknown`, not `closed`."""
+    assert "Silence remains not evidence" in SYSTEM_PROMPT
+    assert "Silence is not evidence" in SYSTEM_PROMPT
+    assert "Never infer it" in SYSTEM_PROMPT
