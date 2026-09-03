@@ -34,6 +34,12 @@ from typing import Any, Literal, Protocol
 
 from pydantic import BaseModel, ValidationError
 
+# The one thing this module takes from the schema: how far apart the two date
+# columns may sit before they are describing different events. Shared rather
+# than repeated so the prompt and `jobs/backfill_platform_launch_type.py`
+# cannot drift into disagreeing about what counts as a port.
+from app.models import PORT_GAP_TOLERANCE_DAYS
+
 MODEL = "claude-opus-5"
 
 # Adaptive thinking spends this budget too, and a row that thinks hard can leave
@@ -136,10 +142,10 @@ support, so a human can verify your findings and label a dataset. You report \
 facts with sources. You do not assign an outcome tier — a separate rule does \
 that from the two values you return.
 
-## The window: {SIGNAL_WINDOW_MONTHS} months from the Steam release date
+## The window: {SIGNAL_WINDOW_MONTHS} months from the original release date
 
 Both signals describe consequences **of this launch**, so only events within \
-{SIGNAL_WINDOW_MONTHS} months of the Steam release date you are given are \
+{SIGNAL_WINDOW_MONTHS} months of the original release date you are given are \
 scored. This is not a detail — for an older game, "after this launch" can span \
 a decade, and a studio may have both expanded and contracted in that time.
 
@@ -151,6 +157,28 @@ can see you found them and chose not to score them.
 - Evidence *for* a value must also sit inside the window. Do not support `grew` \
 with an expansion announced three years afterwards.
 - If nothing inside the window settles a value, that value is `unknown`.
+
+### When you are given two dates
+
+Some games reached Steam long after they first released — a console exclusive \
+ported years later, or a title that began on another PC storefront. Where that \
+happened you get both dates, and **the window runs from the original release, \
+not from the Steam arrival.** That is when the studio's fate was decided: a \
+game that sold badly in 2017 cost jobs in 2017, whatever date the Steam page \
+carries three years later. Anchoring on the Steam date instead would put the \
+window years past every consequence you are being asked about.
+
+The Steam arrival is still worth reporting in `reviewer_note` when it bears on \
+support — a port is often the last thing a team ships for a game.
+
+### The name is the store page's name today
+
+Steam shows a game's *current* store name, so a later re-release can rename the \
+entry it shipped from: an appid that launched as one game may now read \
+"... Definitive Edition" or carry a subtitle added years afterwards. **The date \
+is authoritative and the name is not.** Research the game as it existed on the \
+date you are given. If the name points at an edition that did not exist then, \
+say so in `reviewer_note` and name what actually shipped that day.
 
 Return `studio_signal`, one of:
 - `grew` — the studio hired, expanded, or opened a new team after this launch.
@@ -322,6 +350,10 @@ class ResearchTarget:
     developer: str | None
     publisher: str | None
     steam_release_date: date | None
+    # The launch whose consequences are being labelled, which for a delayed
+    # port is not the Steam one. Optional so a row missing it falls back to the
+    # Steam date rather than losing its window entirely.
+    original_release_date: date | None = None
 
 
 class MessagesClient(Protocol):
@@ -343,16 +375,35 @@ class ResearchError(RuntimeError):
 
 
 def build_prompt(target: ResearchTarget) -> str:
-    released = target.steam_release_date.isoformat() if target.steam_release_date else "unknown"
-    return (
-        f"Game: {target.game_name}\n"
-        f"Developer: {target.developer or 'not recorded'}\n"
-        f"Publisher: {target.publisher or 'not recorded'}\n"
-        f"Steam release date: {released}\n\n"
+    """The two dates are given separately only when they disagree.
+
+    Naming a "Steam release date" and nothing else is what let twelve corpus
+    rows anchor their window on a port: Horizon Zero Dawn's Steam page reads
+    2020-08-07, three and a half years after the launch that actually decided
+    anything for Guerrilla. Where the dates agree — most rows — the second line
+    would be noise, so it is left out.
+    """
+    anchor = target.original_release_date or target.steam_release_date
+    lines = [
+        f"Game: {target.game_name}",
+        f"Developer: {target.developer or 'not recorded'}",
+        f"Publisher: {target.publisher or 'not recorded'}",
+        f"Original release date: {anchor.isoformat() if anchor else 'unknown'}",
+    ]
+    steam = target.steam_release_date
+    if anchor and steam and abs((steam - anchor).days) > PORT_GAP_TOLERANCE_DAYS:
+        gap = (steam - anchor).days
+        lines.append(
+            f"Reached Steam: {steam.isoformat()}, {gap} days later. "
+            "The window runs from the original release above, not from this date."
+        )
+    lines.append("")
+    lines.append(
         "Research what happened to the developer after this release, and what "
         "happened to the game's post-launch support. Return the two signals with "
         "sources a reviewer can open."
     )
+    return "\n".join(lines)
 
 
 def request_kwargs(target: ResearchTarget) -> dict[str, Any]:

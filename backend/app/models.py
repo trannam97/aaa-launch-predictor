@@ -276,6 +276,17 @@ class PlatformLaunchType(enum.StrEnum):
     UNKNOWN = "unknown"
 
 
+# How far `steam_release_date` may sit from `original_release_date` before the
+# researcher is shown both dates rather than one. Measured over all 206 rows:
+# 142 sit within a day of each other, 9 fall between 2 and 30 days, and 54 are
+# 31 days or more apart -- so the gap is a continuum, not two clean clusters.
+# Thirty days is the point past which a gap is large enough to move a 16-month
+# window; below it the second date is noise on the prompt. It is deliberately
+# NOT the threshold for calling a row day-one -- see the job, which treats
+# anything beyond a timezone's worth of difference as a human's decision.
+PORT_GAP_TOLERANCE_DAYS = 30
+
+
 class BudgetTier(enum.StrEnum):
     """Coarse budget bracket. A $200M title and a $20M one need different bars."""
 

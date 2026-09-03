@@ -19,6 +19,7 @@ on:
         options:
           - launch-prices
           - signal-drafts
+          - platform-launch-type
       limit:
         # Not "leave blank for all": GitHub substitutes an input's default when
         # the field is submitted empty, so blank can only ever mean 20. The
@@ -58,6 +59,14 @@ on:
         description: "Research only these Steam appids, comma or space separated. Blank = the whole queue."
         type: string
         default: ""
+      apply_day_one:
+        # Separate from `refresh` because it is the only input here that writes
+        # to the database. The ambiguous verdicts are never written whatever
+        # this is set to -- the job refuses to guess between delayed_port and
+        # former_exclusive, so this can only ever fill in the decided case.
+        description: "platform-launch-type only — write the day_one_steam verdicts to the database. Leave off to review the file first."
+        type: boolean
+        default: false
       refresh:
         # The proposals file survives between runs (see the cache steps), which
         # is what makes a rate-limited run resumable. The same persistence keeps
@@ -178,6 +187,67 @@ jobs:
           path: |
             data/launch_price_proposals.csv
             itad-history-shape.json
+          if-no-files-found: warn
+
+  platform-launch-type:
+    if: inputs.job == 'platform-launch-type'
+    runs-on: ubuntu-latest
+    # Minutes, not hours: both dates are already on the row, so this is
+    # arithmetic over 206 rows with no network call in it at all.
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install
+        run: pip install -e './backend[postgres]'
+
+      - uses: ./.github/actions/database-url
+        with:
+          url: ${{ secrets.DATABASE_URL }}
+
+      # No cache step, unlike launch-prices: there is no allowance to run out
+      # of, so a run always finishes the queue and the next one starts clean.
+      - name: Propose launch types from the two release dates
+        env:
+          APPLY: ${{ inputs.apply_day_one }}
+          APPIDS: ${{ inputs.appids }}
+        run: |
+          set -o pipefail
+          args=()
+          [ "$APPLY" = "true" ] && args+=(--apply)
+          for id in ${APPIDS//,/ }; do
+            case "$id" in
+              *[!0-9]*|'') echo "::error::Not a numeric Steam appid: $id"; exit 1 ;;
+              *) args+=(--appid "$id") ;;
+            esac
+          done
+          status=0
+          python jobs/backfill_platform_launch_type.py "${args[@]}" | tee launch-type.log || status=$?
+          {
+            echo "## Platform launch type"
+            echo
+            echo '```'
+            cat launch-type.log
+            echo '```'
+            echo
+            echo "Only \`day_one_steam\` carries a proposed value. \`not_day_one\`"
+            echo "and \`near_day_one\` carry the gap and nothing else: a date"
+            echo "difference cannot tell a console port from a former storefront"
+            echo "exclusive, nor say whether a two-week stagger was still a"
+            echo "day-one launch. Those need a human to pick."
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit $status
+
+      - name: Keep the proposals
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: platform-launch-type-proposals
+          path: data/platform_launch_type_proposals.csv
           if-no-files-found: warn
 
   signal-drafts:
