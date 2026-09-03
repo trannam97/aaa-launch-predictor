@@ -349,6 +349,17 @@ class SupportSignal(enum.StrEnum):
 
     Bounded by the same 16-month window as StudioSignal: a game delisted
     years later was not abandoned at launch.
+
+    The two boundaries answer different questions. `sustained` against
+    `curtailed` asks whether the plan ran its course; `curtailed` against
+    `abandoned` asks whether support stopped, regardless of how much shipped
+    before it did. Redfall's large final update landed *after* Bethesda said
+    development would not continue, and that is still `abandoned`.
+
+    **This measures a different thing for a live-service game than for a
+    single-player one.** Sustained support is the product for the first and a
+    bonus for the second, so the same value carries very different weight
+    across the corpus — worth knowing before reading `sustained` as praise.
     """
 
     SUSTAINED = "sustained"

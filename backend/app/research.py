@@ -160,10 +160,35 @@ Return `studio_signal`, one of:
 - `unknown` — you could not establish which of the above is true.
 
 Return `support_signal`, one of:
-- `sustained` — the announced post-launch plan was delivered.
-- `curtailed` — support continued but was cut short of what was announced.
-- `abandoned` — support ended early, or the game was delisted.
+- `sustained` — the announced post-launch plan ran its course.
+- `curtailed` — the plan continued but was cut short of what was announced.
+- `abandoned` — support stopped.
 - `unknown` — you could not establish which of the above is true.
+
+### Where the line between these actually falls
+
+The two boundaries answer different questions, and conflating them collapses \
+the scale. `sustained` against `curtailed` asks whether the **plan** ran its \
+course. `curtailed` against `abandoned` asks whether support **stopped**.
+
+**`abandoned` is about support ending, not about how much shipped before it \
+ended.** A large final update, servers left running, and a game still on sale \
+do not turn a termination into a curtailment. A statement that development has \
+stopped, or updates simply ceasing with announced content undelivered, is \
+`abandoned` however much was delivered first — Redfall shipped a substantial \
+final update *after* Bethesda said development would not continue, and that is \
+still support ending.
+
+**A cancelled feature is not by itself a curtailment.** Ask whether the plan \
+continued. If seasons or updates kept arriving on their announced cadence, that \
+is `sustained`, and the cancelled item belongs in `reviewer_note` — Halo \
+Infinite lost split-screen campaign co-op and kept shipping seasons, which is \
+a delivered plan with a dropped feature, not a cut-short one.
+
+Judge these against what was actually promised. A game with a season pass has a \
+plan to fall short of; a game whose only stated commitment was patching does \
+not, and you should not read a light update cadence as a curtailment when \
+nothing more was ever announced.
 
 ## The asymmetry you must correct for
 
@@ -484,13 +509,39 @@ NEGATIVE_STUDIO = frozenset({"severe_layoffs", "closed"})
 
 @dataclass(slots=True)
 class SignalComparison:
-    """One drafted row set against its curated answer."""
+    """One drafted row set against its curated answer.
+
+    The tiers are supplied by the caller rather than computed here: they come
+    from the real rubric, and this module has no business importing it.
+    """
 
     key: str
     game_name: str
     curated_studio: str
     curated_support: str
     draft: SignalDraft
+    drafted_tier: str = ""
+    curated_tier: str = ""
+
+    @property
+    def tier_agrees(self) -> bool:
+        return bool(self.drafted_tier) and self.drafted_tier == self.curated_tier
+
+    @property
+    def tier_direction(self) -> str:
+        """Which way a tier disagreement went — the number that actually matters.
+
+        Per-signal agreement can look fine while the label lands somewhere else
+        entirely. The first five-row run agreed on studio 5/5 and still moved
+        two rows: `severe_layoffs` reads as Underperform beside `sustained` and
+        as Flop beside anything else, and `abandoned` is a hard override on its
+        own. Softer is the expensive direction — it buries a Flop.
+        """
+        if not self.drafted_tier or not self.curated_tier:
+            return "unscored"
+        if self.drafted_tier == self.curated_tier:
+            return "agrees"
+        return "softer" if self.curated_tier == "flop" else "harsher"
 
     @property
     def studio_agrees(self) -> bool:
@@ -524,7 +575,13 @@ class SignalComparison:
 
 
 def compare_to_curated(
-    key: str, game_name: str, curated_studio: str, curated_support: str, draft: SignalDraft
+    key: str,
+    game_name: str,
+    curated_studio: str,
+    curated_support: str,
+    draft: SignalDraft,
+    drafted_tier: str = "",
+    curated_tier: str = "",
 ) -> SignalComparison:
     return SignalComparison(
         key=key,
@@ -532,6 +589,8 @@ def compare_to_curated(
         curated_studio=curated_studio,
         curated_support=curated_support,
         draft=draft,
+        drafted_tier=drafted_tier,
+        curated_tier=curated_tier,
     )
 
 
@@ -546,6 +605,9 @@ def summarise_comparisons(rows: list[SignalComparison]) -> dict[str, int]:
         "false_alarm": 0,
         "refused": 0,
         "differs": 0,
+        "tier_agrees": sum(1 for r in rows if r.tier_agrees),
+        "tier_softer": sum(1 for r in rows if r.tier_direction == "softer"),
+        "tier_harsher": sum(1 for r in rows if r.tier_direction == "harsher"),
         "flagged_alternative": sum(1 for r in rows if r.draft.alternative_reading.strip()),
     }
     for row in rows:

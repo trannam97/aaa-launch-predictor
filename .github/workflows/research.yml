@@ -260,7 +260,12 @@ jobs:
             echo "## Signal drafts — $MODE"
             echo
             echo '```'
-            tail -14 drafts.log
+            # The validation report runs past thirty lines, and the counts
+            # that matter -- studio and support agreement, and the resulting
+            # tier -- are at the top of it. `tail -14` cut exactly those,
+            # leaving four studio-only counters that read as a clean sweep
+            # while support disagreed on four rows of five.
+            tail -40 drafts.log
             echo '```'
             echo
             if [ "$MODE" = "batch" ]; then
