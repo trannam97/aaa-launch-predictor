@@ -412,6 +412,17 @@ def test_evidence_must_also_sit_inside_the_window():
     assert "Evidence *for* a value must also sit inside the window" in SYSTEM_PROMPT
 
 
+def test_the_prompt_says_the_date_outranks_the_name():
+    """Steam reports the store name today, not the name at launch, and a
+    re-release renames the appid in place. The corpus has 17 such rows: appid
+    1063730 reads `New World: Aeternum` against a 2021-09-28 date, but Aeternum
+    is the October 2024 relaunch; 750920 reads `Definitive Edition` against
+    2018-09-14, and that edition landed in November 2019. Without this the
+    window can be anchored on the wrong event entirely."""
+    assert "**The date is authoritative and the name is not.**" in SYSTEM_PROMPT
+    assert "Research the game as it existed on the date you are given" in SYSTEM_PROMPT
+
+
 # --- the cap and the transport are one decision ------------------------------
 
 

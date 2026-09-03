@@ -152,6 +152,15 @@ can see you found them and chose not to score them.
 with an expansion announced three years afterwards.
 - If nothing inside the window settles a value, that value is `unknown`.
 
+### The name is the store page's name today
+
+Steam shows a game's *current* store name, so a later re-release can rename the \
+entry it shipped from: an appid that launched as one game may now read \
+"... Definitive Edition" or carry a subtitle added years afterwards. **The date \
+is authoritative and the name is not.** Research the game as it existed on the \
+date you are given. If the name points at an edition that did not exist then, \
+say so in `reviewer_note` and name what actually shipped that day.
+
 Return `studio_signal`, one of:
 - `grew` — the studio hired, expanded, or opened a new team after this launch.
 - `continued` — the studio kept operating with no significant reduction.
