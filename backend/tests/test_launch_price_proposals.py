@@ -129,6 +129,73 @@ def test_naming_appids_is_the_selection_not_a_filter_on_the_default():
     assert explicit.limit == 2
 
 
+# --- the batch path's shape contract ----------------------------------------
+
+
+def test_the_submit_site_hands_over_targets_not_pairs():
+    """What the first live batch run died on.
+
+    `by_key` maps a custom id to `(appid, target)` so collection can recover
+    the appid, and the submit site passed `by_key.items()` straight to
+    `submit_batch` -- putting the whole pair where a `ResearchTarget` belonged.
+    It raised `AttributeError: 'tuple' object has no attribute
+    'original_release_date'` inside `batch_requests`, before anything was sent,
+    so it cost nothing.
+
+    Every existing batch test calls `batch_requests` with an already-correct
+    `[(key, target)]`, so none of them could see a wrong caller. This one starts
+    from `by_key` in the shape `main` builds it and pushes it all the way
+    through, which is the only version that would have caught it.
+    """
+    import sys
+    from datetime import date as _date
+    from pathlib import Path as _Path
+
+    sys.path.insert(0, str(_Path(__file__).resolve().parents[2] / "jobs"))
+    import draft_studio_signals as signals
+
+    from app.research import ResearchTarget, batch_requests
+
+    target = ResearchTarget(
+        game_name="Concord",
+        developer="Firewalk Studios",
+        publisher="Sony",
+        steam_release_date=_date(2024, 8, 23),
+        original_release_date=_date(2024, 8, 23),
+    )
+    by_key = {"2443720": (2443720, target)}
+
+    requests = batch_requests(signals.batch_pairs(by_key))
+
+    assert len(requests) == 1
+    assert requests[0]["custom_id"] == "2443720"
+    assert "Concord" in requests[0]["params"]["messages"][0]["content"]
+
+
+def test_batch_pairs_keeps_every_row_and_its_key():
+    """The appid is dropped from the value, never the key -- results come back
+    in any order and `custom_id` is the only way to match them home."""
+    import sys
+    from pathlib import Path as _Path
+
+    sys.path.insert(0, str(_Path(__file__).resolve().parents[2] / "jobs"))
+    import draft_studio_signals as signals
+
+    from app.research import ResearchTarget
+
+    def a_target(name):
+        return ResearchTarget(
+            game_name=name, developer=None, publisher=None, steam_release_date=None
+        )
+
+    by_key = {"570": (570, a_target("One")), "440": (440, a_target("Two"))}
+    pairs = signals.batch_pairs(by_key)
+
+    assert [key for key, _ in pairs] == ["570", "440"]
+    assert [t.game_name for _, t in pairs] == ["One", "Two"]
+    assert all(isinstance(t, ResearchTarget) for _, t in pairs)
+
+
 # --- a killed run must keep what it gathered --------------------------------
 
 

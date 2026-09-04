@@ -163,6 +163,23 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
+def batch_pairs(
+    by_key: dict[str, tuple[int, ResearchTarget]],
+) -> list[tuple[str, ResearchTarget]]:
+    """The (custom_id, target) pairs `submit_batch` takes.
+
+    `by_key` maps the custom id to `(appid, target)` because collection needs
+    the appid back to look up curated values. `submit_batch` wants the target
+    alone, and the submit site passed `by_key.items()` straight in -- putting
+    the whole pair where a ResearchTarget belonged. The batch path's first live
+    run died on it in `batch_requests`, before anything was sent.
+
+    Three other sites destructure this shape correctly and one did not, which
+    is what a name fixes: the unpacking happens here or nowhere.
+    """
+    return [(key, target) for key, (_, target) in by_key.items()]
+
+
 def candidates(session) -> list[HistoricalRelease]:
     """Unlabeled day-one releases the rubric cannot resolve.
 
@@ -550,7 +567,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.batch:
-        batch_id = submit_batch(client.beta.messages.batches, list(by_key.items()))
+        batch_id = submit_batch(client.beta.messages.batches, batch_pairs(by_key))
         kind = "validation row" if args.validate else "row"
         logger.info("queued %d %s(s) at half the token cost", len(by_key), kind)
         collect_flags = f"--collect {batch_id}" + (" --validate" if args.validate else "")
