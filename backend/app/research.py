@@ -410,9 +410,11 @@ def request_kwargs(target: ResearchTarget) -> dict[str, Any]:
     """The request for one game, shared by the live and batch paths.
 
     One builder deliberately: a batch that differs from the request it was smoke
-    -tested with is a batch whose results answer a different question. The beta
-    batch request type accepts `betas` and `fallbacks` inside each request's
-    params, so this dict maps into a batch entry unchanged.
+    -tested with is a batch whose results answer a different question.
+
+    It does not map into a batch entry *unchanged*, though this docstring used
+    to claim it did. The server-side fallback is rejected by the Batches API,
+    so `batch_params` strips it — see there for what that costs.
     """
     kwargs: dict[str, Any] = {
         "model": MODEL,
@@ -505,24 +507,50 @@ class BatchesClient(Protocol):
     def results(self, batch_id: str, /) -> Iterable[Any]: ...
 
 
+# What a batch entry cannot carry. The server-side fallback is rejected by the
+# Batches API -- the first live batch run came back with
+# "requests[0] (custom_id='243470'): The `fallbacks` parameter is not supported
+# for batch requests." The `betas` entry goes with it: that header exists only
+# to authorise the field.
+BATCH_UNSUPPORTED_KEYS = ("betas", "fallbacks")
+
+
+def batch_params(target: ResearchTarget) -> dict[str, Any]:
+    """`request_kwargs` minus what a batch entry may not carry.
+
+    The cost is real but small: a batched row that draws a `refusal` stop
+    reason is not rerouted to another model, so it comes back as a failed row
+    for a human to re-run rather than a rerouted answer. Fallback credit does
+    not close the gap either -- batch results carry no credit token. Everything
+    that shapes the answer (prompt, tools, schema, thinking, caching) is
+    untouched, which is the part that has to match the smoke-tested request.
+    """
+    params = request_kwargs(target)
+    for key in BATCH_UNSUPPORTED_KEYS:
+        params.pop(key, None)
+    return params
+
+
 def batch_requests(targets: Iterable[tuple[str, ResearchTarget]]) -> list[dict[str, Any]]:
     """The queue as batch entries, keyed so results can be matched back.
 
     Results come back in any order, so `custom_id` is the only way to know
     which game a row belongs to — never position.
     """
-    return [{"custom_id": key, "params": request_kwargs(target)} for key, target in targets]
+    return [{"custom_id": key, "params": batch_params(target)} for key, target in targets]
 
 
 def submit_batch(batches: BatchesClient, targets: Iterable[tuple[str, ResearchTarget]]) -> str:
-    """Queue the whole run and return the batch id. Does not wait."""
+    """Queue the whole run and return the batch id. Does not wait.
+
+    No `betas` argument: the only beta this module asks for authorises the
+    server-side fallback, which a batch cannot use. Sending the header without
+    the field it enables would be noise.
+    """
     requests = batch_requests(targets)
     if not requests:
         raise ResearchError("nothing to submit")
-    # The beta goes in both places on purpose: at the batch level it sets the
-    # anthropic-beta header that authorises the field, and inside each request's
-    # params it is what actually applies the fallback to that message.
-    batch = batches.create(requests=requests, betas=[FALLBACK_BETA])
+    batch = batches.create(requests=requests)
     return batch.id
 
 

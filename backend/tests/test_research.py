@@ -9,6 +9,7 @@ from types import SimpleNamespace
 import pytest
 
 from app.research import (
+    BATCH_UNSUPPORTED_KEYS,
     CACHE_CONTROL,
     FALLBACK_BETA,
     MAX_TOKENS,
@@ -20,6 +21,7 @@ from app.research import (
     ResearchError,
     ResearchTarget,
     SignalDraft,
+    batch_params,
     batch_requests,
     build_prompt,
     collect_batch,
@@ -211,12 +213,42 @@ OTHER = ResearchTarget(
 )
 
 
-def test_a_batch_entry_is_the_same_request_the_live_path_sends():
+def test_a_batch_entry_is_the_live_request_minus_what_a_batch_cannot_carry():
     """A batch that differs from what was smoke-tested answers a different
-    question, so the two paths must share one builder."""
+    question, so the two paths share one builder -- but they cannot be
+    identical. The first live batch run returned:
+
+        requests[0] (custom_id='243470'): The `fallbacks` parameter is not
+        supported for batch requests.
+
+    So an entry is the live request with exactly those keys removed, and
+    nothing else."""
     entry = batch_requests([("570", TARGET)])[0]
 
-    assert entry["params"] == request_kwargs(TARGET)
+    expected = request_kwargs(TARGET)
+    for key in BATCH_UNSUPPORTED_KEYS:
+        expected.pop(key, None)
+    assert entry["params"] == expected
+
+
+def test_the_live_path_keeps_the_fallback_the_batch_path_drops():
+    """Stripping it for batch must not quietly disarm the synchronous path,
+    where the fallback is supported and wanted."""
+    live = request_kwargs(TARGET)
+    assert live["fallbacks"] == "default"
+    assert live["betas"] == [FALLBACK_BETA]
+
+    batched = batch_params(TARGET)
+    assert "fallbacks" not in batched
+    assert "betas" not in batched
+
+
+def test_stripping_the_fallback_changes_nothing_about_the_question_asked():
+    """The prompt, tools, schema, thinking and caching are what the smoke test
+    validated. Only reroute-on-refusal differs between the paths."""
+    live, batched = request_kwargs(TARGET), batch_params(TARGET)
+    for key in ("model", "system", "messages", "tools", "output_config", "thinking"):
+        assert batched[key] == live[key], key
 
 
 def test_every_target_is_queued_under_its_own_key():
@@ -229,11 +261,14 @@ def test_every_target_is_queued_under_its_own_key():
     )
 
 
-def test_submitting_returns_the_id_and_carries_the_beta():
+def test_submitting_sends_no_beta_header():
+    """The only beta this module asks for authorises the server-side fallback,
+    which a batch cannot use. Sending it anyway asks for a field the request is
+    about to have rejected."""
     batches = Batches()
 
     assert submit_batch(batches, [("570", TARGET)]) == "msgbatch_test"
-    assert batches.seen["betas"] == [FALLBACK_BETA]
+    assert "betas" not in batches.seen
     assert len(batches.seen["requests"]) == 1
 
 
