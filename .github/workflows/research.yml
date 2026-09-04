@@ -38,6 +38,7 @@ on:
           - list
           - now
           - batch
+          - status
           - collect
       validate:
         # A checkbox rather than a fourth mode, because it is orthogonal to
@@ -49,7 +50,7 @@ on:
         type: boolean
         default: false
       batch_id:
-        description: "signal-drafts + collect — the batch id the submit run printed"
+        description: "signal-drafts + status/collect — the batch id the submit run printed"
         type: string
         default: ""
       appids:
@@ -322,6 +323,14 @@ jobs:
                 args+=(--limit "$LIMIT")
               fi
               ;;
+            status)
+              # Free: one GET against the Batches API, no database and no
+              # tokens. Exists so "has it finished?" is a question you can ask
+              # directly rather than by attempting a collect and reading the
+              # traceback.
+              [ -n "$BATCH_ID" ] || { echo "::error::status needs the batch id the submit run printed"; exit 1; }
+              args+=(--status "$BATCH_ID")
+              ;;
             *) echo "::error::unknown signal_mode: $MODE"; exit 1 ;;
           esac
           for id in ${APPIDS//,/ }; do
@@ -348,7 +357,10 @@ jobs:
             if [ "$MODE" = "list" ]; then cat drafts.log; else tail -40 drafts.log; fi
             echo '```'
             echo
-            if [ "$MODE" = "batch" ]; then
+            if [ "$MODE" = "status" ]; then
+            echo "Nothing was billed and nothing was written — this only asked"
+            echo "the API how far the batch has got."
+          elif [ "$MODE" = "batch" ]; then
               echo "Nothing is written yet. Re-run this workflow with **signal_mode: collect**"
               echo "and the batch id above once it has finished."
             elif [ "$MODE" = "list" ]; then
