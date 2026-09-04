@@ -66,6 +66,7 @@ from app.models import (  # noqa: E402
 from app.research import (  # noqa: E402
     ResearchError,
     ResearchTarget,
+    batch_status,
     collect_batch,
     compare_to_curated,
     draft_signals,
@@ -153,6 +154,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "the drafts disagree. The queue cannot test this: every documented "
         "closure in the corpus is already labelled, so no unlabelled row can "
         "check whether `closed` is ever called when it should be.",
+    )
+    parser.add_argument(
+        "--status",
+        metavar="BATCH_ID",
+        help="Print how far a batch has got and exit. One GET: no database, no "
+        "API spend, nothing written.",
     )
     parser.add_argument(
         "--collect",
@@ -404,10 +411,33 @@ def report_validation(rows, out: Path, failed: int) -> None:
     print("  label rather than the draft.")
 
 
+def report_status(status) -> None:
+    """The same lines whether asked for directly or hit on an early collect."""
+    print()
+    print(f"  batch id     {status.batch_id}")
+    print(f"  status       {status.summary()}")
+    print()
+    if status.ended:
+        print("  Finished. Collect it with:")
+        print(f"    signal_mode: collect, batch_id: {status.batch_id}")
+    else:
+        print("  Not finished, so there is nothing to collect yet. Results keep")
+        print("  for 29 days and the cap is 24 hours — re-check later.")
+
+
 def main(argv: list[str] | None = None) -> int:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
     logging.getLogger("httpx").setLevel(logging.WARNING)
     args = parse_args(argv)
+
+    if args.status:
+        # Before the session on purpose: how far a batch has got is a question
+        # for the API, not the corpus, so it should answer even when the
+        # database is unreachable.
+        import anthropic  # noqa: PLC0415
+
+        report_status(batch_status(anthropic.Anthropic().beta.messages.batches, args.status))
+        return 0
 
     with session_scope() as session:
         queue = already_answered(session) if args.validate else candidates(session)
@@ -533,6 +563,12 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.collect:
+        # Ask before reading. `results()` raises while a batch is still running,
+        # and a traceback on a red job reads as breakage rather than "not yet".
+        status = batch_status(client.beta.messages.batches, args.collect)
+        if not status.ended:
+            report_status(status)
+            return 0
         outcomes = collect_batch(
             client.beta.messages.batches,
             args.collect,

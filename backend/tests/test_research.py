@@ -23,6 +23,7 @@ from app.research import (
     SignalDraft,
     batch_params,
     batch_requests,
+    batch_status,
     build_prompt,
     collect_batch,
     compare_to_curated,
@@ -270,6 +271,61 @@ def test_submitting_sends_no_beta_header():
     assert submit_batch(batches, [("570", TARGET)]) == "msgbatch_test"
     assert "betas" not in batches.seen
     assert len(batches.seen["requests"]) == 1
+
+
+def test_status_reads_the_counts_without_touching_results():
+    """The whole point: learn a batch is unfinished without calling `results()`,
+    which raises while it is still running."""
+
+    class Counts:
+        succeeded, errored, processing, canceled, expired = 41, 2, 25, 0, 0
+
+    class Batch:
+        processing_status, request_counts = "in_progress", Counts()
+
+    class OnlyRetrieve:
+        def retrieve(self, batch_id, /):
+            return Batch()
+
+        def results(self, batch_id, /):
+            raise AssertionError("status must not read results")
+
+    status = batch_status(OnlyRetrieve(), "msgbatch_x")
+
+    assert status.ended is False
+    assert status.done == 43
+    assert "25 still processing" in status.summary()
+    assert "41 succeeded, 2 errored" in status.summary()
+
+
+def test_status_reports_ended_when_the_batch_has_ended():
+    class Counts:
+        succeeded, errored, processing, canceled, expired = 68, 0, 0, 0, 0
+
+    class Batch:
+        processing_status, request_counts = "ended", Counts()
+
+    class Batches:
+        def retrieve(self, batch_id, /):
+            return Batch()
+
+    status = batch_status(Batches(), "msgbatch_x")
+    assert status.ended is True
+    assert status.done == 68
+
+
+def test_a_batch_missing_its_counts_still_reports_a_status():
+    """A shape this module does not control. Reporting `unknown` beats an
+    AttributeError when the only thing being asked is "is it done"."""
+
+    class Bare:
+        def retrieve(self, batch_id, /):
+            return object()
+
+    status = batch_status(Bare(), "msgbatch_x")
+    assert status.status == "unknown"
+    assert status.ended is False
+    assert status.done == 0
 
 
 def test_submitting_nothing_raises_rather_than_creating_an_empty_batch():

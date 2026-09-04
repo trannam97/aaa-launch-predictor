@@ -507,6 +507,56 @@ class BatchesClient(Protocol):
     def results(self, batch_id: str, /) -> Iterable[Any]: ...
 
 
+@dataclass(slots=True)
+class BatchStatus:
+    """Where a batch has got to, without reading its results.
+
+    `results()` raises until the batch ends, so before this existed the only
+    way to learn a batch was still running was to try to collect it and read
+    the exception. That is a poor status check: it fails the workflow run, and
+    a red job reads as breakage rather than "not finished yet".
+    """
+
+    batch_id: str
+    status: str
+    succeeded: int = 0
+    errored: int = 0
+    processing: int = 0
+    canceled: int = 0
+    expired: int = 0
+
+    @property
+    def ended(self) -> bool:
+        return self.status == "ended"
+
+    @property
+    def done(self) -> int:
+        return self.succeeded + self.errored + self.canceled + self.expired
+
+    def summary(self) -> str:
+        counted = f"{self.done} done, {self.processing} still processing"
+        detail = f"{self.succeeded} succeeded, {self.errored} errored"
+        for label, value in (("canceled", self.canceled), ("expired", self.expired)):
+            if value:
+                detail += f", {value} {label}"
+        return f"{self.status} — {counted} ({detail})"
+
+
+def batch_status(batches: BatchesClient, batch_id: str) -> BatchStatus:
+    """One GET. Costs nothing and writes nothing."""
+    batch = batches.retrieve(batch_id)
+    counts = getattr(batch, "request_counts", None)
+    return BatchStatus(
+        batch_id=batch_id,
+        status=getattr(batch, "processing_status", "unknown"),
+        succeeded=getattr(counts, "succeeded", 0) or 0,
+        errored=getattr(counts, "errored", 0) or 0,
+        processing=getattr(counts, "processing", 0) or 0,
+        canceled=getattr(counts, "canceled", 0) or 0,
+        expired=getattr(counts, "expired", 0) or 0,
+    )
+
+
 # What a batch entry cannot carry. The server-side fallback is rejected by the
 # Batches API -- the first live batch run came back with
 # "requests[0] (custom_id='243470'): The `fallbacks` parameter is not supported
