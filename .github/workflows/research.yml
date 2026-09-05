@@ -60,6 +60,14 @@ on:
         description: "Research only these Steam appids, comma or space separated. Blank = the whole queue."
         type: string
         default: ""
+      audit:
+        # Not a mode of apply_day_one but its opposite: apply writes the one
+        # verdict the dates settle, audit reads every row that already has an
+        # answer. The job refuses the two together, since applying across rows
+        # that hold curated values would overwrite them with arithmetic.
+        description: "platform-launch-type only — check every row's stored launch type against its two dates. Reads only; cannot be combined with apply."
+        type: boolean
+        default: false
       apply_day_one:
         # Separate from `refresh` because it is the only input here that writes
         # to the database. The ambiguous verdicts are never written whatever
@@ -215,11 +223,13 @@ jobs:
       - name: Propose launch types from the two release dates
         env:
           APPLY: ${{ inputs.apply_day_one }}
+          AUDIT: ${{ inputs.audit }}
           APPIDS: ${{ inputs.appids }}
         run: |
           set -o pipefail
           args=()
           [ "$APPLY" = "true" ] && args+=(--apply)
+          [ "$AUDIT" = "true" ] && args+=(--audit)
           for id in ${APPIDS//,/ }; do
             case "$id" in
               *[!0-9]*|'') echo "::error::Not a numeric Steam appid: $id"; exit 1 ;;
@@ -235,11 +245,20 @@ jobs:
             cat launch-type.log
             echo '```'
             echo
-            echo "Only \`day_one_steam\` carries a proposed value. \`not_day_one\`"
-            echo "and \`near_day_one\` carry the gap and nothing else: a date"
-            echo "difference cannot tell a console port from a former storefront"
-            echo "exclusive, nor say whether a two-week stagger was still a"
-            echo "day-one launch. Those need a human to pick."
+            # No `exit` in here: this block runs in the step's own shell, so
+            # returning from it would skip `exit $status` below and report a
+            # failed run as a success.
+            if [ "$AUDIT" = "true" ]; then
+              echo "\`conflict\` rows have a stored launch type their own two dates"
+              echo "contradict. \`judgement\` rows sit 3 to 30 days apart, where the"
+              echo "dates cannot referee. Nothing was written to the database."
+            else
+              echo "Only \`day_one_steam\` carries a proposed value. \`not_day_one\`"
+              echo "and \`near_day_one\` carry the gap and nothing else: a date"
+              echo "difference cannot tell a console port from a former storefront"
+              echo "exclusive, nor say whether a two-week stagger was still a"
+              echo "day-one launch. Those need a human to pick."
+            fi
           } >> "$GITHUB_STEP_SUMMARY"
           exit $status
 
@@ -248,7 +267,9 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: platform-launch-type-proposals
-          path: data/platform_launch_type_proposals.csv
+          path: |
+            data/platform_launch_type_proposals.csv
+            data/platform_launch_type_audit.csv
           if-no-files-found: warn
 
   signal-drafts:
