@@ -28,7 +28,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Iterable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date
 from typing import Any, Literal, Protocol
 
@@ -491,12 +491,60 @@ def draft_signals(client: MessagesClient, target: ResearchTarget) -> SignalDraft
 
 
 @dataclass(slots=True)
+class Usage:
+    """What one response actually consumed.
+
+    Every response carries this and the project threw it away, so a finished
+    run could not say what it cost -- the only answer was a billing dashboard,
+    which lags and reprices. `web_searches` is the one that is not about money:
+    a row that cites sources having made zero searches recalled those URLs
+    rather than fetching them, and that is a data-quality fact, not an
+    accounting one.
+    """
+
+    input_tokens: int = 0
+    output_tokens: int = 0
+    cache_read_tokens: int = 0
+    cache_write_tokens: int = 0
+    web_searches: int = 0
+
+    def __add__(self, other: Usage) -> Usage:
+        return Usage(
+            input_tokens=self.input_tokens + other.input_tokens,
+            output_tokens=self.output_tokens + other.output_tokens,
+            cache_read_tokens=self.cache_read_tokens + other.cache_read_tokens,
+            cache_write_tokens=self.cache_write_tokens + other.cache_write_tokens,
+            web_searches=self.web_searches + other.web_searches,
+        )
+
+
+def read_usage(message: Any) -> Usage:
+    """Pull the counts off a finished message. Absent fields read as zero."""
+
+    def num(obj: Any, name: str) -> int:
+        value = getattr(obj, name, 0)
+        return int(value) if isinstance(value, (int, float)) else 0
+
+    usage = getattr(message, "usage", None)
+    if usage is None:
+        return Usage()
+    return Usage(
+        input_tokens=num(usage, "input_tokens"),
+        output_tokens=num(usage, "output_tokens"),
+        cache_read_tokens=num(usage, "cache_read_input_tokens"),
+        cache_write_tokens=num(usage, "cache_creation_input_tokens"),
+        web_searches=num(getattr(usage, "server_tool_use", None), "web_search_requests"),
+    )
+
+
+@dataclass(slots=True)
 class BatchOutcome:
     """One row's result, matched back to its key. Exactly one of draft/error."""
 
     key: str
     draft: SignalDraft | None = None
     error: str | None = None
+    usage: Usage = field(default_factory=Usage)
 
 
 class BatchesClient(Protocol):
@@ -624,7 +672,11 @@ def collect_batch(
             continue
         try:
             outcomes.append(
-                BatchOutcome(key=key, draft=parse_response(result.result.message, name))
+                BatchOutcome(
+                    key=key,
+                    draft=parse_response(result.result.message, name),
+                    usage=read_usage(result.result.message),
+                )
             )
         except ResearchError as exc:
             outcomes.append(BatchOutcome(key=key, error=str(exc)))

@@ -66,6 +66,7 @@ from app.models import (  # noqa: E402
 from app.research import (  # noqa: E402
     ResearchError,
     ResearchTarget,
+    Usage,
     batch_status,
     collect_batch,
     compare_to_curated,
@@ -100,6 +101,8 @@ FIELDS = [
     "support_evidence",
     "alternative_reading",
     "reviewer_note",
+    "web_searches",
+    "output_tokens",
 ]
 
 VALIDATION_FIELDS = [
@@ -278,6 +281,57 @@ def incremental_csv(path: Path, fields: list[str]):
             handle.flush()
 
         yield emit
+
+
+# Published list rates for claude-opus-5, per million tokens. The billing
+# report is authoritative over anything computed here -- it reprices, and a
+# Sep-3 total fell by $0.90 a day after it first appeared -- so this is an
+# order-of-magnitude read from what the responses themselves reported, not an
+# invoice. Web search is not batch-discounted.
+RATE_INPUT = 5.0
+RATE_OUTPUT = 25.0
+RATE_CACHE_READ = 0.5
+RATE_CACHE_WRITE_5M = 6.25
+RATE_PER_SEARCH = 10.0 / 1000
+BATCH_DISCOUNT = 0.5
+
+
+def estimate_cost(usage, *, batched: bool) -> float:
+    """Dollars at list rates. Tokens take the batch discount; searches do not."""
+    tokens = (
+        usage.input_tokens * RATE_INPUT
+        + usage.output_tokens * RATE_OUTPUT
+        + usage.cache_read_tokens * RATE_CACHE_READ
+        + usage.cache_write_tokens * RATE_CACHE_WRITE_5M
+    ) / 1_000_000
+    if batched:
+        tokens *= BATCH_DISCOUNT
+    return tokens + usage.web_searches * RATE_PER_SEARCH
+
+
+def report_usage(total, rows: int, *, batched: bool) -> None:
+    """What the run consumed, from the responses rather than a dashboard."""
+    if not rows:
+        return
+    print()
+    print(f"  {'input tokens':<22}{total.input_tokens:>12,}")
+    print(f"  {'output tokens':<22}{total.output_tokens:>12,}")
+    print(f"  {'cache read':<22}{total.cache_read_tokens:>12,}")
+    print(f"  {'cache write':<22}{total.cache_write_tokens:>12,}")
+    print(f"  {'web searches':<22}{total.web_searches:>12,}")
+    cost = estimate_cost(total, batched=batched)
+    print()
+    print(
+        f"  ~${cost:.2f} at list rates ({'batched' if batched else 'synchronous'}), "
+        f"~${cost / rows:.3f}/row over {rows} row(s)."
+    )
+    print("  Computed from the responses' own usage. The billing report wins.")
+    if not total.web_searches:
+        # The reason this is reported at all. A row citing sources having made
+        # no search recalled those URLs rather than fetching them.
+        print()
+        print("  NO WEB SEARCHES WERE MADE. Any sources in these drafts were")
+        print("  recalled from training, not fetched -- verify before trusting them.")
 
 
 def write_drafts(path: Path, rows: list[dict[str, object]]) -> None:
@@ -575,7 +629,9 @@ def main(argv: list[str] | None = None) -> int:
             {key: target.game_name for key, (_, target) in by_key.items()},
         )
         rows, failed = [], 0
+        total_usage = Usage()
         for outcome in outcomes:
+            total_usage = total_usage + outcome.usage
             if outcome.draft is None:
                 failed += 1
                 logger.warning("%s", outcome.error)
@@ -589,7 +645,12 @@ def main(argv: list[str] | None = None) -> int:
                 logger.warning("appid %s is no longer in the queue; draft ignored", outcome.key)
                 continue
             appid, target = known
-            rows.append(as_row(appid, target.game_name, outcome.draft))
+            row = as_row(appid, target.game_name, outcome.draft)
+            # Per row, not just in the total: a single row that cites sources
+            # having made no search is the one worth finding.
+            row["web_searches"] = outcome.usage.web_searches
+            row["output_tokens"] = outcome.usage.output_tokens
+            rows.append(row)
             logger.info(
                 "%-40s studio=%-15s support=%-10s %s",
                 target.game_name[:40],
@@ -600,6 +661,7 @@ def main(argv: list[str] | None = None) -> int:
         rows.sort(key=lambda row: row["steam_appid"])
         write_drafts(args.out, rows)
         report(rows, failed, args.out)
+        report_usage(total_usage, len(rows), batched=True)
         return 0
 
     if args.batch:

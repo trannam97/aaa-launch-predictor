@@ -21,6 +21,7 @@ from app.research import (
     ResearchError,
     ResearchTarget,
     SignalDraft,
+    Usage,
     batch_params,
     batch_requests,
     batch_status,
@@ -29,6 +30,7 @@ from app.research import (
     compare_to_curated,
     draft_signals,
     parse_response,
+    read_usage,
     request_kwargs,
     submit_batch,
     summarise_comparisons,
@@ -271,6 +273,84 @@ def test_submitting_sends_no_beta_header():
     assert submit_batch(batches, [("570", TARGET)]) == "msgbatch_test"
     assert "betas" not in batches.seen
     assert len(batches.seen["requests"]) == 1
+
+
+def test_usage_is_read_off_a_finished_message():
+    """The project threw this away, so a finished run could not say what it
+    cost -- the only answer was a billing dashboard, which lags and reprices."""
+    message = stub_message(json.dumps(VALID))
+    message.usage = SimpleNamespace(
+        input_tokens=120,
+        output_tokens=5000,
+        cache_read_input_tokens=53000,
+        cache_creation_input_tokens=18300,
+        server_tool_use=SimpleNamespace(web_search_requests=7),
+    )
+
+    u = read_usage(message)
+
+    assert (u.input_tokens, u.output_tokens) == (120, 5000)
+    assert (u.cache_read_tokens, u.cache_write_tokens) == (53000, 18300)
+    assert u.web_searches == 7
+
+
+def test_a_response_without_usage_reads_as_zero_rather_than_raising():
+    """Not our shape to control, and a missing count must never take down a
+    collect that has real drafts in it."""
+    assert read_usage(stub_message("{}")).output_tokens == 0
+    assert read_usage(object()).web_searches == 0
+
+    partial = stub_message("{}")
+    partial.usage = SimpleNamespace(input_tokens=10, output_tokens=20)
+    assert read_usage(partial).web_searches == 0
+    assert read_usage(partial).output_tokens == 20
+
+
+def test_usage_totals_across_rows():
+    """A run's cost is the sum over its rows, so Usage adds."""
+    message = stub_message("{}")
+    message.usage = SimpleNamespace(
+        input_tokens=1,
+        output_tokens=2,
+        cache_read_input_tokens=3,
+        cache_creation_input_tokens=4,
+        server_tool_use=SimpleNamespace(web_search_requests=5),
+    )
+
+    total = Usage()
+    for _ in range(3):
+        total = total + read_usage(message)
+
+    assert (total.output_tokens, total.web_searches) == (6, 15)
+
+
+def test_collect_attaches_usage_to_each_outcome():
+    """Collect is where the counts are still reachable: batch results keep for
+    29 days, while the billing report is a lagging, repriced aggregate."""
+    message = stub_message(json.dumps(VALID))
+    message.usage = SimpleNamespace(
+        input_tokens=10,
+        output_tokens=900,
+        cache_read_input_tokens=0,
+        cache_creation_input_tokens=8000,
+        server_tool_use=SimpleNamespace(web_search_requests=3),
+    )
+
+    outcomes = collect_batch(Batches([Result("570", message=message)]), "b", {"570": "A"})
+
+    assert outcomes[0].draft is not None
+    assert outcomes[0].usage.web_searches == 3
+    assert outcomes[0].usage.output_tokens == 900
+
+
+def test_a_draft_still_collects_when_the_response_reports_no_usage():
+    """Usage is a measurement, never a gate on the row it measures."""
+    outcomes = collect_batch(
+        Batches([Result("570", message=stub_message(json.dumps(VALID)))]), "b", {"570": "A"}
+    )
+
+    assert outcomes[0].draft is not None
+    assert outcomes[0].usage.web_searches == 0
 
 
 def test_status_reads_the_counts_without_touching_results():
