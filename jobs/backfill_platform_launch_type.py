@@ -10,11 +10,14 @@ is a different prediction problem: it brings pre-existing reputation and
 pent-up demand that a genuine day-one release does not have.
 
 **Against the current database this job has almost nothing to do**, and the
-first version of this docstring said otherwise. It claimed 173 of 206 rows were
-unset. That count came from `data/historical_releases.csv`, which lags the
-database -- the live table holds one UNKNOWN row, Assassin's Creed IV Black
-Flag, and that one has no Steam date to compare against. So this runs as a
-guard for rows added later, not as a backfill of a gap that exists today.
+first two versions of this docstring were wrong about why. The first claimed 173
+of 206 rows were unset. The second blamed that on `data/historical_releases.csv`
+lagging the database. Neither is right: 173 rows *are* blank in that CSV, and
+that is by design, because `app.backfill.derive_platform_launch_type` fills the
+column in from the two dates during backfill. Blank in the curated file means
+derived, not missing. The live table holds one UNKNOWN row, Assassin's Creed IV
+Black Flag, and only because Steam serves no release date for it at all. So this
+runs as a guard for rows added later, not as a backfill of a gap that exists.
 
 The gap is not hypothetical. Comparing both dates across all 206 rows against
 live Steam listings: 142 agree within a day, 9 differ by 3 to 26 days, and 54
@@ -59,10 +62,16 @@ rows the two dates agreeing *is* the definition, not a judgement call.
 The default queue is rows holding UNKNOWN, which today is one row. That leaves
 the far larger question untouched: are the rows that *do* carry a value right?
 
-**It has been run, and the answer is that they are.** Against the 2026-09-07
-export: 196 ok, 9 judgement, 1 undecidable, **0 conflicts**. So this mode is a
-guard rather than a cleanup, and the paragraph above records what it cost to
-find that out -- the case for building it rested on a stale docstring claim.
+**It has been run.** Against the 2026-09-07 export: 33 ok, 172 derived, 1
+undecidable, **0 conflicts**. So this mode is a guard rather than a cleanup, and
+the paragraph above records what it cost to find that out -- the case for
+building it rested on a docstring claim that was already stale.
+
+Read the `derived` count before the `ok` one. The first run of this mode
+reported "196 ok" by counting derived rows as passes, which turned a 33-row
+check into a number that looked like a 205-row one. A derived row got its value
+from the arithmetic this check re-runs; agreeing with it catches staleness and
+nothing else. Only the 33 curated rows can actually fail.
 
 Keeping it is still worth it, for what a clean answer is worth having and for
 what it catches as rows arrive:
@@ -78,20 +87,25 @@ Two live findings from that first run, neither of them a conflict:
     Grounded at 791, Starship Troopers: Extermination at 512 -- are all Early
     Access graduations carrying the curated marker. The guard below is the only
     reason they are not three false conflicts, so it earns its keep on live data.
-  * The 9 rows in the judgement band split at a boundary that exists nowhere in
-    this file. Under 7 days is stored `day_one_steam` (No Man's Sky 3, Starfield
-    4, Far Cry Primal 6, Black Ops 6 7); 13 days and over is stored
-    `delayed_port` (Watch_Dogs 2 13, Trials Rising 14, NieR:Automata 22, AC
-    Syndicate 26, Total War: WARHAMMER 26). Nine for nine. That convention could
-    be encoded, and deliberately is not: a threshold fitted to the nine rows it
-    would then classify is the in-sample move the Evaluation Protocol bans.
+  * Nine rows sit between 2 and 30 days apart and split cleanly: under 7 days is
+    `day_one_steam` (No Man's Sky 3, Starfield 4, Far Cry Primal 6, Black Ops 6
+    7), 13 days and over is `delayed_port` (Watch_Dogs 2 13, Trials Rising 14,
+    NieR:Automata 22, AC Syndicate 26, Total War: WARHAMMER 26). The first run of
+    this mode reported all nine as needing a human and called that split an
+    undocumented hand convention. It is neither. Eight of the nine are blank in
+    the curated CSV, so `derive_platform_launch_type` decided them at its 7-day
+    tolerance -- and this file had defined a rival `DAY_ONE_TOLERANCE_DAYS`
+    holding 1, same name, different number, two files. An auditor measuring by
+    its own yardstick reports its own disagreement as the data's. `audit` now
+    calls the pipeline's deriver; the constant here is `TIMEZONE_TOLERANCE_DAYS`
+    and belongs to `classify`, which is a separate question below.
 
 So `--audit` walks **every** row instead of the UNKNOWN ones, compares the
 stored value against what the two dates say, and sorts each row into:
 
-    ok            stored value and dates agree
-    conflict      they disagree, or Steam predates the original release
-    judgement     3 to 30 days apart -- the dates cannot referee this one
+    ok            curated value agrees with what the dates derive
+    conflict      it disagrees, or Steam predates the original release
+    derived       no curated value; agreeing only proves it is not stale
     undecidable   a date is missing
     unset         still UNKNOWN, i.e. the ordinary backfill queue
 
@@ -105,9 +119,24 @@ against live Steam listings, while `--audit` compares the two stored columns. If
 the counts differ, that gap is itself a finding -- it means `steam_release_date`
 has drifted from what Steam serves today. On 2026-09-07 they agreed exactly.
 
-The single `undecidable` row is Assassin's Creed IV Black Flag, which has no
-`steam_release_date` at all. That is a missing ingest rather than a missing
-judgement, and it is also why the ordinary backfill queue cannot decide it.
+The single `undecidable` row is Assassin's Creed IV Black Flag. Steam itself
+serves no release date for appid 242050 -- `success` is true and
+`release_date.date` is the empty string, checked again on 2026-09-07 -- which is
+a scar from a delisting rather than a failed fetch, so re-running the backfill
+will never fill it. Its launch type is curated in the CSV instead, and the row
+stays permanently unauditable: with no Steam date there is no arithmetic to
+check it against.
+
+## `classify` and the deriver disagree, and that is left open
+
+`app.backfill.derive_platform_launch_type` returns `delayed_port` for any gap
+over 7 days. `classify` below refuses to, on the grounds that a gap cannot
+separate a console port from a former storefront exclusive -- and 48 of the
+corpus's 53 `delayed_port` rows are that derivation's output rather than
+anyone's research. Both positions are in the tree. `--audit` reports what the
+pipeline did rather than settling which is right, because settling it means
+deciding whether 48 rows are labelled or merely computed, and that is a call
+about the dataset, not about this file.
 
 ## Applying this costs money later
 
@@ -135,6 +164,13 @@ sys.path.insert(0, str(REPO_ROOT / "backend"))
 
 from sqlalchemy import select  # noqa: E402
 
+from app.backfill import (  # noqa: E402
+    DAY_ONE_TOLERANCE_DAYS as INGEST_TOLERANCE_DAYS,
+)
+from app.backfill import (
+    derive_platform_launch_type,
+    load_curated_csv,
+)
 from app.db import session_scope  # noqa: E402
 from app.models import HistoricalRelease, PlatformLaunchType  # noqa: E402
 
@@ -158,7 +194,7 @@ DEFAULT_AUDIT_OUT = REPO_ROOT / "data" / "platform_launch_type_audit.csv"
 # Assassin's Creed Syndicate at 26 -- where Steam buyers arrived after a review
 # cycle had already happened elsewhere. Whether that counts as day-one is a
 # judgement about the launch, not a fact about the dates, so it goes to review.
-DAY_ONE_TOLERANCE_DAYS = 1
+TIMEZONE_TOLERANCE_DAYS = 1
 
 # Past this the gap is unambiguous. Between the two thresholds a row is real but
 # undecided, which is its own verdict rather than a coin flip either way.
@@ -185,13 +221,16 @@ FIELDS = [
 
 # --audit reports the stored value beside the verdict, so a reviewer can see
 # what is being contradicted without opening the database.
-AUDIT_FIELDS = [*FIELDS, "stored_launch_type", "agreement"]
+AUDIT_FIELDS = [*FIELDS, "stored_launch_type", "source", "agreement"]
 
 OK = "ok"
 CONFLICT = "conflict"
+DERIVED = "derived"
 JUDGEMENT = "judgement"
 UNDECIDABLE = "undecidable"
 UNSET = "unset"
+
+CURATED_CSV = REPO_ROOT / "data" / "historical_releases.csv"
 
 # Which stored values each verdict can live with. Only the verdicts that the
 # dates actually settle appear here; the rest are handled by name in `audit`.
@@ -285,7 +324,7 @@ def classify(
         missing = "original_release_date" if original is None else "steam_release_date"
         return "no_date", "", None, f"{missing} is not recorded, so there is nothing to compare"
     gap = (steam - original).days
-    if abs(gap) <= DAY_ONE_TOLERANCE_DAYS:
+    if abs(gap) <= TIMEZONE_TOLERANCE_DAYS:
         return "day_one_steam", PlatformLaunchType.DAY_ONE_STEAM.value, gap, ""
     if notes and EARLY_ACCESS_MARKER in notes:
         return (
@@ -327,17 +366,38 @@ def classify(
     )
 
 
-def audit(stored: PlatformLaunchType | None, verdict: str) -> tuple[str, str]:
-    """Compare a stored launch type against what the two dates say.
+def audit(
+    stored: PlatformLaunchType | None,
+    original: date | None,
+    steam: date | None,
+    verdict: str,
+    curated: bool,
+) -> tuple[str, str]:
+    """Compare a stored launch type against what the pipeline would derive.
 
-    Returns (agreement, why). `why` is filled in only when there is something
-    to explain -- an agreeing row needs no prose.
+    Returns (agreement, why). `why` is empty when there is nothing to explain.
 
-    The asymmetry to keep in mind: agreeing does not make the stored value
-    right, it only means the dates raise no objection. `former_exclusive` and
-    `delayed_port` are interchangeable as far as this check can see, so a row
-    with the wrong one of those two reads as `ok` here. This finds rows the
-    dates *contradict*, which is a smaller claim than rows that are wrong.
+    Measured against `derive_platform_launch_type`, deliberately, rather than
+    against thresholds of this file's own. An earlier version invented a
+    tolerance of 1 day and an undecided band from 2 to 30, which put a rival
+    `DAY_ONE_TOLERANCE_DAYS` in the tree holding 1 where `app.backfill` holds 7.
+    That reported nine rows as needing a human when the ingest had already
+    decided all nine, deterministically, at 7 days. An auditor measuring by its
+    own yardstick reports its own disagreement as the data's.
+
+    **What `derived` means, and why it is not `ok`.** 173 of the 206 rows leave
+    this column blank in the curated CSV, so their stored value came out of
+    `derive_platform_launch_type` in the first place. Checking those against the
+    same function is close to a tautology: it catches a value that has gone
+    stale since it was derived, and nothing else. Only the 33 curated rows are
+    a real check, so they get their own bucket and their own count.
+
+    That distinction matters because the two files disagree about whether the
+    derivation is sound at all. `derive_platform_launch_type` returns
+    `delayed_port` for any gap over 7 days; this job's `classify` refuses to,
+    on the grounds that a gap cannot separate a console port from a former
+    storefront exclusive. Both are in the tree. The audit reports what the
+    pipeline did rather than settling which is right.
     """
     if verdict == "no_date":
         return UNDECIDABLE, "one of the two dates is missing, so nothing can be checked"
@@ -345,23 +405,38 @@ def audit(stored: PlatformLaunchType | None, verdict: str) -> tuple[str, str]:
         # Independent of the column: original_release_date is the earliest
         # publication anywhere, so Steam cannot precede it. A stored value
         # resting on these dates rests on a broken pair.
-        return (
-            CONFLICT,
-            "Steam predates the curated original release -- one of the two dates is wrong",
-        )
+        return CONFLICT, "Steam predates the curated original release -- one of the dates is wrong"
     if stored is None or stored == PlatformLaunchType.UNKNOWN:
         return UNSET, "no stored value yet -- this row is the ordinary backfill queue"
-    if verdict == "near_day_one":
-        # 3 to 30 days. Whether a console-first stagger still counts as day-one
-        # is a decision about the launch, so any stored value here is defensible
-        # and calling it a conflict would bury the real ones in noise.
-        return JUDGEMENT, f"stored {stored.value}; the dates are too close to referee it"
-    accepted = VERDICT_ACCEPTS[verdict]
-    if stored in accepted:
+    if verdict == "early_access":
+        # The gap is the Early Access period, and the corpus's launch-is-1.0
+        # rule makes the 1.0 date the launch. The deriver knows nothing about
+        # the marker, so it would call every one of these a port.
+        if stored == PlatformLaunchType.DAY_ONE_STEAM:
+            return OK, ""
+        return CONFLICT, (
+            f"stored {stored.value}, but the curated Early Access marker makes this "
+            f"a {PlatformLaunchType.DAY_ONE_STEAM.value} release under the launch-is-1.0 rule"
+        )
+
+    expected = derive_platform_launch_type(steam, original)
+    # former_exclusive is never derived -- telling it from a plain port needs
+    # knowledge of the exclusivity deal -- so it is the legitimate override of
+    # a derived delayed_port rather than a disagreement with it.
+    compatible = stored == expected or (
+        stored == PlatformLaunchType.FORMER_EXCLUSIVE
+        and expected == PlatformLaunchType.DELAYED_PORT
+    )
+    if not compatible:
+        return CONFLICT, (
+            f"stored {stored.value}, but the dates derive {expected.value} "
+            f"at the ingest tolerance of {INGEST_TOLERANCE_DAYS} days"
+        )
+    if curated:
         return OK, ""
-    return CONFLICT, (
-        f"stored {stored.value}, but the dates read as {verdict} -- expected "
-        + " or ".join(value.value for value in accepted)
+    return DERIVED, (
+        "value was derived from these same dates, so agreeing with them proves "
+        "only that it has not gone stale"
     )
 
 
@@ -374,17 +449,6 @@ def all_rows(session) -> list[HistoricalRelease]:
     return list(
         session.scalars(select(HistoricalRelease).order_by(HistoricalRelease.steam_release_date))
     )
-
-
-def as_audit_row(release: HistoricalRelease) -> dict[str, object]:
-    row = as_row(release)
-    stored = release.platform_launch_type
-    agreement, why = audit(stored, str(row["verdict"]))
-    row["stored_launch_type"] = stored.value if stored else ""
-    row["agreement"] = agreement
-    # The disagreement is the point of the row, so it leads the note.
-    row["note"] = ". ".join(part for part in (why, str(row["note"])) if part)
-    return row
 
 
 def as_row(release: HistoricalRelease) -> dict[str, object]:
@@ -405,6 +469,24 @@ def as_row(release: HistoricalRelease) -> dict[str, object]:
         "gap_days": "" if gap is None else gap,
         "note": note,
     }
+
+
+def as_audit_row(release: HistoricalRelease, curated: bool) -> dict[str, object]:
+    row = as_row(release)
+    stored = release.platform_launch_type
+    agreement, why = audit(
+        stored,
+        release.original_release_date,
+        release.steam_release_date,
+        str(row["verdict"]),
+        curated,
+    )
+    row["stored_launch_type"] = stored.value if stored else ""
+    row["agreement"] = agreement
+    row["source"] = "curated" if curated else "derived"
+    # The disagreement is the point of the row, so it leads the note.
+    row["note"] = ". ".join(part for part in (why, str(row["note"])) if part)
+    return row
 
 
 def read_proposals(path: Path) -> dict[int, dict[str, object]]:
@@ -433,8 +515,23 @@ def write_proposals(
             writer.writerow({field: rows[appid].get(field, "") for field in fields})
 
 
+def curated_types(path: Path) -> set[int]:
+    """Appids whose `platform_launch_type` a human actually set.
+
+    The rest are blank in the curated CSV and get their value from
+    `derive_platform_launch_type` at backfill time. The audit reports the two
+    groups apart because only the first is a real check.
+    """
+    try:
+        rows = load_curated_csv(path)
+    except Exception as exc:  # the audit is a read-only report; degrade, do not die
+        logger.warning("  Could not read %s (%s) -- reporting every row as derived.", path, exc)
+        return set()
+    return {row.steam_appid for row in rows if row.platform_launch_type}
+
+
 def run_audit(session, args) -> int:
-    """Check stored launch types against the dates. Reads only."""
+    """Check stored launch types against the pipeline's own derivation. Reads only."""
     queue = all_rows(session)
     if args.appids:
         wanted = set(args.appids)
@@ -442,7 +539,8 @@ def run_audit(session, args) -> int:
     if args.limit is not None:
         queue = queue[: args.limit]
 
-    rows = {r.steam_appid: as_audit_row(r) for r in queue}
+    curated = curated_types(CURATED_CSV)
+    rows = {r.steam_appid: as_audit_row(r, r.steam_appid in curated) for r in queue}
     write_proposals(args.out, rows, AUDIT_FIELDS)
 
     counts: dict[str, int] = {}
@@ -453,7 +551,7 @@ def run_audit(session, args) -> int:
     conflicts = [row for row in rows.values() if row["agreement"] == CONFLICT]
     for row in sorted(conflicts, key=lambda r: -abs(int(r["gap_days"] or 0))):
         print(
-            f"  {row['steam_appid']:<10}{str(row['game_name'])[:44]:<46}"
+            f"  {row['steam_appid']:<10}{str(row['game_name'])[:42]:<44}"
             f"{row['stored_launch_type']:<18}{row['gap_days']:>7}d"
         )
     if conflicts:
@@ -463,30 +561,33 @@ def run_audit(session, args) -> int:
         print(f"  {counts[agreement]:>4}  {agreement}")
     print(f"\n  Wrote {display_path(args.out)}")
 
-    # The two numbers a reader needs to act on, spelled out rather than left to
-    # be inferred from the table: what is wrong, and what it is costing.
-    # Two different findings, kept apart. A day-one row with a port-sized gap is
-    # a mislabelled row; a steam_first row is a broken date pair, and since one
-    # of its dates is wrong there is no telling whether its column is. Counting
-    # them together would overstate the first and hide the second.
+    # The headline has to say what was actually checked. A `derived` row got its
+    # value from the same arithmetic this check re-runs, so counting it as a
+    # pass would inflate the result with rows that could not have failed.
+    checked = counts.get(OK, 0) + counts.get(CONFLICT, 0)
+    derived = counts.get(DERIVED, 0)
+    print(f"\n  {checked} row(s) carry a curated launch type; those are the real check.")
+    if derived:
+        print(
+            f"  {derived} row(s) were derived from these same dates by "
+            f"derive_platform_launch_type\n  at a {INGEST_TOLERANCE_DAYS}-day tolerance. "
+            "Agreeing proves only that they have not gone\n  stale -- it is not evidence "
+            "the launch type is right."
+        )
+
     mislabelled = [
         row
         for row in conflicts
         if row["stored_launch_type"] == PlatformLaunchType.DAY_ONE_STEAM.value
-        and row["verdict"] == "not_day_one"
     ]
     broken_dates = [row for row in conflicts if row["verdict"] == "steam_first"]
-
     if mislabelled:
         print(
             f"\n  {len(mislabelled)} row(s) stored as "
-            f"{PlatformLaunchType.DAY_ONE_STEAM.value} have a gap of "
-            f"{PORT_TOLERANCE_DAYS}+ days."
-        )
-        print(
-            "  Each is eligible for paid signal research (~$0.21 batched) on a "
-            "launch window\n  anchored to the wrong date, and sits inside a rubric "
-            "figure reported over\n  day-one releases only."
+            f"{PlatformLaunchType.DAY_ONE_STEAM.value} derive as a port. Each is eligible"
+            "\n  for paid signal research (~$0.21 batched) on a launch window anchored to"
+            "\n  the wrong date, and sits inside a rubric figure reported over day-one"
+            "\n  releases only."
         )
     if broken_dates:
         print(
