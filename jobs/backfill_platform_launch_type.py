@@ -20,8 +20,13 @@ The gap is not hypothetical. Comparing both dates across all 206 rows against
 live Steam listings: 142 agree within a day, 9 differ by 3 to 26 days, and 54
 differ by a month or more -- 49 of those by over half a year. Halo: The Master
 Chief Collection reaches Steam 1848 days after its Xbox launch, Diablo II:
-Resurrected 1602 days after leaving Battle.net exclusivity. The column named
-exactly one of the 54. Every other one reads as a day-one launch.
+Resurrected 1602 days after leaving Battle.net exclusivity.
+
+An earlier version of this paragraph went on to say the column named exactly
+one of those 54, and that was already out of date when it was written. Measured
+against a Supabase export of the live table on 2026-09-07: 53 rows carry
+`delayed_port`, 3 carry `former_exclusive`, and all 54 of the month-plus gaps
+are accounted for. The column was filled in and the note was not.
 
 Nothing here needs the network. `HistoricalRelease` already stores both dates:
 `steam_release_date` from Steam's own appdetails, `original_release_date`
@@ -54,15 +59,32 @@ rows the two dates agreeing *is* the definition, not a judgement call.
 The default queue is rows holding UNKNOWN, which today is one row. That leaves
 the far larger question untouched: are the rows that *do* carry a value right?
 
-The counts above say probably not. 54 rows have their two dates a month or more
-apart, and the column named one of them. The other 53 read as day-one launches
-while their own dates say Steam got the game between two months and five years
-late. That is worth more than a tidy column:
+**It has been run, and the answer is that they are.** Against the 2026-09-07
+export: 196 ok, 9 judgement, 1 undecidable, **0 conflicts**. So this mode is a
+guard rather than a cleanup, and the paragraph above records what it cost to
+find that out -- the case for building it rested on a stale docstring claim.
 
-  * `draft_studio_signals.py` researches `day_one_steam` rows, so each wrong one
-    is a paid research call on a game whose launch window is anchored wrong.
+Keeping it is still worth it, for what a clean answer is worth having and for
+what it catches as rows arrive:
+
+  * `draft_studio_signals.py` researches `day_one_steam` rows, so a wrong one is
+    a paid research call on a game whose launch window is anchored wrong.
   * The rubric's headline accuracy is reported over day-one Steam releases only.
-    A row that is not really day-one is inside a measurement that says it is.
+    A row that is not really day-one would sit inside a measurement saying it is.
+
+Two live findings from that first run, neither of them a conflict:
+
+  * The three `day_one_steam` rows with month-plus gaps -- Palworld at 902 days,
+    Grounded at 791, Starship Troopers: Extermination at 512 -- are all Early
+    Access graduations carrying the curated marker. The guard below is the only
+    reason they are not three false conflicts, so it earns its keep on live data.
+  * The 9 rows in the judgement band split at a boundary that exists nowhere in
+    this file. Under 7 days is stored `day_one_steam` (No Man's Sky 3, Starfield
+    4, Far Cry Primal 6, Black Ops 6 7); 13 days and over is stored
+    `delayed_port` (Watch_Dogs 2 13, Trials Rising 14, NieR:Automata 22, AC
+    Syndicate 26, Total War: WARHAMMER 26). Nine for nine. That convention could
+    be encoded, and deliberately is not: a threshold fitted to the nine rows it
+    would then classify is the in-sample move the Evaluation Protocol bans.
 
 So `--audit` walks **every** row instead of the UNKNOWN ones, compares the
 stored value against what the two dates say, and sorts each row into:
@@ -81,7 +103,11 @@ purpose. Conflicts are for a person to resolve one at a time.
 Note the two measurements are not taken the same way: the 54 above was measured
 against live Steam listings, while `--audit` compares the two stored columns. If
 the counts differ, that gap is itself a finding -- it means `steam_release_date`
-has drifted from what Steam serves today.
+has drifted from what Steam serves today. On 2026-09-07 they agreed exactly.
+
+The single `undecidable` row is Assassin's Creed IV Black Flag, which has no
+`steam_release_date` at all. That is a missing ingest rather than a missing
+judgement, and it is also why the ordinary backfill queue cannot decide it.
 
 ## Applying this costs money later
 
