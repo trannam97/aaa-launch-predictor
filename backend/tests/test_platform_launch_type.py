@@ -240,7 +240,11 @@ D1 = (date(2020, 1, 1), date(2020, 1, 1))  # dates derive day_one_steam
 PORT = (date(2017, 2, 28), date(2020, 8, 7))  # dates derive delayed_port
 
 
-def call(stored, dates, verdict, curated=True):
+def call(stored, dates, verdict, curated="same"):
+    """`curated="same"` means a human curated exactly the stored value, which is
+    the ordinary case; None means the row is derived."""
+    if curated == "same":
+        curated = stored
     return job.audit(stored, dates[0], dates[1], verdict, curated)
 
 
@@ -269,7 +273,7 @@ def test_a_derived_row_that_agrees_is_reported_as_derived_not_ok():
         (PlatformLaunchType.DAY_ONE_STEAM, D1, "day_one_steam"),
         (PlatformLaunchType.DELAYED_PORT, PORT, "not_day_one"),
     ):
-        agreement, why = call(stored, dates, verdict, curated=False)
+        agreement, why = call(stored, dates, verdict, curated=None)
         assert agreement == job.DERIVED
         assert "stale" in why
     # The same rows, curated, are a real check and pass as one.
@@ -279,7 +283,7 @@ def test_a_derived_row_that_agrees_is_reported_as_derived_not_ok():
 def test_a_derived_row_that_has_gone_stale_is_still_a_conflict():
     """`derived` is not a free pass: if a date moved after the value was
     derived, the row no longer matches its own arithmetic."""
-    assert call(PlatformLaunchType.DAY_ONE_STEAM, PORT, "not_day_one", curated=False)[0] == (
+    assert call(PlatformLaunchType.DAY_ONE_STEAM, PORT, "not_day_one", curated=None)[0] == (
         job.CONFLICT
     )
 
@@ -354,7 +358,47 @@ def test_the_headline_counts_only_what_was_really_checked():
 def test_an_unreadable_curated_csv_degrades_instead_of_dying(tmp_path):
     """The audit is a read-only report. Losing the curated/derived split is
     worth a warning; taking the whole run down with it is not."""
-    assert job.curated_types(tmp_path / "missing.csv") == set()
+    assert job.curated_types(tmp_path / "missing.csv") == {}
+
+
+def test_curated_types_carries_the_value_not_just_the_appid():
+    """Knowing only *which* rows were curated reports a stale table as a pass.
+    Seven rows were curated former_exclusive while the table still held the
+    derived delayed_port; that has to read as a conflict, not as ok."""
+    types = job.curated_types(job.REPO_ROOT / "data" / "historical_releases.csv")
+    assert isinstance(types, dict)
+    assert types[870780] is PlatformLaunchType.FORMER_EXCLUSIVE  # CONTROL Ultimate Edition
+
+
+def test_a_table_behind_the_curated_csv_is_a_conflict():
+    agreement, why = job.audit(
+        PlatformLaunchType.DELAYED_PORT,
+        date(2019, 8, 27),
+        date(2020, 8, 27),
+        "not_day_one",
+        PlatformLaunchType.FORMER_EXCLUSIVE,
+    )
+    assert agreement == job.CONFLICT
+    assert "backfill_historical" in why
+
+
+def test_an_unset_table_row_the_csv_curates_is_also_a_conflict():
+    """Assassin's Creed IV Black Flag: curated delayed_port in the CSV, still
+    UNKNOWN in the table until the next backfill. That is a stale table, not an
+    empty queue slot."""
+    agreement, why = job.audit(
+        PlatformLaunchType.UNKNOWN, None, None, "no_date", PlatformLaunchType.DELAYED_PORT
+    )
+    assert agreement == job.UNDECIDABLE  # no dates beats everything; nothing to check
+    agreement, why = job.audit(
+        PlatformLaunchType.UNKNOWN,
+        date(2020, 1, 1),
+        date(2021, 1, 1),
+        "not_day_one",
+        PlatformLaunchType.DELAYED_PORT,
+    )
+    assert agreement == job.CONFLICT
+    assert "backfill_historical" in why
 
 
 def test_apply_is_refused_under_audit(capsys):

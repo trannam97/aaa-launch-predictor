@@ -104,10 +104,17 @@ So `--audit` walks **every** row instead of the UNKNOWN ones, compares the
 stored value against what the two dates say, and sorts each row into:
 
     ok            curated value agrees with what the dates derive
-    conflict      it disagrees, or Steam predates the original release
+    conflict      it disagrees, the table is behind the CSV, or Steam
+                  predates the original release
     derived       no curated value; agreeing only proves it is not stale
     undecidable   a date is missing
     unset         still UNKNOWN, i.e. the ordinary backfill queue
+
+The CSV is the source and the table is built from it, so `conflict` covers a
+third case that is not a disagreement about launch types at all: a row curated
+`former_exclusive` while the table still holds a derived `delayed_port` means
+`backfill_historical.py` has not been re-run. Reporting only *that* a row was
+curated, without its value, would call that a pass.
 
 `--audit` never writes to the database and refuses `--apply` outright. Applying
 a date-derived verdict across rows that already hold curated values would
@@ -371,7 +378,7 @@ def audit(
     original: date | None,
     steam: date | None,
     verdict: str,
-    curated: bool,
+    curated: PlatformLaunchType | None,
 ) -> tuple[str, str]:
     """Compare a stored launch type against what the pipeline would derive.
 
@@ -406,6 +413,13 @@ def audit(
         # publication anywhere, so Steam cannot precede it. A stored value
         # resting on these dates rests on a broken pair.
         return CONFLICT, "Steam predates the curated original release -- one of the dates is wrong"
+    if curated is not None and stored != curated:
+        # The CSV is the source and the table is built from it, so this is not a
+        # disagreement about the launch type at all -- it is a stale table.
+        return CONFLICT, (
+            f"the curated CSV says {curated.value} and the table holds "
+            f"{stored.value if stored else 'nothing'}; re-run backfill_historical.py"
+        )
     if stored is None or stored == PlatformLaunchType.UNKNOWN:
         return UNSET, "no stored value yet -- this row is the ordinary backfill queue"
     if verdict == "early_access":
@@ -432,7 +446,7 @@ def audit(
             f"stored {stored.value}, but the dates derive {expected.value} "
             f"at the ingest tolerance of {INGEST_TOLERANCE_DAYS} days"
         )
-    if curated:
+    if curated is not None:
         return OK, ""
     return DERIVED, (
         "value was derived from these same dates, so agreeing with them proves "
@@ -471,7 +485,9 @@ def as_row(release: HistoricalRelease) -> dict[str, object]:
     }
 
 
-def as_audit_row(release: HistoricalRelease, curated: bool) -> dict[str, object]:
+def as_audit_row(
+    release: HistoricalRelease, curated: PlatformLaunchType | None
+) -> dict[str, object]:
     row = as_row(release)
     stored = release.platform_launch_type
     agreement, why = audit(
@@ -483,7 +499,7 @@ def as_audit_row(release: HistoricalRelease, curated: bool) -> dict[str, object]
     )
     row["stored_launch_type"] = stored.value if stored else ""
     row["agreement"] = agreement
-    row["source"] = "curated" if curated else "derived"
+    row["source"] = "curated" if curated is not None else "derived"
     # The disagreement is the point of the row, so it leads the note.
     row["note"] = ". ".join(part for part in (why, str(row["note"])) if part)
     return row
@@ -515,19 +531,24 @@ def write_proposals(
             writer.writerow({field: rows[appid].get(field, "") for field in fields})
 
 
-def curated_types(path: Path) -> set[int]:
-    """Appids whose `platform_launch_type` a human actually set.
+def curated_types(path: Path) -> dict[int, PlatformLaunchType]:
+    """What a human actually set each row's `platform_launch_type` to.
 
     The rest are blank in the curated CSV and get their value from
     `derive_platform_launch_type` at backfill time. The audit reports the two
     groups apart because only the first is a real check.
+
+    The value matters, not just which rows have one: the CSV is the source and
+    the database is built from it, so a row curated `former_exclusive` while the
+    table still holds a derived `delayed_port` means the backfill has not been
+    re-run. Knowing only *that* a row was curated would report that as a pass.
     """
     try:
         rows = load_curated_csv(path)
     except Exception as exc:  # the audit is a read-only report; degrade, do not die
         logger.warning("  Could not read %s (%s) -- reporting every row as derived.", path, exc)
-        return set()
-    return {row.steam_appid for row in rows if row.platform_launch_type}
+        return {}
+    return {row.steam_appid: row.platform_launch_type for row in rows if row.platform_launch_type}
 
 
 def run_audit(session, args) -> int:
@@ -540,7 +561,7 @@ def run_audit(session, args) -> int:
         queue = queue[: args.limit]
 
     curated = curated_types(CURATED_CSV)
-    rows = {r.steam_appid: as_audit_row(r, r.steam_appid in curated) for r in queue}
+    rows = {r.steam_appid: as_audit_row(r, curated.get(r.steam_appid)) for r in queue}
     write_proposals(args.out, rows, AUDIT_FIELDS)
 
     counts: dict[str, int] = {}
