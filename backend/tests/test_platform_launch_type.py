@@ -150,7 +150,7 @@ def test_the_two_thresholds_mean_different_things():
     """One day is what a worldwide rollout costs; thirty is where a gap starts
     moving a 16-month research window. Collapsing them would either call a
     26-day console-first launch day-one, or drop 142 clean rows into review."""
-    assert job.DAY_ONE_TOLERANCE_DAYS == 1
+    assert job.TIMEZONE_TOLERANCE_DAYS == 1
     assert job.PORT_TOLERANCE_DAYS == PORT_GAP_TOLERANCE_DAYS
 
 
@@ -227,3 +227,205 @@ def test_proposals_round_trip(tmp_path):
 
 def test_reading_back_an_absent_file_is_empty_not_an_error(tmp_path):
     assert job.read_proposals(tmp_path / "nope.csv") == {}
+
+
+# --- --audit: checking rows that already carry a value -----------------------
+#
+# The audit measures against `derive_platform_launch_type`, not against
+# thresholds of its own. The tests below pin that, and pin the distinction the
+# first version of this mode got wrong: most rows in this corpus got their
+# stored value from that same function, so agreeing with it is not a pass.
+
+D1 = (date(2020, 1, 1), date(2020, 1, 1))  # dates derive day_one_steam
+PORT = (date(2017, 2, 28), date(2020, 8, 7))  # dates derive delayed_port
+
+
+def call(stored, dates, verdict, curated="same"):
+    """`curated="same"` means a human curated exactly the stored value, which is
+    the ordinary case; None means the row is derived."""
+    if curated == "same":
+        curated = stored
+    return job.audit(stored, dates[0], dates[1], verdict, curated)
+
+
+def test_a_curated_day_one_row_whose_dates_derive_a_port_is_a_conflict():
+    agreement, why = call(PlatformLaunchType.DAY_ONE_STEAM, PORT, "not_day_one")
+    assert agreement == job.CONFLICT
+    assert PlatformLaunchType.DELAYED_PORT.value in why
+    assert str(job.INGEST_TOLERANCE_DAYS) in why
+
+
+def test_former_exclusive_is_an_override_of_a_derived_port_not_a_disagreement():
+    """The deriver can never produce former_exclusive -- telling it from a plain
+    port needs the exclusivity deal -- so curating it over a derived
+    delayed_port is the mechanism working, not a conflict."""
+    assert call(PlatformLaunchType.FORMER_EXCLUSIVE, PORT, "not_day_one")[0] == job.OK
+    # But it is still wrong where the dates say the launch was simultaneous.
+    assert call(PlatformLaunchType.FORMER_EXCLUSIVE, D1, "day_one_steam")[0] == job.CONFLICT
+
+
+def test_a_derived_row_that_agrees_is_reported_as_derived_not_ok():
+    """The correction this mode needed. 173 of 206 rows leave the column blank
+    in the curated CSV, so their value came out of the same function this check
+    re-runs. Counting those as passes inflated a 33-row check into a 196-row
+    one and made a near-tautology read as evidence."""
+    for stored, dates, verdict in (
+        (PlatformLaunchType.DAY_ONE_STEAM, D1, "day_one_steam"),
+        (PlatformLaunchType.DELAYED_PORT, PORT, "not_day_one"),
+    ):
+        agreement, why = call(stored, dates, verdict, curated=None)
+        assert agreement == job.DERIVED
+        assert "stale" in why
+    # The same rows, curated, are a real check and pass as one.
+    assert call(PlatformLaunchType.DAY_ONE_STEAM, D1, "day_one_steam")[0] == job.OK
+
+
+def test_a_derived_row_that_has_gone_stale_is_still_a_conflict():
+    """`derived` is not a free pass: if a date moved after the value was
+    derived, the row no longer matches its own arithmetic."""
+    assert call(PlatformLaunchType.DAY_ONE_STEAM, PORT, "not_day_one", curated=None)[0] == (
+        job.CONFLICT
+    )
+
+
+def test_the_seven_day_band_follows_the_ingest_not_a_rival_threshold():
+    """The bug this rewrite fixes. This file used to define its own
+    DAY_ONE_TOLERANCE_DAYS holding 1 while app.backfill held 7, so nine rows the
+    ingest had already decided were reported as needing a human. Same name,
+    different number, two files."""
+    assert job.INGEST_TOLERANCE_DAYS == 7
+    assert job.TIMEZONE_TOLERANCE_DAYS != job.INGEST_TOLERANCE_DAYS
+    assert not hasattr(job, "DAY_ONE_TOLERANCE_DAYS"), "the colliding name is back"
+    for gap_days in (3, 6, 7):  # No Man's Sky, Far Cry Primal, Black Ops 6
+        dates = (date(2020, 1, 1), date(2020, 1, 1) + timedelta(days=gap_days))
+        assert call(PlatformLaunchType.DAY_ONE_STEAM, dates, "near_day_one")[0] == job.OK
+    for gap_days in (13, 22, 26):  # Watch_Dogs 2, NieR:Automata, AC Syndicate
+        dates = (date(2020, 1, 1), date(2020, 1, 1) + timedelta(days=gap_days))
+        assert call(PlatformLaunchType.DELAYED_PORT, dates, "near_day_one")[0] == job.OK
+
+
+def test_an_early_access_graduation_beats_the_deriver():
+    """The deriver knows nothing about the curated marker, so it calls all three
+    of these ports. Palworld 902d, Grounded 791d, Starship Troopers 512d."""
+    assert call(PlatformLaunchType.DAY_ONE_STEAM, PORT, "early_access")[0] == job.OK
+    agreement, why = call(PlatformLaunchType.DELAYED_PORT, PORT, "early_access")
+    assert agreement == job.CONFLICT
+    assert "launch-is-1.0" in why
+
+
+def test_broken_dates_are_a_conflict_whatever_the_column_says():
+    for stored in PlatformLaunchType:
+        assert call(stored, (date(2020, 1, 1), date(2019, 1, 1)), "steam_first")[0] == job.CONFLICT
+
+
+def test_an_unanswered_row_is_not_an_audit_finding():
+    for verdict in ("day_one_steam", "not_day_one", "near_day_one"):
+        agreement, why = call(PlatformLaunchType.UNKNOWN, D1, verdict)
+        assert agreement == job.UNSET, verdict
+        assert "backfill" in why
+
+
+def test_a_missing_date_is_undecidable_not_a_conflict():
+    agreement, why = call(PlatformLaunchType.DAY_ONE_STEAM, (date(2020, 1, 1), None), "no_date")
+    assert agreement == job.UNDECIDABLE
+    assert "missing" in why
+
+
+def test_the_audit_queue_does_not_filter_on_the_column_it_checks():
+    assert "platform_launch_type" not in code_of(job.all_rows)
+
+
+def test_the_audit_never_writes_the_column():
+    tree = ast.parse(textwrap.dedent(inspect.getsource(job.run_audit)))
+    writes = [
+        n
+        for n in ast.walk(tree)
+        if isinstance(n, ast.Attribute)
+        and n.attr == "platform_launch_type"
+        and isinstance(getattr(n, "ctx", None), ast.Store)
+    ]
+    assert not writes
+
+
+def test_the_headline_counts_only_what_was_really_checked():
+    """A run reporting 196 ok when 173 of those could not have failed is a
+    misleading number, and this mode shipped one."""
+    source = code_of(job.run_audit)
+    assert "counts.get(OK, 0) + counts.get(CONFLICT, 0)" in source
+    assert "DERIVED" in source
+
+
+def test_an_unreadable_curated_csv_degrades_instead_of_dying(tmp_path):
+    """The audit is a read-only report. Losing the curated/derived split is
+    worth a warning; taking the whole run down with it is not."""
+    assert job.curated_types(tmp_path / "missing.csv") == {}
+
+
+def test_curated_types_carries_the_value_not_just_the_appid():
+    """Knowing only *which* rows were curated reports a stale table as a pass.
+    Seven rows were curated former_exclusive while the table still held the
+    derived delayed_port; that has to read as a conflict, not as ok."""
+    types = job.curated_types(job.REPO_ROOT / "data" / "historical_releases.csv")
+    assert isinstance(types, dict)
+    assert types[870780] is PlatformLaunchType.FORMER_EXCLUSIVE  # CONTROL Ultimate Edition
+
+
+def test_a_table_behind_the_curated_csv_is_a_conflict():
+    agreement, why = job.audit(
+        PlatformLaunchType.DELAYED_PORT,
+        date(2019, 8, 27),
+        date(2020, 8, 27),
+        "not_day_one",
+        PlatformLaunchType.FORMER_EXCLUSIVE,
+    )
+    assert agreement == job.CONFLICT
+    assert "backfill_historical" in why
+
+
+def test_an_unset_table_row_the_csv_curates_is_also_a_conflict():
+    """Assassin's Creed IV Black Flag: curated delayed_port in the CSV, still
+    UNKNOWN in the table until the next backfill. That is a stale table, not an
+    empty queue slot."""
+    agreement, why = job.audit(
+        PlatformLaunchType.UNKNOWN, None, None, "no_date", PlatformLaunchType.DELAYED_PORT
+    )
+    assert agreement == job.UNDECIDABLE  # no dates beats everything; nothing to check
+    agreement, why = job.audit(
+        PlatformLaunchType.UNKNOWN,
+        date(2020, 1, 1),
+        date(2021, 1, 1),
+        "not_day_one",
+        PlatformLaunchType.DELAYED_PORT,
+    )
+    assert agreement == job.CONFLICT
+    assert "backfill_historical" in why
+
+
+def test_apply_is_refused_under_audit(capsys):
+    assert job.main(["--audit", "--apply"]) == 2
+    assert "cannot be combined" in capsys.readouterr().out
+
+
+def test_the_audit_writes_a_different_file_from_the_proposals():
+    assert job.parse_args(["--audit"]).out is None
+    assert job.DEFAULT_AUDIT_OUT != job.DEFAULT_OUT
+    assert job.AUDIT_FIELDS[: len(job.FIELDS)] == job.FIELDS
+    assert "source" in job.AUDIT_FIELDS
+
+
+def test_a_path_outside_the_repo_is_printed_not_raised(tmp_path):
+    """`relative_to` raised here, after the file and -- under --apply -- the
+    database had already been written, so a fully successful run exited
+    non-zero and read as a failure."""
+    assert job.display_path(job.REPO_ROOT / "data" / "x.csv") == "data/x.csv"
+    assert job.display_path(tmp_path / "x.csv") == str(tmp_path / "x.csv")
+
+
+def test_audit_rows_round_trip_with_their_extra_columns(tmp_path):
+    path = tmp_path / "audit.csv"
+    rows = {1: {"steam_appid": 1, "source": "curated", "agreement": "conflict"}}
+    job.write_proposals(path, rows, job.AUDIT_FIELDS)
+    with path.open(newline="") as handle:
+        reader = csv.DictReader(handle)
+        assert reader.fieldnames == job.AUDIT_FIELDS
+        assert next(reader)["source"] == "curated"

@@ -536,3 +536,45 @@ def test_long_dlc_lists_are_capped_and_reported(session):
     assert result.release.dlc_count == MAX_DLC_LOOKUPS + 5
     assert result.release.post_launch_dlc_count == MAX_DLC_LOOKUPS
     assert any("dated only the first" in w for w in result.warnings)
+
+
+# --- an upstream blank is not a correction ----------------------------------
+
+
+def test_a_blank_steam_date_does_not_erase_a_stored_one():
+    """Steam serves `release_date.date == ""` for some listings. Appid 242050,
+    Assassin's Creed IV Black Flag, lost its date to a delisting and still has
+    no date today, which is why its `cohort_year` is blank too.
+
+    A released game does not become undated, so an empty upstream field is a
+    blip and not a correction. Assigning it over a stored date would turn one
+    bad fetch into permanent loss on every re-run, and would silently discard
+    any date supplied from another source.
+    """
+    from app.backfill import _apply_api_fields
+    from app.steam import AppDetails
+
+    release = HistoricalRelease(
+        steam_appid=242050,
+        game_name="Assassin's Creed IV Black Flag",
+        steam_release_date=date(2013, 11, 19),
+        cohort_year=2013,
+    )
+    _apply_api_fields(release, AppDetails(appid=242050, name="AC IV", release_date=None))
+
+    assert release.steam_release_date == date(2013, 11, 19)
+    assert release.cohort_year == 2013
+
+
+def test_a_real_steam_date_still_overwrites():
+    """The guard must not freeze the column: a correction is not None."""
+    from app.backfill import _apply_api_fields
+    from app.steam import AppDetails
+
+    release = HistoricalRelease(
+        steam_appid=1, game_name="Game", steam_release_date=date(2020, 1, 1), cohort_year=2020
+    )
+    _apply_api_fields(release, AppDetails(appid=1, name="Game", release_date=date(2021, 6, 5)))
+
+    assert release.steam_release_date == date(2021, 6, 5)
+    assert release.cohort_year == 2021

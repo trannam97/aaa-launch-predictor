@@ -230,7 +230,15 @@ def _apply_api_fields(release: HistoricalRelease, details: AppDetails) -> None:
     release.developer = "\n".join(details.developers) or None
     release.publisher = "\n".join(details.publishers) or None
     release.genres = "\n".join(details.genres) or None
-    release.steam_release_date = details.release_date
+    # Not unconditional, unlike the fields above. Steam serves an empty
+    # release_date.date for some listings -- appid 242050 lost its date to a
+    # delisting and has never got it back, which is also why its cohort_year is
+    # blank -- and a released game does not become undated. Assigning that None
+    # over a stored date would turn an upstream blip into permanent loss on
+    # every re-run, and would erase any date supplied from another source. A
+    # real correction still lands, because a correction is not None.
+    if details.release_date is not None:
+        release.steam_release_date = details.release_date
     release.current_list_price_cents = details.price_initial_cents
     release.price_currency = details.price_currency
     release.on_windows = details.on_windows
@@ -238,7 +246,8 @@ def _apply_api_fields(release: HistoricalRelease, details: AppDetails) -> None:
     release.on_linux = details.on_linux
     release.metacritic_score = details.metacritic_score
     release.metacritic_url = details.metacritic_url
-    release.cohort_year = details.release_date.year if details.release_date else None
+    if details.release_date is not None:
+        release.cohort_year = details.release_date.year
 
 
 def _apply_curated_fields(
