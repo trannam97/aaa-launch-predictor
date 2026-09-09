@@ -863,6 +863,66 @@ code rather than left to discipline:
 - Features that a stored model was not fitted on invalidate that model. The
   serving path refuses a version mismatch rather than misaligning columns.
 
+#### Release Timing: One Feature Already Present And Miscoded, One Not Computable Yet
+**Raised in review of the first research batch.** Marvel's Midnight Suns shipped
+2 December 2022 against The Callisto Protocol, Need for Speed Unbound and Crisis
+Core: Final Fantasy VII Reunion, and its publisher later attributed the
+commercial result to that window. Release timing splits into two candidate
+signals with very different costs.
+
+**Seasonality is already a feature, and encoded wrong.** `release_month` is the
+eleventh of twelve features in `app/features.py`, carried as a raw float 1-12.
+That encoding places December (12) at maximum distance from January (1) when
+they are adjacent, and forces any model to read the effect as monotonic in month
+number. A holiday penalty is cyclical and categorical; nothing about it should
+be monotonic. Re-encoding it — sin/cos of month, a quarter indicator, or a
+holiday-window flag — is a representation fix justified before looking at any
+outcome, and so is not the in-sample tuning the Evaluation Protocol bans.
+
+It is nonetheless **not worth doing yet**. Of 35 labelled rows, 2 released in
+December and 6 in November or December combined. There is nothing for a holiday
+effect to be learned from at that count, whatever the encoding.
+
+**Congestion is not a feature, and the corpus cannot be used to build one.**
+This is the trap worth recording, because the obvious implementation returns a
+confidently inverted answer. Counting nearby corpus releases measures *sampling
+density*, not market congestion:
+
+| month | corpus releases |
+|---|---|
+| February | 25 |
+| November | 23 |
+| **December** | **10** |
+| July | 4 |
+
+December is the second-emptiest month in the 206-row corpus. A congestion
+feature computed this way would report December as an *uncrowded* window — the
+opposite of the market condition it is meant to capture. The distortion is not a
+neutral sampling gap either: publishers avoid December *because* of the holiday
+effect, so the sparsity is a downstream consequence of the very phenomenon being
+measured.
+
+The worked example makes the size of the gap concrete. Within 21 days of
+Midnight Suns the corpus contains six titles, and of the three competitors its
+publisher named, only The Callisto Protocol is in the corpus at all — Need for
+Speed Unbound and Crisis Core are absent. One of three, on the row that
+generated the hypothesis.
+
+Measuring congestion honestly needs an external release calendar: every Steam
+release above some review threshold inside the window, which is retroactively
+computable from the Steam API but is a data-collection project rather than a
+feature change.
+
+**Two cautions before this becomes a feature at all.** The evidence base is
+post-hoc and one-sided — a publisher explaining a disappointment by pointing at
+the calendar is an interested party, and timing is rarely credited when a game
+succeeds, so the public record for this effect is drawn disproportionately from
+titles that underperformed. A feature built from that literature would encode
+the selection bias rather than the effect, which means it has to be computed
+blind for every row including the successes. And the hypothesis came from a
+single row: adopting it because it explains Midnight Suns is precisely what the
+Evaluation Protocol forbids. Define it, compute it blind, then test it.
+
 #### Pre-Launch Anticipation (captured in Phase 2, not yet a feature)
 Award shows run categories that judge games **before they exist** — The Game
 Awards' Most Anticipated Game, Golden Joystick's Most Wanted, Gamescom's Most
