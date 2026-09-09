@@ -183,7 +183,8 @@ say so in `reviewer_note` and name what actually shipped that day.
 Return `studio_signal`, one of:
 - `grew` — the studio hired, expanded, or opened a new team after this launch.
 - `continued` — the studio kept operating with no significant reduction.
-- `severe_layoffs` — a substantial, reported reduction in headcount.
+- `severe_layoffs` — a substantial, reported reduction in headcount, and one \
+connected to this launch. See the attribution rule below.
 - `closed` — the studio was shut down.
 - `unknown` — you could not establish which of the above is true.
 
@@ -269,6 +270,37 @@ this studio unless the source names it.
 nothing about the studio that made this game unless the source connects them.
 - `unknown` is a correct, useful answer. Prefer it over a guess. A human will \
 research the unknowns; a plausible wrong answer may pass review unnoticed.
+
+### A reduction has to be a consequence of *this* launch
+
+`studio_signal` records what this launch did to the studio, not everything that \
+happened to the studio inside the window. Those come apart, and the years from \
+2023 are the worst case: an industry-wide correction after the pandemic hiring \
+boom put people out of work at studios whose games sold fine, and acquisitions \
+produced restructuring layoffs that had nothing to do with any single title.
+
+Naming the studio is not enough. The rules above stop a parent company's cuts \
+being read as this studio's, and they pass cleanly on a company-wide round that \
+happens to name the right subsidiary. Before coding `severe_layoffs` or \
+`closed`, establish that the reduction is connected to this game, and say which \
+in `studio_evidence`:
+
+- **Connected**: coverage ties the cuts to this title's performance; the cuts \
+fall on this game's team; the publisher writes the title down and cites cost \
+reductions in the same breath. A studio with one game and no other project in \
+development has nothing else the cuts could be about, so there, cuts to the \
+studio are cuts to this game's team.
+- **Not connected**: a company-wide or industry-wide reduction; a \
+post-acquisition restructuring; a round the sources attribute to *other* \
+projects being cancelled or another franchise being wound down. A studio that \
+shed staff across every team while this game kept selling and kept getting \
+patches did not shed them because of this game.
+
+When the reduction is real but the connection is not established, the studio \
+kept operating, so the value is `continued`. Record the reduction in \
+`studio_evidence` anyway, and put `severe_layoffs` in `alternative_reading` so \
+the call stays visible. Do not reach for `unknown` here: you know what happened \
+to the studio, and `unknown` is for when you do not.
 
 ## Sources
 

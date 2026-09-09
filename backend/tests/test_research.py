@@ -924,3 +924,58 @@ def test_the_two_silence_rules_are_distinguished_not_contradictory():
     are true, or the second reads as licence to infer."""
     assert "the difference is where the" in SYSTEM_PROMPT
     assert "the announcement *is* the event" in SYSTEM_PROMPT
+
+
+# --- attribution: a layoff inside the window is not automatically about this game
+
+
+def flat(text: str) -> str:
+    """The prompt with its line continuations collapsed, for phrase matching."""
+    return " ".join(text.split())
+
+
+def test_the_prompt_requires_a_reduction_to_be_tied_to_this_launch():
+    """The gap this closes. The existing rules ask *which entity* was cut -- a
+    parent publisher's layoffs are not this studio's unless a source names it.
+    They never ask *why*, so a company-wide round that happens to name the right
+    subsidiary passes cleanly.
+
+    Measured on the first 68-row batch: 10 rows came back `severe_layoffs`, and
+    on 6 of them the drafts' own evidence gave a cause that was not this game --
+    Bandai Namco's cuts following other projects' cancellation beside a Tekken 8
+    that sold 2M and kept shipping DLC; Codemasters' cuts on the rally line
+    while F1 25 shipped on schedule; Ubisoft corporate cuts on a row whose
+    developer, Montpellier, the draft says was untouched.
+    """
+    text = flat(SYSTEM_PROMPT)
+    assert "records what this launch did to the studio" in text
+    assert "Naming the studio is not enough" in text
+    assert "post-acquisition restructuring" in text
+    assert "industry-wide" in text
+
+
+def test_the_prompt_says_what_an_unattributed_reduction_becomes():
+    """A rule that only says "be careful" leaves the value unchanged. The
+    disposition has to be named, and it is `continued` rather than `unknown`:
+    the studio's fate is known, it is the causal link that is not."""
+    text = flat(SYSTEM_PROMPT)
+    assert "the connection is not established, the studio kept operating, so the value is" in text
+    assert "`unknown` is for when you do not" in text
+    # The evidence must survive the recode, or the reviewer loses the finding.
+    assert "put `severe_layoffs` in `alternative_reading`" in text
+
+
+def test_the_attribution_rule_does_not_swallow_a_single_game_studio():
+    """The over-correction to guard against. A studio with one project has
+    nothing else the cuts could be about, and that is where a genuine
+    consequence is most likely to be real and least likely to be spelled out in
+    coverage."""
+    text = flat(SYSTEM_PROMPT)
+    assert "one game and no other project in development" in text
+    assert "cuts to the studio are cuts to this game's team" in text
+
+
+def test_the_layoff_value_points_at_the_attribution_rule():
+    """The enum list is what a fast reader anchors on, so the constraint has to
+    be visible there and not only in a section further down."""
+    assert "connected to this launch" in flat(SYSTEM_PROMPT)

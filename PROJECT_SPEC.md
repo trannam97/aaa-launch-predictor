@@ -673,6 +673,64 @@ validated component here and should not be altered on the same 32 rows it is
 scored against. It is recorded as a decision waiting for a labeled set large
 enough to test it on rows held back.
 
+#### A Layoff In The Window Is Not Automatically About This Game
+**Found in review of the first 68-row research batch.** The `closed` discipline
+above asks *what happened* to the staff — closure or merger, out of work or
+transferred. It does not ask *why*, and the two failures are independent: a
+reduction can be perfectly real, correctly attributed to the right studio, and
+still say nothing about this launch.
+
+Two mechanisms, both live in the corpus:
+
+- **The post-pandemic correction.** Lockdown play and work-from-home drove an
+  industry-wide hiring boom; from mid-2023 people went back to offices and
+  classrooms, revenue reverted, and the correction arrived as layoffs across
+  studios whose games sold fine. **44 of the 117 unlabelled day-one rows have a
+  16-month window overlapping 2023-24.**
+- **Acquisition restructuring.** Microsoft's 25 January 2024 cut of 1,900
+  Microsoft Gaming and Activision Blizzard staff lands inside the windows of
+  Modern Warfare III and Black Ops 6. Sega's 28 March 2024 European
+  restructuring of 240 roles lands inside Total War: PHARAOH's and Company of
+  Heroes 3's.
+
+The 16-month window does not help here. It stops an *old* game inheriting
+*later* layoffs — a 2014 title reading `severe_layoffs` off the 2023-25
+contraction — and does nothing when the confounder falls inside the window.
+
+**Measured impact on the first batch.** 10 of 68 drafts came back
+`severe_layoffs`. On 6 the drafts' own evidence named a cause that was not this
+game: Bandai Namco's cuts followed other projects being cancelled while Tekken 8
+sold 2M and kept shipping DLC; Codemasters' cuts fell on the rally line while F1
+25 shipped on schedule; Ubisoft's corporate cuts sat on a row whose developer,
+Montpellier, the draft explicitly says was untouched.
+
+Only 2 of the 10 changed an outcome, because `severe_layoffs` beside `sustained`
+support reaches Underperform — the same tier as `continued`, differing only in
+confidence. The rubric therefore absorbs most of this on its own. The exposure is
+`severe_layoffs` **plus** non-sustained support, which is the route to Flop.
+
+**The research layer already finds the right facts and codes through them.**
+Total War: PHARAOH's `reviewer_note` observed unprompted that the game was built
+by Creative Assembly Sofia while the reported cuts named Creative Assembly
+(Horsham) and Sega Europe, and that no source confirmed Sofia was affected — and
+the row was still coded `severe_layoffs`. So this is a coding rule, not a
+research gap: nothing told the layer that unestablished attribution should change
+the value rather than merely be noted.
+
+**Mitigation, applied to the prompt and not to the rubric.** `studio_signal` is
+defined as a consequence *of this launch*, so a reduction with no established
+link to this title leaves the studio `continued` — it kept operating. The
+reduction stays in `studio_evidence` and `severe_layoffs` goes to
+`alternative_reading`, so nothing is lost. `unknown` is explicitly not the
+answer: the studio's fate is known, only the causal link is not. The
+single-project studio is carved out, since a studio with one game has nothing
+else the cuts could be about and is where a genuine consequence is both most
+likely and least likely to be spelled out in coverage.
+
+The rubric is untouched, for the same reason the `closed` corroboration change
+above is left unapplied: it is the one validated component and must not move on
+the same 32 rows it is scored against.
+
 #### Steam Metadata Describes a Store Listing, Not a Game
 Four fields have now been found to mean something narrower than their name
 suggests, and the pattern is worth stating once rather than rediscovering:
