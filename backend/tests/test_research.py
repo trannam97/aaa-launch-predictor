@@ -975,6 +975,18 @@ def test_the_attribution_rule_does_not_swallow_a_single_game_studio():
     assert "cuts to the studio are cuts to this game's team" in text
 
 
+def test_the_carve_out_is_about_scale_and_not_only_project_count():
+    """Project count alone is the wrong variable, and Lords of the Fallen (2023)
+    is the case that shows it: CI Games cut ~10% across BOTH its studios three
+    months after its flagship shipped, so a count-based carve-out misses it
+    while a publisher that size has no other product for the cuts to be about.
+    The same percentage at Microsoft Gaming or Ubisoft is about the company."""
+    text = flat(SYSTEM_PROMPT)
+    assert "Scale carries this as well as project count does" in text
+    assert "dominates its revenue" in text
+    assert "what share of the company's slate this title was" in text
+
+
 def test_the_layoff_value_points_at_the_attribution_rule():
     """The enum list is what a fast reader anchors on, so the constraint has to
     be visible there and not only in a section further down."""

@@ -727,6 +727,15 @@ single-project studio is carved out, since a studio with one game has nothing
 else the cuts could be about and is where a genuine consequence is both most
 likely and least likely to be spelled out in coverage.
 
+**The carve-out is about scale, not project count.** Lords of the Fallen (2023)
+is the case that establishes it: CI Games cut roughly 10% across *both* its
+studios three months after its flagship shipped, so a count-based rule misses it
+while a publisher that size has no other product for the cuts to be about. The
+question to ask is what share of the company's slate the title was, not how many
+teams the round touched. The same percentage at Microsoft Gaming or Ubisoft is
+telling you about the company; at a two-studio publisher it is telling you about
+the flagship.
+
 The rubric is untouched, for the same reason the `closed` corroboration change
 above is left unapplied: it is the one validated component and must not move on
 the same 32 rows it is scored against.

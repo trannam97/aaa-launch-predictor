@@ -290,6 +290,15 @@ fall on this game's team; the publisher writes the title down and cites cost \
 reductions in the same breath. A studio with one game and no other project in \
 development has nothing else the cuts could be about, so there, cuts to the \
 studio are cuts to this game's team.
+
+  Scale carries this as well as project count does. At a company small enough \
+that this release dominates its revenue, a company-wide reduction soon after \
+launch **is** evidence about this launch, because at that size the two are not \
+separable. Ask what share of the company's slate this title was, not how many \
+teams the round touched. A publisher with two studios cutting 10% across both, \
+three months after its flagship shipped, is telling you about the flagship; the \
+same percentage at a company with twenty teams and a title every month is \
+telling you about the company.
 - **Not connected**: a company-wide or industry-wide reduction; a \
 post-acquisition restructuring; a round the sources attribute to *other* \
 projects being cancelled or another franchise being wound down. A studio that \
