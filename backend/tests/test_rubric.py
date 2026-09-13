@@ -302,10 +302,22 @@ def test_a_percentile_gets_the_right_ordinal_suffix():
     showed eighteen of them."""
     from app.rubric import _ordinal
 
-    assert [_ordinal(n) for n in (1, 2, 3, 4, 11, 12, 13, 21, 22, 23, 32, 35, 111)] == [
-        "1st", "2nd", "3rd", "4th", "11th", "12th", "13th", "21st",
-        "22nd", "23rd", "32nd", "35th", "111th",
-    ]
+    cases = {
+        1: "1st",
+        2: "2nd",
+        3: "3rd",
+        4: "4th",
+        11: "11th",
+        12: "12th",
+        13: "13th",  # the teens take th whatever the last digit
+        21: "21st",
+        22: "22nd",
+        23: "23rd",
+        32: "32nd",
+        35: "35th",
+        111: "111th",
+    }
+    assert {n: _ordinal(n) for n in cases} == cases
 
 
 def test_a_sentiment_just_under_the_bar_does_not_round_onto_it():
