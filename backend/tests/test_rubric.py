@@ -292,3 +292,67 @@ def test_free_and_missing_prices_are_not_ranked():
     assert index.relative_price(2024, None) is None
     assert index.relative_price(2024, 0) is None
     assert index.relative_price(None, 7000) is None
+
+
+# --- the reasons are read by a human, so they have to parse -----------------
+
+
+def test_a_percentile_gets_the_right_ordinal_suffix():
+    """`{pct:.0f}th` produced 1th, 2th, 21th, 32th. A single queue listing
+    showed eighteen of them."""
+    from app.rubric import _ordinal
+
+    cases = {
+        1: "1st",
+        2: "2nd",
+        3: "3rd",
+        4: "4th",
+        11: "11th",
+        12: "12th",
+        13: "13th",  # the teens take th whatever the last digit
+        21: "21st",
+        22: "22nd",
+        23: "23rd",
+        32: "32nd",
+        35: "35th",
+        111: "111th",
+    }
+    assert {n: _ordinal(n) for n in cases} == cases
+
+
+def test_a_sentiment_just_under_the_bar_does_not_round_onto_it():
+    """The verdict a reviewer could not act on. Shadow of the Tomb Raider came
+    back "78% positive over the launch window, below the 78% bar" -- true
+    underneath, self-contradicting on the page. Eight of sixty-eight queued
+    rows sit within a point of the bar, so this is not a corner case."""
+    from app.rubric import SENTIMENT_BAR, _percent
+
+    assert _percent(77.6, bar=SENTIMENT_BAR) == "77.6"
+    assert _percent(78.4, bar=SENTIMENT_BAR) == "78.4"
+    # Away from the bar the extra digit is noise, so it is not shown.
+    assert _percent(64.0, bar=SENTIMENT_BAR) == "64"
+    assert _percent(93.2, bar=SENTIMENT_BAR) == "93"
+    # No bar to collide with: always the plain figure.
+    assert _percent(77.6) == "78"
+
+
+def test_a_percentile_just_under_the_floor_does_not_round_onto_it():
+    from app.rubric import VOLUME_FLOOR, _ordinal
+
+    assert _ordinal(34.6, floor=VOLUME_FLOOR) == "34.6th"
+    assert _ordinal(27.0, floor=VOLUME_FLOOR) == "27th"
+
+
+def test_the_failing_verdicts_read_correctly_end_to_end():
+    """The two reasons every queued row carries, checked as a reviewer sees
+    them rather than as format strings."""
+    from app.rubric import RubricInput, classify
+
+    sentiment = classify(RubricInput(volume_percentile=60.0, positive_pct=77.6))
+    assert "77.6% positive over the launch window, below the 78% bar" in sentiment.reasons[0]
+
+    volume = classify(RubricInput(volume_percentile=22.0, positive_pct=92.0))
+    assert (
+        "reviewed well (92% positive) but drew 22nd-percentile volume for its "
+        "cohort, under the 35th-percentile floor" in volume.reasons[0]
+    )

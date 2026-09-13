@@ -482,6 +482,78 @@ real limitation: the modal price is unstable in a year when the market is
 mid-transition between price points, and the mode discards that ambiguity
 rather than reporting it.
 
+#### The Volume Floor Conflates Market Segment With Commercial Failure (open)
+**Found by listing the 68-row research queue with the rubric's own reasons
+attached, 2026-09-13.** Every queued row is one the rubric refused to resolve,
+and the refusal splits cleanly:
+
+| | |
+|---|---|
+| failed the 78% sentiment bar | **50** |
+| reviewed well, failed the 35th-percentile volume floor | **18** |
+
+The 18 are not a random draw. Sorted by distance under the floor:
+
+| percentile | sentiment | title | |
+|---|---|---|---|
+| 1st | 80% | Beyond Good & Evil 20th Anniversary | $20 remaster of a 2003 game |
+| 2nd | 83% | Hearts of Iron IV | grand strategy |
+| 7th | 88% | Grounded | **day-one Game Pass** |
+| 9th | 85% | Pillars of Eternity II | CRPG |
+| 9th | 79% | Evil West | |
+| 11th | 79% | Rainbow Six Siege | |
+| 14th | 81% | Wasteland 3 | CRPG |
+| 16th | 92% | Total War: WARHAMMER II | grand strategy |
+| 17th | 80% | Marvel's Midnight Suns | |
+| 19th | 80% | Ghostwire: Tokyo | |
+| 21st | 90% | High On Life | **day-one Game Pass** |
+| 21st | 97% | Like a Dragon Gaiden | JRPG |
+| 24th | 90% | Like a Dragon: Infinite Wealth | JRPG |
+| 26th | 91% | Mass Effect Legendary Edition | remaster |
+| 26th | 92% | Indiana Jones and the Great Circle | **day-one Game Pass** |
+| 27th | 89% | Stellaris | grand strategy |
+| 27th | 93% | Prey | |
+| 32nd | 96% | It Takes Two | |
+
+Grand strategy, CRPGs, JRPGs, remasters, and at least three day-one Game Pass
+releases. Like a Dragon Gaiden is the clearest case: **97% positive, 21st
+percentile.**
+
+**The floor's stated job is to catch well-reviewed releases nobody bought** —
+the comment in `app/rubric.py` names Hellblade II, 88% positive at 18th
+percentile. It cannot distinguish that from *this genre has fewer Steam
+reviewers* or *this shipped free to millions on Game Pass on day one*. Game Pass
+is the sharpest of these because the mechanism is direct and identifiable from
+data already held: a day-one Game Pass release suppresses Steam purchases, and
+therefore Steam reviews, without saying anything about commercial performance.
+
+**This is a validity problem in the measure, not a threshold to move.** Lowering
+`VOLUME_FLOOR` until these rows reclassify is the in-sample move the Evaluation
+Protocol bans, and it would not fix the conflation — it would only relocate it.
+The question belongs to cohort construction, above: a cohort spanning every AAA
+release ranks a grand-strategy title against an action blockbuster on a measure
+that reflects audience size rather than success.
+
+**Not all 18 are wrong.** Rainbow Six Siege genuinely had a small, troubled Steam
+launch and grew over years, which is the launch-not-eventual-fate rule working as
+designed. The finding is that the group contains a systematic pattern, not that
+every member is misjudged.
+
+**Why it matters now.** These 68 rows are about to become labels on a set that
+holds 35. If the volume floor mis-ranks whole segments, that error becomes two
+thirds of the training data, and it will be invisible afterwards because the
+labels will look like ground truth. Running `draft_studio_signals.py --validate`
+against the 35 already-curated rows is the available check, and this finding is
+the strongest argument yet for spending it.
+
+**A second observation from the same listing, recorded and not acted on.** Eight
+of the 68 sit within one point of the sentiment bar — Shadow of the Tomb Raider
+at 77.6%, then Far Cry 4, Fallout 4, Civilization VI, Anno 1800, Gears Tactics,
+DEATHLOOP and Avowed at 77%. The exact value of `SENTIMENT_BAR` therefore decides
+about 12% of this queue, cutting through a dense cluster rather than separating
+obvious cases. That is worth knowing before anyone reads a tier as decisive; it
+is **not** an argument for moving the bar, for the same reason as above.
+
 #### When a Launch Begins (resolved in Phase 2)
 **A launch is the 1.0 version.** That single rule settles two cases that look
 identical in the data and need opposite treatment.
