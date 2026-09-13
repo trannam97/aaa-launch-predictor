@@ -337,7 +337,7 @@ def test_the_queue_records_which_unresolved_state_a_row_is_in():
 
 
 def test_the_queue_carries_the_numbers_behind_the_refusal():
-    """"Fell short" is the same sentence on every row; the numbers are not.
+    """Every row gives the same reason for falling short; the numbers differ.
 
     `classify` builds reasons on its way to the gate -- "58% positive over the
     launch window, below the 78% bar" versus "reviewed well (91% positive) but
