@@ -61,6 +61,14 @@ on:
         description: "Research only these Steam appids, comma or space separated. Blank = the whole queue."
         type: string
         default: ""
+      preview:
+        # sales-milestones reused `signal_mode` at first, which defaults to
+        # `list` and is documented as signal-drafts only. So the default run was
+        # silently a dry run, and a real one meant choosing a mode name that
+        # means nothing here. A free read-only job should fetch by default.
+        description: "sales-milestones only — print the queue and exit without querying Wikidata."
+        type: boolean
+        default: false
       audit:
         # Not a mode of apply_day_one but its opposite: apply writes the one
         # verdict the dates settle, audit reads every row that already has an
@@ -296,12 +304,12 @@ jobs:
 
       - name: Collect announced units-sold figures
         env:
-          MODE: ${{ inputs.signal_mode }}
+          PREVIEW: ${{ inputs.preview }}
           APPIDS: ${{ inputs.appids }}
         run: |
           set -o pipefail
           args=()
-          [ "$MODE" = "list" ] && args+=(--list)
+          [ "$PREVIEW" = "true" ] && args+=(--list)
           for id in ${APPIDS//,/ }; do
             case "$id" in
               *[!0-9]*|'') echo "::error::Not a numeric Steam appid: $id"; exit 1 ;;
