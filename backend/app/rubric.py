@@ -111,6 +111,40 @@ def classify(signals: RubricInput) -> RubricResult:
     return _resolve_lower(signals, reasons)
 
 
+def _ordinal(value: float, *, floor: float | None = None) -> str:
+    """`22nd`, not `22th` — and never rounded onto the floor it lost to.
+
+    Every reason citing a percentile rendered `{pct:.0f}th`, which produces
+    `1th`, `2th`, `21th`, `32th`. Eighteen of them appeared in a single queue
+    listing.
+
+    The `floor` guard is the same defect as `_percent`'s: a value just under
+    the floor rounds onto it, so 34.6 against a 35th-percentile floor printed
+    "35th-percentile volume … under the 35th-percentile floor" — a sentence
+    contradicting itself.
+    """
+    if floor is not None and f"{value:.0f}" == f"{floor:.0f}":
+        return f"{value:.1f}th"
+    n = int(round(value))
+    suffix = "th" if 11 <= n % 100 <= 13 else {1: "st", 2: "nd", 3: "rd"}.get(n % 10, "th")
+    return f"{n}{suffix}"
+
+
+def _percent(value: float, *, bar: float | None = None) -> str:
+    """A percentage that does not round onto the bar it fell below.
+
+    `f"{77.6:.0f}%"` is `78%`, so Shadow of the Tomb Raider's verdict read
+    "78% positive over the launch window, below the 78% bar". True underneath
+    and unreadable on the page: a reviewer cannot act on a sentence that
+    contradicts itself, and eight of the sixty-eight queued rows sit within a
+    point of the bar. One decimal appears only where the rounded figures would
+    otherwise collide, so the common case stays uncluttered.
+    """
+    if bar is not None and f"{value:.0f}" == f"{bar:.0f}":
+        return f"{value:.1f}"
+    return f"{value:.0f}"
+
+
 def _met_expectations(signals: RubricInput, reasons: list[str]) -> bool:
     """Did this release meet the expectations of its budget tier?
 
@@ -131,7 +165,7 @@ def _met_expectations(signals: RubricInput, reasons: list[str]) -> bool:
     ):
         reasons.append(
             f"accrued {retention:.1f}x its launch-window reviews by three months "
-            f"from {pct:.0f}th-percentile volume — a launch that kept growing"
+            f"from {_ordinal(pct)}-percentile volume — a launch that kept growing"
         )
         return True
 
@@ -141,20 +175,21 @@ def _met_expectations(signals: RubricInput, reasons: list[str]) -> bool:
 
     if sentiment < SENTIMENT_BAR:
         reasons.append(
-            f"{sentiment:.0f}% positive over the launch window, below the {SENTIMENT_BAR:.0f}% bar"
+            f"{_percent(sentiment, bar=SENTIMENT_BAR)}% positive over the launch window, "
+            f"below the {SENTIMENT_BAR:.0f}% bar"
         )
         return False
 
     if pct is not None and pct < VOLUME_FLOOR:
         reasons.append(
             f"reviewed well ({sentiment:.0f}% positive) but drew "
-            f"{pct:.0f}th-percentile volume for its cohort, under the "
-            f"{VOLUME_FLOOR:.0f}th-percentile floor"
+            f"{_ordinal(pct, floor=VOLUME_FLOOR)}-percentile volume for its cohort, "
+            f"under the {_ordinal(VOLUME_FLOOR)}-percentile floor"
         )
         return False
 
     reasons.append(
-        f"{sentiment:.0f}% positive on {pct:.0f}th-percentile volume for its cohort"
+        f"{sentiment:.0f}% positive on {_ordinal(pct)}-percentile volume for its cohort"
         if pct is not None
         else f"{sentiment:.0f}% positive over the launch window"
     )
@@ -167,7 +202,7 @@ def _resolve_upper(signals: RubricInput, reasons: list[str]) -> RubricResult:
     retention = signals.retention_ratio
 
     if pct is not None and pct >= BREAKOUT_VOLUME:
-        reasons.append(f"{pct:.0f}th-percentile launch volume, top of its release cohort")
+        reasons.append(f"{_ordinal(pct)}-percentile launch volume, top of its release cohort")
         return RubricResult(Outcome.BREAKOUT, _confidence(signals, strong=True), reasons)
 
     if (
@@ -177,7 +212,7 @@ def _resolve_upper(signals: RubricInput, reasons: list[str]) -> RubricResult:
         and retention >= RETENTION_SUSTAINED
     ):
         reasons.append(
-            f"high launch volume ({pct:.0f}th percentile) that kept compounding "
+            f"high launch volume ({_ordinal(pct)} percentile) that kept compounding "
             f"({retention:.1f}x reviews by three months)"
         )
         return RubricResult(Outcome.BREAKOUT, _confidence(signals, strong=True), reasons)
