@@ -297,6 +297,30 @@ Two traps this exposed, both handled in the backfill:
   released three weeks ago returns a real-looking number covering the wrong
   period. Such windows are skipped, not stored.
 
+**Verified against the live API, 2026-09-13, and worth keeping as the worked
+example.** TEKKEN 8 queried the same way the pipeline queries it:
+
+| window | reviews | positive |
+|---|---|---|
+| launch fortnight | 12,204 | **75.3%** |
+| first three months | 27,400 | 65.8% |
+| months 3–16 | 29,484 | 47.6% |
+| **lifetime** | 72,594 | **56.6%** |
+
+Two things this establishes. The windowing works — the independent query
+reproduces the stored launch-window figure to a decimal, which is the first
+empirical confirmation that `appreviews` with `date_range_type=include`
+recovers launch-window sentiment for a game released years earlier.
+
+And the erasure this section warns about is **18.7 points on this one row**.
+TEKKEN 8's decline has a known, specific, non-launch cause — backlash to the
+Tekken Shop and its post-launch monetisation, none of which existed during the
+launch fortnight. A lifetime figure would import all of it and report the launch
+as Mixed. The window is the only reason the row can say what the launch actually
+looked like, which on this title is a lukewarm-but-positive 75.3% rather than
+either the 56.6% lifetime reading or the commercial success the sales figures
+describe.
+
 #### Outcome Scope: Launch, Not Eventual Fate
 **Resolved in Phase 1.** Outcome tiers describe how a release *launched*, not
 what it eventually became. A title that recovers years later is labeled on
