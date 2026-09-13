@@ -20,6 +20,7 @@ on:
           - launch-prices
           - signal-drafts
           - platform-launch-type
+          - sales-milestones
       limit:
         # Not "leave blank for all": GitHub substitutes an input's default when
         # the field is submitted empty, so blank can only ever mean 20. The
@@ -270,6 +271,69 @@ jobs:
           path: |
             data/platform_launch_type_proposals.csv
             data/platform_launch_type_audit.csv
+          if-no-files-found: warn
+
+  sales-milestones:
+    if: inputs.job == 'sales-milestones'
+    runs-on: ubuntu-latest
+    # One SPARQL join per batch of appids against a public endpoint. No key,
+    # no quota, no per-row cost -- the only reason this is in the Research
+    # workflow rather than Database is that its output is a review file.
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install
+        run: pip install -e './backend[postgres]'
+
+      - uses: ./.github/actions/database-url
+        with:
+          url: ${{ secrets.DATABASE_URL }}
+
+      - name: Collect announced units-sold figures
+        env:
+          MODE: ${{ inputs.signal_mode }}
+          APPIDS: ${{ inputs.appids }}
+        run: |
+          set -o pipefail
+          args=()
+          [ "$MODE" = "list" ] && args+=(--list)
+          for id in ${APPIDS//,/ }; do
+            case "$id" in
+              *[!0-9]*|'') echo "::error::Not a numeric Steam appid: $id"; exit 1 ;;
+              *) args+=(--appid "$id") ;;
+            esac
+          done
+          status=0
+          python jobs/enrich_sales_milestones.py "${args[@]}" | tee sales.log || status=$?
+          {
+            echo "## Sales milestones"
+            echo
+            echo '```'
+            cat sales.log
+            echo '```'
+            echo
+            echo "Evidence for a reviewer, not labels and not a rubric input. The"
+            echo "figures are worldwide across every platform, so they answer \"did the"
+            echo "game sell\" and never \"did the Steam launch sell\". They exist because"
+            echo "a publisher chose to announce them, which is what publishers do when a"
+            echo "game does well -- so **a missing figure is not evidence of a weak"
+            echo "launch**, and absence is confounded with segment: Game Pass titles,"
+            echo "niche PC genres and remasters rarely get a unit milestone however well"
+            echo "they did."
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit $status
+
+      - name: Keep the figures
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: sales-milestones
+          path: data/sales_milestones.csv
           if-no-files-found: warn
 
   signal-drafts:

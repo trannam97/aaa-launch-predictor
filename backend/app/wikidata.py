@@ -151,6 +151,42 @@ def _anticipation_query(appids: list[int]) -> str:
 }}"""
 
 
+def _sales_query(appids: list[int]) -> str:
+    """Units-sold milestones (P2664) with their point in time (P585).
+
+    Publisher-announced figures, not estimates: these enter Wikidata from
+    earnings releases and milestone press posts, which is what makes them worth
+    having beside a review-derived proxy. The P585 qualifier is the whole value
+    — an undated "sold 10 million" says nothing about a launch, while "2 million
+    as of 21 days after release" is a launch-window fact.
+
+    The P629 hop matches `_query`: a "Complete Edition" item rarely carries its
+    own sales, while the game it is an edition of does.
+
+    Two things this cannot be. The figures are worldwide across every platform,
+    so they answer "did the game sell" and never "did the Steam launch sell".
+    And they exist because a publisher chose to announce them, which is what
+    publishers do when a game does well — measured over the 68-row research
+    queue, 1 of 8 rows under 50% launch sentiment carries a figure against 8 of
+    14 between 60 and 69%. Absence is not evidence of a weak launch, and is
+    confounded with segment besides: Game Pass titles, niche PC genres and
+    remasters rarely get a unit milestone however well they did.
+    """
+    values = " ".join(f'"{appid}"' for appid in appids)
+    return f"""SELECT ?appid ?units ?when ?precision ?rank WHERE {{
+  VALUES ?appid {{ {values} }}
+  ?item wdt:P1733 ?appid .
+  {{ ?item p:P2664 ?stmt }} UNION {{ ?item wdt:P629 ?base . ?base p:P2664 ?stmt }}
+  ?stmt ps:P2664 ?units .
+  ?stmt wikibase:rank ?rank .
+  FILTER(?rank != wikibase:DeprecatedRank)
+  OPTIONAL {{
+    ?stmt pqv:P585 ?node .
+    ?node wikibase:timeValue ?when ; wikibase:timePrecision ?precision .
+  }}
+}}"""
+
+
 def _parse_date(raw: str) -> date | None:
     try:
         return date.fromisoformat(raw[:10])
@@ -206,6 +242,39 @@ class Anticipation:
         if cutoff is None:
             return []
         return [n for n in self.nominations if n.precedes(cutoff)]
+
+
+@dataclass(slots=True, frozen=True)
+class SalesMilestone:
+    """One announced units-sold figure, and when it was true."""
+
+    units: int
+    as_of: date | None
+
+    @property
+    def dated(self) -> bool:
+        return self.as_of is not None
+
+
+@dataclass(slots=True)
+class SalesHistory:
+    """Every units-sold milestone Wikidata holds for one Steam app."""
+
+    steam_appid: int
+    milestones: list[SalesMilestone]
+
+    def first_after(self, launch: date | None) -> SalesMilestone | None:
+        """The earliest dated milestone on or after a launch date.
+
+        The one that matters for a launch-window reading: a figure dated three
+        years out describes a long tail, not a launch. The caller decides how
+        close is close enough, since that is a judgement about the row rather
+        than a fact about the data.
+        """
+        if launch is None:
+            return None
+        after = [m for m in self.milestones if m.as_of is not None and m.as_of >= launch]
+        return min(after, key=lambda m: (m.as_of, m.units)) if after else None
 
 
 class WikidataClient:
@@ -271,6 +340,48 @@ class WikidataClient:
                         won=binding.get("won", {}).get("value") == "true",
                     )
                 )
+        return found
+
+    def sales_milestones(self, appids: list[int]) -> dict[int, SalesHistory]:
+        """Announced units-sold figures for each appid, dated where Wikidata says.
+
+        A miss is ordinary: coverage was 92 of 206 rows when this was written,
+        and the gaps are not random — see `_sales_query` for why absence must
+        not be read as a weak launch.
+
+        Undated milestones are kept rather than dropped. They cannot answer a
+        launch-window question, but a reviewer looking at a row with no dated
+        figure is better off seeing "10 million, undated" than nothing at all.
+        Month- and year-precision values are kept for the same reason and are
+        not silently rendered as the first of the period: `as_of` is set only
+        from a day-precision value, so a coarse one reads as undated here
+        instead of as a spurious exact date.
+        """
+        found: dict[int, SalesHistory] = {}
+        batches = [appids[i : i + self.batch_size] for i in range(0, len(appids), self.batch_size)]
+        for index, batch in enumerate(batches):
+            if index:
+                time.sleep(self.delay_seconds)
+            payload = self._fetch(_sales_query(batch))
+            for binding in payload.get("results", {}).get("bindings", []):
+                try:
+                    appid = int(binding["appid"]["value"])
+                    units = int(float(binding["units"]["value"]))
+                except (KeyError, ValueError):
+                    continue
+                as_of = _parse_date(binding.get("when", {}).get("value", ""))
+                try:
+                    precision = int(binding.get("precision", {}).get("value", 0))
+                except ValueError:
+                    precision = 0
+                if precision < DAY_PRECISION:
+                    as_of = None
+                milestone = SalesMilestone(units=units, as_of=as_of)
+                history = found.setdefault(appid, SalesHistory(appid, []))
+                if milestone not in history.milestones:
+                    history.milestones.append(milestone)
+        for history in found.values():
+            history.milestones.sort(key=lambda m: (m.as_of or date.max, m.units))
         return found
 
     def release_dates(self, appids: list[int]) -> dict[int, ReleaseDates]:
