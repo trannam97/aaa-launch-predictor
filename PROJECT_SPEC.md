@@ -27,7 +27,7 @@ corpus with 35 labels (32 scored — day-one Steam releases only, MMOs excluded)
 
 | Component | Result | Note |
 |---|---|---|
-| Outcome rubric (post-launch) | **100%** met-expectations, 93.8% exact | Measured against the live database. Works on the falsifiable axis. Not wired into any endpoint. Read the resolution note below before comparing this figure to another. |
+| Outcome rubric (post-launch) | **100%** met-expectations, 93.8% exact — **stale, re-measure** | Measured against the live database. Works on the falsifiable axis. Not wired into any endpoint. Read the resolution note below before comparing this figure to another. |
 | Rule-based baseline (pre-launch) | **31.2%** | Loses to always guessing `underperform` (**34.4%**) |
 | Ordinal model (pre-launch) | **38.8%** | Beats the baseline, loses to the constant on ordinal distance; gate refuses it, no artifact written |
 | Company tiering clustering | **Failed** | Unstable; writes no tiers. See ml/README.md |
@@ -39,6 +39,21 @@ carry little signal at this sample size. Whether that is a data-volume
 problem, a feature problem, or a ceiling on pre-launch predictability is
 not yet distinguishable from 32 rows, and nothing here should be read as
 having decided it.
+
+**The rubric figure above is pending re-measurement.** TEKKEN 8 was labelled
+`success` on 2026-09-13 from commercial evidence the rubric cannot see — 1M units
+day one, 2M inside a month, a Steam concurrent peak roughly double Tekken 7's
+all-time high — against a rubric reading of 75% launch-window sentiment, below
+its 78% bar. That is the first deliberate met-expectations disagreement in the
+corpus, so the 100% no longer holds and `validate_rubric` needs re-running to say
+what it is now.
+
+The disagreement is recorded rather than tuned away. The rubric makes sentiment
+its primary test because Steam reviews are the only signal it gets; on this row
+the quantity that proxy stands in for is actually known. Moving `SENTIMENT_BAR`
+so the row reclassifies would be in-sample tuning and would silently take seven
+other queued rows sitting at 77% with it. See the row's `notes` for the full
+reasoning and the two limits on the label.
 
 **The bar is the constant, not the baseline.** A model that cannot beat a
 constant guess has learned nothing, and saying so plainly is more useful than
