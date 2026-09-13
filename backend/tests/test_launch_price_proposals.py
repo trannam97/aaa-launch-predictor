@@ -334,3 +334,35 @@ def test_the_queue_records_which_unresolved_state_a_row_is_in():
 
     main = ast.unparse(ast.parse(textwrap.dedent(inspect.getsource(job.main))))
     assert "unresolved_reason" in main, "--list must surface it, not just carry it"
+
+
+def test_the_queue_carries_the_numbers_behind_the_refusal():
+    """"Fell short" is the same sentence on every row; the numbers are not.
+
+    `classify` builds reasons on its way to the gate -- "58% positive over the
+    launch window, below the 78% bar" versus "reviewed well (91% positive) but
+    drew 22nd-percentile volume" -- and those answer the question the verdict
+    raises: sentiment or attention? A reviewer disagreeing with a queued row is
+    arguing with one or the other, and the first run of --list showed neither,
+    printing one identical 100-character sentence 68 times.
+    """
+    import ast
+    import inspect
+    import sys
+    import textwrap
+    from pathlib import Path
+
+    sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "jobs"))
+    import draft_studio_signals as job
+
+    candidates = ast.unparse(ast.parse(textwrap.dedent(inspect.getsource(job.candidates))))
+    assert "unresolved_detail" in candidates
+    assert "result.reasons" in candidates
+
+    main = ast.unparse(ast.parse(textwrap.dedent(inspect.getsource(job.main))))
+    assert "unresolved_detail" in main, "--list must print the numbers, not just carry them"
+    # The detail is empty exactly when the cohort was too small to rank, so it
+    # doubles as the flag separating the two states. Losing that split would put
+    # an overridden measurement and an unfilled hole in the same bucket.
+    assert "unrankable" in main
+    assert "fell short of their cohort" in main
