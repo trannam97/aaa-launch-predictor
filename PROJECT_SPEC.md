@@ -673,6 +673,73 @@ validated component here and should not be altered on the same 32 rows it is
 scored against. It is recorded as a decision waiting for a labeled set large
 enough to test it on rows held back.
 
+#### A Layoff In The Window Is Not Automatically About This Game
+**Found in review of the first 68-row research batch.** The `closed` discipline
+above asks *what happened* to the staff — closure or merger, out of work or
+transferred. It does not ask *why*, and the two failures are independent: a
+reduction can be perfectly real, correctly attributed to the right studio, and
+still say nothing about this launch.
+
+Two mechanisms, both live in the corpus:
+
+- **The post-pandemic correction.** Lockdown play and work-from-home drove an
+  industry-wide hiring boom; from mid-2023 people went back to offices and
+  classrooms, revenue reverted, and the correction arrived as layoffs across
+  studios whose games sold fine. **44 of the 117 unlabelled day-one rows have a
+  16-month window overlapping 2023-24.**
+- **Acquisition restructuring.** Microsoft's 25 January 2024 cut of 1,900
+  Microsoft Gaming and Activision Blizzard staff lands inside the windows of
+  Modern Warfare III and Black Ops 6. Sega's 28 March 2024 European
+  restructuring of 240 roles lands inside Total War: PHARAOH's and Company of
+  Heroes 3's.
+
+The 16-month window does not help here. It stops an *old* game inheriting
+*later* layoffs — a 2014 title reading `severe_layoffs` off the 2023-25
+contraction — and does nothing when the confounder falls inside the window.
+
+**Measured impact on the first batch.** 10 of 68 drafts came back
+`severe_layoffs`. On 6 the drafts' own evidence named a cause that was not this
+game: Bandai Namco's cuts followed other projects being cancelled while Tekken 8
+sold 2M and kept shipping DLC; Codemasters' cuts fell on the rally line while F1
+25 shipped on schedule; Ubisoft's corporate cuts sat on a row whose developer,
+Montpellier, the draft explicitly says was untouched.
+
+Only 2 of the 10 changed an outcome, because `severe_layoffs` beside `sustained`
+support reaches Underperform — the same tier as `continued`, differing only in
+confidence. The rubric therefore absorbs most of this on its own. The exposure is
+`severe_layoffs` **plus** non-sustained support, which is the route to Flop.
+
+**The research layer already finds the right facts and codes through them.**
+Total War: PHARAOH's `reviewer_note` observed unprompted that the game was built
+by Creative Assembly Sofia while the reported cuts named Creative Assembly
+(Horsham) and Sega Europe, and that no source confirmed Sofia was affected — and
+the row was still coded `severe_layoffs`. So this is a coding rule, not a
+research gap: nothing told the layer that unestablished attribution should change
+the value rather than merely be noted.
+
+**Mitigation, applied to the prompt and not to the rubric.** `studio_signal` is
+defined as a consequence *of this launch*, so a reduction with no established
+link to this title leaves the studio `continued` — it kept operating. The
+reduction stays in `studio_evidence` and `severe_layoffs` goes to
+`alternative_reading`, so nothing is lost. `unknown` is explicitly not the
+answer: the studio's fate is known, only the causal link is not. The
+single-project studio is carved out, since a studio with one game has nothing
+else the cuts could be about and is where a genuine consequence is both most
+likely and least likely to be spelled out in coverage.
+
+**The carve-out is about scale, not project count.** Lords of the Fallen (2023)
+is the case that establishes it: CI Games cut roughly 10% across *both* its
+studios three months after its flagship shipped, so a count-based rule misses it
+while a publisher that size has no other product for the cuts to be about. The
+question to ask is what share of the company's slate the title was, not how many
+teams the round touched. The same percentage at Microsoft Gaming or Ubisoft is
+telling you about the company; at a two-studio publisher it is telling you about
+the flagship.
+
+The rubric is untouched, for the same reason the `closed` corroboration change
+above is left unapplied: it is the one validated component and must not move on
+the same 32 rows it is scored against.
+
 #### Steam Metadata Describes a Store Listing, Not a Game
 Four fields have now been found to mean something narrower than their name
 suggests, and the pattern is worth stating once rather than rediscovering:
@@ -795,6 +862,66 @@ code rather than left to discipline:
   correctly gets no history at all.
 - Features that a stored model was not fitted on invalidate that model. The
   serving path refuses a version mismatch rather than misaligning columns.
+
+#### Release Timing: One Feature Already Present And Miscoded, One Not Computable Yet
+**Raised in review of the first research batch.** Marvel's Midnight Suns shipped
+2 December 2022 against The Callisto Protocol, Need for Speed Unbound and Crisis
+Core: Final Fantasy VII Reunion, and its publisher later attributed the
+commercial result to that window. Release timing splits into two candidate
+signals with very different costs.
+
+**Seasonality is already a feature, and encoded wrong.** `release_month` is the
+eleventh of twelve features in `app/features.py`, carried as a raw float 1-12.
+That encoding places December (12) at maximum distance from January (1) when
+they are adjacent, and forces any model to read the effect as monotonic in month
+number. A holiday penalty is cyclical and categorical; nothing about it should
+be monotonic. Re-encoding it — sin/cos of month, a quarter indicator, or a
+holiday-window flag — is a representation fix justified before looking at any
+outcome, and so is not the in-sample tuning the Evaluation Protocol bans.
+
+It is nonetheless **not worth doing yet**. Of 35 labelled rows, 2 released in
+December and 6 in November or December combined. There is nothing for a holiday
+effect to be learned from at that count, whatever the encoding.
+
+**Congestion is not a feature, and the corpus cannot be used to build one.**
+This is the trap worth recording, because the obvious implementation returns a
+confidently inverted answer. Counting nearby corpus releases measures *sampling
+density*, not market congestion:
+
+| month | corpus releases |
+|---|---|
+| February | 25 |
+| November | 23 |
+| **December** | **10** |
+| July | 4 |
+
+December is the second-emptiest month in the 206-row corpus. A congestion
+feature computed this way would report December as an *uncrowded* window — the
+opposite of the market condition it is meant to capture. The distortion is not a
+neutral sampling gap either: publishers avoid December *because* of the holiday
+effect, so the sparsity is a downstream consequence of the very phenomenon being
+measured.
+
+The worked example makes the size of the gap concrete. Within 21 days of
+Midnight Suns the corpus contains six titles, and of the three competitors its
+publisher named, only The Callisto Protocol is in the corpus at all — Need for
+Speed Unbound and Crisis Core are absent. One of three, on the row that
+generated the hypothesis.
+
+Measuring congestion honestly needs an external release calendar: every Steam
+release above some review threshold inside the window, which is retroactively
+computable from the Steam API but is a data-collection project rather than a
+feature change.
+
+**Two cautions before this becomes a feature at all.** The evidence base is
+post-hoc and one-sided — a publisher explaining a disappointment by pointing at
+the calendar is an interested party, and timing is rarely credited when a game
+succeeds, so the public record for this effect is drawn disproportionately from
+titles that underperformed. A feature built from that literature would encode
+the selection bias rather than the effect, which means it has to be computed
+blind for every row including the successes. And the hypothesis came from a
+single row: adopting it because it explains Midnight Suns is precisely what the
+Evaluation Protocol forbids. Define it, compute it blind, then test it.
 
 #### Pre-Launch Anticipation (captured in Phase 2, not yet a feature)
 Award shows run categories that judge games **before they exist** — The Game

@@ -305,3 +305,32 @@ def test_a_validation_set_the_size_of_the_corpus_is_refused():
 
     # 35 labelled rows out of 206 is the real shape; the cap sits between them.
     assert 35 < signals.VALIDATION_SANITY_CAP < 206
+
+
+# --- the queue has to say why a row is in it -------------------------------
+
+
+def test_the_queue_records_which_unresolved_state_a_row_is_in():
+    """Two states reach the unresolved branch and they mean opposite things.
+
+    `classify` returns unresolved either because the release fell short of its
+    cohort with no studio or support signal to separate Flop from Underperform,
+    or because `volume_percentile` is None and the cohort is too small to rank
+    against at all. A reviewer labelling the first is overriding a measurement;
+    labelling the second is filling a hole the rubric declined to fill. The
+    queue printed only appid and name, so the two were indistinguishable.
+    """
+    import ast
+    import inspect
+    import sys
+    import textwrap
+    from pathlib import Path
+
+    sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "jobs"))
+    import draft_studio_signals as job
+
+    candidates = ast.unparse(ast.parse(textwrap.dedent(inspect.getsource(job.candidates))))
+    assert "unresolved_reason" in candidates
+
+    main = ast.unparse(ast.parse(textwrap.dedent(inspect.getsource(job.main))))
+    assert "unresolved_reason" in main, "--list must surface it, not just carry it"

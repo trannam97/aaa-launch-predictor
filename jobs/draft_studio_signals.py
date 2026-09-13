@@ -240,6 +240,13 @@ def candidates(session) -> list[HistoricalRelease]:
             )
         )
         if not result.resolved:
+            # Carried on the row so --list can say *why*. Two different states
+            # reach this branch and they mean opposite things to a reviewer:
+            # "fell short and the signals are missing" is a measurement the
+            # research is about to complete, while "cohort too small to rank"
+            # is the rubric declining to measure at all. Labelling against the
+            # first overrides a finding; against the second it fills a hole.
+            release.unresolved_reason = result.unresolved_reason  # type: ignore[attr-defined]
             queue.append(release)
     return queue
 
@@ -518,7 +525,8 @@ def main(argv: list[str] | None = None) -> int:
 
         if args.list_only:
             for release in queue:
-                print(f"  {release.steam_appid:<10}{release.game_name}")
+                why = getattr(release, "unresolved_reason", None) or ""
+                print(f"  {release.steam_appid:<10}{release.game_name[:44]:<46}{why}")
             # After the rows, not before: the workflow shows a tail of this log,
             # so a count printed first is the first thing cut. The list itself
             # scales with the queue and will be truncated on a long one -- the
