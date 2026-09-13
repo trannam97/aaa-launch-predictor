@@ -247,6 +247,19 @@ def candidates(session) -> list[HistoricalRelease]:
             # is the rubric declining to measure at all. Labelling against the
             # first overrides a finding; against the second it fills a hole.
             release.unresolved_reason = result.unresolved_reason  # type: ignore[attr-defined]
+            # The numbers behind the refusal. `classify` builds these on its way
+            # to the gate -- "58% positive over the launch window, below the 78%
+            # bar", or "reviewed well (91% positive) but drew 22nd-percentile
+            # volume" -- and they answer the question the verdict raises: did
+            # this row fall short on how it was received, or on how many showed
+            # up? A reviewer disagreeing with a queued row needs that to know
+            # whether they are arguing with a sentiment reading or with a cohort
+            # a fighting game was never going to rank in.
+            #
+            # Empty exactly when the cohort was too small to rank, because that
+            # path returns before the gate runs. Which is why it doubles as the
+            # flag separating the two unresolved states below.
+            release.unresolved_detail = "; ".join(result.reasons)  # type: ignore[attr-defined]
             queue.append(release)
     return queue
 
@@ -524,15 +537,26 @@ def main(argv: list[str] | None = None) -> int:
             logger.info("%d release(s) the rubric cannot resolve without signals", len(queue))
 
         if args.list_only:
+            unrankable = 0
             for release in queue:
-                why = getattr(release, "unresolved_reason", None) or ""
-                print(f"  {release.steam_appid:<10}{release.game_name[:44]:<46}{why}")
+                detail = getattr(release, "unresolved_detail", "") or ""
+                if not detail:
+                    unrankable += 1
+                why = detail or getattr(release, "unresolved_reason", None) or ""
+                print(f"  {release.steam_appid:<10}{release.game_name[:42]:<44}{why}")
             # After the rows, not before: the workflow shows a tail of this log,
             # so a count printed first is the first thing cut. The list itself
             # scales with the queue and will be truncated on a long one -- the
             # number must not be.
             print()
             print(f"  {len(queue)} row(s) would be researched.")
+            # The split matters more than the total: a row that fell short is a
+            # measurement a reviewer would be overriding, while an unrankable
+            # one is a hole the rubric declined to fill.
+            print(
+                f"  {len(queue) - unrankable} fell short of their cohort; "
+                f"{unrankable} could not be ranked against one."
+            )
             print(
                 f"  Roughly ${len(queue) * 0.21:.0f} batched, "
                 f"${len(queue) * 0.34:.0f} synchronous, at the $0.34/row"
