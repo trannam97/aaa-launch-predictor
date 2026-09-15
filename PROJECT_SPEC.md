@@ -663,7 +663,8 @@ all**, and that holds for a tag axis exactly as it holds for these two.
 What remains, in increasing cost:
 
 1. **Label the unlabeled 16**, choosing them before seeing the rubric's verdict.
-   Cheapest, and it attacks the invisibility finding directly.
+   Cheapest, and it attacks the invisibility finding directly. **Set up and pre-registered
+   below, 2026-09-15.**
 2. **Reduce the floor's authority** — let a volume-floor-only failure return
    `unresolved` rather than demote, since the gate demonstrably cannot separate
    segment from failure. Needs no new data. **Note the conflict of interest
@@ -672,6 +673,48 @@ What remains, in increasing cost:
 3. **Grow the day-one corpus** until a segment split leaves cohorts above
    `MIN_COHORT_SIZE`. This is the only route that makes the original idea work,
    and the table above is the measurement of how far away it is.
+
+##### Pre-registration: the floor test (written before any label exists)
+`data/floor_test_worksheet.csv` holds 32 shuffled rows for labeling.
+`data/floor_test_key.csv` holds which arm each row is in and its percentile.
+**Reading the key before the worksheet is filled in voids the test.**
+
+Labeling only the demoted rows would prove nothing: if they all come back
+"fine", that is equally consistent with a broken floor and a generous reviewer.
+So each of the 16 unlabeled demoted rows is matched to an unlabeled row the
+floor *passed*, nearest in launch sentiment and year. The arms are balanced —
+mean sentiment 86.2% against 86.8%, spanning 2015-2025 against 2016-2025 — so
+the only systematic difference between them is the thing under test.
+
+**The question.** Among well-reviewed launches, does falling below the volume
+floor predict a worse outcome? That is exactly what the gate asserts, and
+nothing in the corpus currently answers it.
+
+**The prediction, recorded so it cannot be adjusted afterwards.** The floor is
+expected to carry real but weak information:
+
+| | predicted |
+|---|---|
+| demoted arm labeled `success` or `breakout` | 40-60% |
+| control arm labeled `success` or `breakout` | 75-90% |
+| demoted rows labeled `success` or better | at least 5 of 16 |
+
+**What each outcome means, decided in advance.**
+
+- *Arms indistinguishable* — the floor adds nothing beyond the sentiment bar it
+  sits behind, and should be removed rather than retuned.
+- *Demoted arm 80%+ `flop`/`underperform`, control arm mostly `success`+* — the
+  floor is sound, and the reviewer's four overrides were the special cases they
+  were each argued to be. The spec's conflation finding would then be wrong.
+- *The predicted middle* — the floor is under-specified, as recorded above: it
+  cannot separate segment from failure, and the honest response is to lower its
+  authority rather than delete or keep it unchanged.
+
+**One limit to state now.** The reviewer has already seen the demotion list
+once, with percentiles, so this is not a clean blind. The controls are new and
+the order is shuffled, which protects the comparison but not perfectly. A
+result near the boundary between two readings above should not be treated as
+decisive.
 
 **Why it matters now.** These 68 rows are about to become labels on a set that
 holds 35. If the volume floor mis-ranks whole segments, that error becomes two
