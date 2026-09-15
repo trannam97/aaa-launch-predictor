@@ -23,11 +23,11 @@ are reference, not a to-do list.
 
 ### What is measured, as of the Phase 3 start
 Numbers to design against rather than re-derive. All from the 205-game
-corpus with 35 labels (32 scored — day-one Steam releases only, MMOs excluded).
+corpus with 39 labels (36 scored — day-one Steam releases only, MMOs excluded).
 
 | Component | Result | Note |
 |---|---|---|
-| Outcome rubric (post-launch) | **100%** met-expectations, 93.8% exact — **stale, re-measure** | Measured against the live database. Works on the falsifiable axis. Not wired into any endpoint. Read the resolution note below before comparing this figure to another. |
+| Outcome rubric (post-launch) | **88.9%** met-expectations, 86.1% exact, 0.17 mean ordinal | Measured against the live database, 36 scored rows, 2026-09-15. Works on the falsifiable axis. Not wired into any endpoint. Read the resolution note below before comparing this figure to another — in particular, **every met-expectations miss is a reviewer override**, not a rubric error. |
 | Rule-based baseline (pre-launch) | **31.2%** | Loses to always guessing `underperform` (**34.4%**) |
 | Ordinal model (pre-launch) | **38.8%** | Beats the baseline, loses to the constant on ordinal distance; gate refuses it, no artifact written |
 | Company tiering clustering | **Failed** | Unstable; writes no tiers. See ml/README.md |
@@ -897,25 +897,51 @@ That is the whole of the difference between 90.6% and 93.8%: one row, one
 point from a line.
 
 #### The metric's resolution is one row
-With 32 scored releases a single row is worth 3.1 points of exact agreement, so
+With 36 scored releases a single row is worth 2.8 points of exact agreement, so
 this figure moves by ±3 points whenever the cohort shifts without anything
-about the rubric changing. Every disagreement seen so far sits within a few
-points of a threshold rather than being confidently wrong:
+about the rubric changing. Every disagreement sits within a few points of a
+threshold rather than being confidently wrong:
 
 | release | miss | margin |
 |---|---|---|
 | Clair Obscur: Expedition 33 | breakout ↔ success | 1 point (79 vs `BREAKOUT_VOLUME_WITH_MOMENTUM` 80) |
 | Warhammer 40,000: Space Marine 2 | breakout → success | 4 points (86 vs `BREAKOUT_VOLUME` 90); retention 1.78 vs 2.0 |
-| Suicide Squad: Kill the Justice League | flop → underperform | 3 points (75% vs `SENTIMENT_BAR` 78%) |
 
 Quote the figure with the count it came from, and treat a 3-point move between
 runs as noise until the labeled set is large enough for it not to be.
+
+#### Every met-expectations miss is a reviewer override
+At 36 scored rows the falsifiable axis reads 88.9%: four misses, and **all four
+are rows a reviewer deliberately labeled against the rubric** on commercial
+evidence the rubric has no access to.
+
+| release | label | rubric | the gate that closed | what overruled it |
+|---|---|---|---|---|
+| Monster Hunter Wilds | breakout | underperform | sentiment (56% vs 78%) | 10M units in the first month |
+| TEKKEN 8 | success | underperform | sentiment (75% vs 78%) | 1M day one, 2M in a month |
+| It Takes Two | success | underperform | volume floor (32nd vs 35th) | 1M units at 29 days |
+| Like a Dragon: Infinite Wealth | success | underperform | volume floor (24th vs 35th) | 1M units at 8 days |
+
+**The rubric makes no unforced errors on this corpus.** That is the honest
+reading of the drop from the earlier 100%: the figure fell because
+disagreements were entered into the record, which is what the Evaluation
+Protocol asks for, not because the rubric got worse.
+
+It also means the headline is now partly a measure of reviewer behavior. Four
+more overrides would put it near 78% with the rubric untouched. Read the
+confusion matrix and this table together, or the number misleads.
+
+**Three of the four overrides are the review-count-as-units proxy failing.**
+A cluster that size on one mechanism is evidence about the mechanism, not four
+special cases — but it is *not yet* evidence, because the same reviewer wrote
+both the overrides and the objection to the gate they override. See the open
+item on the volume floor for the one test that breaks that circularity.
 
 `RETENTION_STRONG` (2.5), `RETENTION_SUSTAINED` (2.0) and
 `BREAKOUT_VOLUME_WITH_MOMENTUM` (80) were all fitted against narrower windows
 and a smaller cohort. They are stale.
 
-**Do not adjust them against these 32 rows.** That is precisely the in-sample
+**Do not adjust them against these 36 rows.** That is precisely the in-sample
 tuning the Evaluation Protocol below bans, and the Phase 1 rubric's headline
 figure is already optimistic for having been fitted this way once. Recalibrate
 when there are enough labels to hold rows back — which is the same thing
