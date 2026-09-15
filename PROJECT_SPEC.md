@@ -578,6 +578,56 @@ launch and grew over years, which is the launch-not-eventual-fate rule working a
 designed. The finding is that the group contains a systematic pattern, not that
 every member is misjudged.
 
+##### The sales-figure test was run, and it cannot settle this (2026-09-15)
+Publishers' announced unit figures looked like the way out of the circularity:
+they are independent of the rubric and of anyone's hand labels, so they could
+judge the floor without the reviewer judging their own overrides. **They
+cannot.** The evidence is not there to be had.
+
+| | |
+|---|---|
+| well-reviewed rows the floor demotes | **19** |
+| ...with a units figure inside the 120-day launch window | **2** |
+| ...of those, rows the reviewer had already overridden | **2** |
+
+Every demoted row with usable sales evidence is a row the reviewer already
+argued about. For contrast, **46 of the 99 rows above the floor have an
+in-window figure** — 47% against 11%. Publishers do not announce unit
+milestones for launches in the demotion zone.
+
+That asymmetry is *consistent* with the floor working, and is not evidence that
+it does: Paradox reports players and revenue rather than unit milestones, so
+Hearts of Iron IV and Stellaris would be missing a figure at any sales volume.
+Absence is not evidence of absence here, the same rule this spec already applies
+to wishlists and demos.
+
+**Two metrics were tried and both are invalid against this source. Do not
+retry them.**
+
+- *Units per launch-fortnight review.* The figures are **threshold crossings,
+  not measurements**. HELLDIVERS 2 records `1,000,000 as of day 3` and went on
+  to roughly 12M; dividing that by a review count measures which round number a
+  publisher chose to announce. The raw spread looks damning (p90/p10 = 20.6x)
+  and means nothing.
+- *Days to the first published million.* This measures **Wikidata coverage**.
+  Fallout 4's only recorded milestone is `35,000,000 as of 2026-07-17`, so it
+  scores 3,903 days to its first million. Sekiro and Resident Evil 2 fail the
+  same way. The resulting Spearman of +0.29 is an artifact.
+
+##### The floor's real behaviour is invisible to the metric that grades it
+Of the 19 rows the floor demotes, **16 are unlabeled**, so `validate_rubric`
+never scores them. The headline agreement figure is computed over 36 rows where
+the floor fires 3 times; in production it fires on 19 of 149 rankable day-one
+rows. **A gate can therefore be badly wrong in production while the rubric's
+measured agreement barely moves.** That is a property of the metric, not of this
+gate, and it applies to any rule whose firing set is mostly unlabeled.
+
+The circularity stands unbroken: the only rows that can currently test the floor
+are rows the reviewer labeled by disputing it. Breaking it needs either labels
+on the unlabeled 16 — chosen without looking at the rubric's verdict first — or
+the segment axis below, which would make the comparison like-for-like instead of
+arguing about individual rows.
+
 **Why it matters now.** These 68 rows are about to become labels on a set that
 holds 35. If the volume floor mis-ranks whole segments, that error becomes two
 thirds of the training data, and it will be invisible afterwards because the
