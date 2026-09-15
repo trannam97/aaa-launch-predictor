@@ -31,6 +31,16 @@ publishers do when a game does well, so the source supplies evidence for
 successes and silence for failures. Feeding it to the rubric would let it
 upgrade rows and never downgrade one.
 
+**"Sold" in P2664 is not always sold.** The property is named units sold, and
+publishers announce *shipment* figures that Wikidata editors file under it just
+the same. Max Payne 3 shipped roughly 3 million units in its first week and
+reached 4 million by May 2013 -- one million more across a year -- while
+Take-Two reported it had sold weaker than expected. The week-one figure would
+read as a triumph by the standard applied here; only the trajectory says
+otherwise. A single dated milestone cannot tell sell-in from sell-through, so
+a figure close to launch is evidence about what shipped into the channel unless
+a later one shows the sales followed.
+
 **Absence means two different things at the two ends of the range**, which is
 the finding that matters most here. Share of the 68-row queue carrying a figure,
 by launch sentiment:
@@ -157,7 +167,11 @@ def as_row(release: HistoricalRelease, history: SalesHistory | None) -> dict[str
     elif gap is not None and gap > LAUNCH_WINDOW_DAYS:
         note = f"earliest figure is {gap} days out -- a long tail, not a launch"
     else:
-        note = "worldwide across all platforms, not Steam-specific"
+        note = (
+            "worldwide across all platforms, not Steam-specific; "
+            "may be a shipment figure rather than sell-through -- check the later "
+            "milestones before reading it as units in players' hands"
+        )
     if undated:
         note += f"; {undated} undated milestone(s) also held"
     return {
