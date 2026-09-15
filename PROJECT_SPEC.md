@@ -601,6 +601,16 @@ Hearts of Iron IV and Stellaris would be missing a figure at any sales volume.
 Absence is not evidence of absence here, the same rule this spec already applies
 to wishlists and demos.
 
+**And "sold" in P2664 is not always sold.** The property is named *units
+sold*, and publishers announce *shipment* figures that editors file under it
+identically. Max Payne 3 is the worked example: roughly 3 million units shipped
+in week one, 4 million by May 2013, and a publisher saying it had sold weaker
+than expected. **That week-one figure would read as a triumph by the standard
+this project applies to launch-window units.** A single dated milestone cannot
+separate sell-in from sell-through, so read the trajectory rather than the
+point — a launch figure is evidence about what entered the channel unless a
+later milestone shows the sales followed.
+
 **Two metrics were tried and both are invalid against this source. Do not
 retry them.**
 
@@ -825,10 +835,26 @@ should know it conflicts with P629 before starting.
 #### Studio Closure Is Not Studio Failure
 `studio_signal` asks whether a studio survived its launch, and headlines
 mislead. **Max Payne 3**: Metacritic 87, and Take-Two reported it
-underperformed — roughly 440,000 US units in the first month against about
-three million shipped. That makes it a clean example of *critical success is
-not commercial success*, which is why this project measures sales-shaped
-outcomes rather than review scores.
+underperformed. That makes it a clean example of *critical success is not
+commercial success*, which is why this project measures sales-shaped outcomes
+rather than review scores.
+
+**Corrected 2026-09-15.** This passage used to set "roughly 440,000 US units in
+the first month" against "about three million shipped", which argues badly —
+that is US sell-through against worldwide sell-in, two geographies on two
+measures, and a sceptic could fairly answer that 440,000 US units in a month is
+not obviously weak. The figures were right; the comparison was not. On one
+consistent measure:
+
+| | shipped, worldwide |
+|---|---|
+| first week, May 2012 | ~3,000,000 |
+| by May 2013 | 4,000,000 |
+
+One million more units across roughly a year, and Take-Two said in July 2012 it
+had sold weaker than expected. The trajectory corroborates the publisher's own
+statement without mixing measures. This row is also the worked example for the
+shipped-versus-sold trap recorded under the volume floor.
 
 But Rockstar Vancouver's closure two months later is **not** evidence of it:
 the studio was merged into Rockstar Toronto with staff offered positions at
