@@ -23,11 +23,11 @@ are reference, not a to-do list.
 
 ### What is measured, as of the Phase 3 start
 Numbers to design against rather than re-derive. All from the 205-game
-corpus with 35 labels (32 scored — day-one Steam releases only, MMOs excluded).
+corpus with 39 labels (36 scored — day-one Steam releases only, MMOs excluded).
 
 | Component | Result | Note |
 |---|---|---|
-| Outcome rubric (post-launch) | **100%** met-expectations, 93.8% exact — **stale, re-measure** | Measured against the live database. Works on the falsifiable axis. Not wired into any endpoint. Read the resolution note below before comparing this figure to another. |
+| Outcome rubric (post-launch) | **88.9%** met-expectations, 86.1% exact, 0.17 mean ordinal | Measured against the live database, 36 scored rows, 2026-09-15. Works on the falsifiable axis. Not wired into any endpoint. Read the resolution note below before comparing this figure to another — in particular, **every met-expectations miss is a reviewer override**, not a rubric error. |
 | Rule-based baseline (pre-launch) | **31.2%** | Loses to always guessing `underperform` (**34.4%**) |
 | Ordinal model (pre-launch) | **38.8%** | Beats the baseline, loses to the constant on ordinal distance; gate refuses it, no artifact written |
 | Company tiering clustering | **Failed** | Unstable; writes no tiers. See ml/README.md |
@@ -578,6 +578,144 @@ launch and grew over years, which is the launch-not-eventual-fate rule working a
 designed. The finding is that the group contains a systematic pattern, not that
 every member is misjudged.
 
+##### The sales-figure test was run, and it cannot settle this (2026-09-15)
+Publishers' announced unit figures looked like the way out of the circularity:
+they are independent of the rubric and of anyone's hand labels, so they could
+judge the floor without the reviewer judging their own overrides. **They
+cannot.** The evidence is not there to be had.
+
+| | |
+|---|---|
+| well-reviewed rows the floor demotes | **19** |
+| ...with a units figure inside the 120-day launch window | **2** |
+| ...of those, rows the reviewer had already overridden | **2** |
+
+Every demoted row with usable sales evidence is a row the reviewer already
+argued about. For contrast, **46 of the 99 rows above the floor have an
+in-window figure** — 47% against 11%. Publishers do not announce unit
+milestones for launches in the demotion zone.
+
+That asymmetry is *consistent* with the floor working, and is not evidence that
+it does: Paradox reports players and revenue rather than unit milestones, so
+Hearts of Iron IV and Stellaris would be missing a figure at any sales volume.
+Absence is not evidence of absence here, the same rule this spec already applies
+to wishlists and demos.
+
+**Two metrics were tried and both are invalid against this source. Do not
+retry them.**
+
+- *Units per launch-fortnight review.* The figures are **threshold crossings,
+  not measurements**. HELLDIVERS 2 records `1,000,000 as of day 3` and went on
+  to roughly 12M; dividing that by a review count measures which round number a
+  publisher chose to announce. The raw spread looks damning (p90/p10 = 20.6x)
+  and means nothing.
+- *Days to the first published million.* This measures **Wikidata coverage**.
+  Fallout 4's only recorded milestone is `35,000,000 as of 2026-07-17`, so it
+  scores 3,903 days to its first million. Sekiro and Resident Evil 2 fail the
+  same way. The resulting Spearman of +0.29 is an artifact.
+
+##### The floor's real behaviour is invisible to the metric that grades it
+Of the 19 rows the floor demotes, **16 are unlabeled**, so `validate_rubric`
+never scores them. The headline agreement figure is computed over 36 rows where
+the floor fires 3 times; in production it fires on 19 of 149 rankable day-one
+rows. **A gate can therefore be badly wrong in production while the rubric's
+measured agreement barely moves.** That is a property of the metric, not of this
+gate, and it applies to any rule whose firing set is mostly unlabeled.
+
+The circularity stands unbroken: the only rows that can currently test the floor
+are rows the reviewer labeled by disputing it. Breaking it needs either labels
+on the unlabeled 16 — chosen without looking at the rubric's verdict first — or
+the segment axis below, which would make the comparison like-for-like instead of
+arguing about individual rows.
+
+##### A segment axis does not fit in this corpus (2026-09-15)
+The obvious fix — rank a grand-strategy launch against grand-strategy launches —
+was tested against the two axes the project already holds, and **both fail. The
+reason is arithmetic, not the choice of axis.**
+
+Cohorts are already thin: 149 day-one rows over a rolling ±1-year window, with
+`MIN_COHORT_SIZE = 8`. Any segment split multiplies the number of cohorts and
+divides their size, so rows stop being rankable at all.
+
+| axis | rows still rankable | demoted rows rescued |
+|---|---|---|
+| none (today) | 149/149 | — |
+| price band, 3 levels | 129/149 | **0** |
+| price band, best of 6 schemes | 141/149 | **1**, at the cost of 4 newly demoted |
+| publisher | **0/149** | 0 |
+
+Publisher cannot exist as an axis here: 53 distinct publishers, only 6 with 8
+or more rows in the whole corpus, and none with 8 inside any 3-year window.
+
+**Price is not merely unhelpful, it is the wrong hypothesis.** Eleven of the 19
+demoted rows launched at exactly the cohort's going rate — Rainbow Six Siege,
+Total War: WARHAMMER II, Wasteland 3, Marvel's Midnight Suns, Ghostwire: Tokyo,
+Prey, Mass Effect Legendary Edition, Infinite Wealth among them. The demotion
+list is not a list of cheap games, so "these are budget titles ranked against
+blockbusters" does not explain it. Banding by price mostly pushes these rows
+*lower* (Total War: WARHAMMER II 16.1 → 6.8, It Takes Two 31.9 → 18.8) while
+making the five genuinely cheap ones unrankable.
+
+So "get the missing axis" was the wrong framing, and tags were never the
+binding constraint. **The corpus is too small to support any segment split at
+all**, and that holds for a tag axis exactly as it holds for these two.
+
+What remains, in increasing cost:
+
+1. **Label the unlabeled 16**, choosing them before seeing the rubric's verdict.
+   Cheapest, and it attacks the invisibility finding directly. **Set up and pre-registered
+   below, 2026-09-15.**
+2. **Reduce the floor's authority** — let a volume-floor-only failure return
+   `unresolved` rather than demote, since the gate demonstrably cannot separate
+   segment from failure. Needs no new data. **Note the conflict of interest
+   before acting on it:** this moves the reviewer's own two overrides out of the
+   disagreement column, so it should not be adopted on the reviewer's say-so.
+3. **Grow the day-one corpus** until a segment split leaves cohorts above
+   `MIN_COHORT_SIZE`. This is the only route that makes the original idea work,
+   and the table above is the measurement of how far away it is.
+
+##### Pre-registration: the floor test (written before any label exists)
+`data/floor_test_worksheet.csv` holds 32 shuffled rows for labeling.
+`data/floor_test_key.csv` holds which arm each row is in and its percentile.
+**Reading the key before the worksheet is filled in voids the test.**
+
+Labeling only the demoted rows would prove nothing: if they all come back
+"fine", that is equally consistent with a broken floor and a generous reviewer.
+So each of the 16 unlabeled demoted rows is matched to an unlabeled row the
+floor *passed*, nearest in launch sentiment and year. The arms are balanced —
+mean sentiment 86.2% against 86.8%, spanning 2015-2025 against 2016-2025 — so
+the only systematic difference between them is the thing under test.
+
+**The question.** Among well-reviewed launches, does falling below the volume
+floor predict a worse outcome? That is exactly what the gate asserts, and
+nothing in the corpus currently answers it.
+
+**The prediction, recorded so it cannot be adjusted afterwards.** The floor is
+expected to carry real but weak information:
+
+| | predicted |
+|---|---|
+| demoted arm labeled `success` or `breakout` | 40-60% |
+| control arm labeled `success` or `breakout` | 75-90% |
+| demoted rows labeled `success` or better | at least 5 of 16 |
+
+**What each outcome means, decided in advance.**
+
+- *Arms indistinguishable* — the floor adds nothing beyond the sentiment bar it
+  sits behind, and should be removed rather than retuned.
+- *Demoted arm 80%+ `flop`/`underperform`, control arm mostly `success`+* — the
+  floor is sound, and the reviewer's four overrides were the special cases they
+  were each argued to be. The spec's conflation finding would then be wrong.
+- *The predicted middle* — the floor is under-specified, as recorded above: it
+  cannot separate segment from failure, and the honest response is to lower its
+  authority rather than delete or keep it unchanged.
+
+**One limit to state now.** The reviewer has already seen the demotion list
+once, with percentiles, so this is not a clean blind. The controls are new and
+the order is shuffled, which protects the comparison but not perfectly. A
+result near the boundary between two readings above should not be treated as
+decisive.
+
 **Why it matters now.** These 68 rows are about to become labels on a set that
 holds 35. If the volume floor mis-ranks whole segments, that error becomes two
 thirds of the training data, and it will be invisible afterwards because the
@@ -897,25 +1035,51 @@ That is the whole of the difference between 90.6% and 93.8%: one row, one
 point from a line.
 
 #### The metric's resolution is one row
-With 32 scored releases a single row is worth 3.1 points of exact agreement, so
+With 36 scored releases a single row is worth 2.8 points of exact agreement, so
 this figure moves by ±3 points whenever the cohort shifts without anything
-about the rubric changing. Every disagreement seen so far sits within a few
-points of a threshold rather than being confidently wrong:
+about the rubric changing. Every disagreement sits within a few points of a
+threshold rather than being confidently wrong:
 
 | release | miss | margin |
 |---|---|---|
 | Clair Obscur: Expedition 33 | breakout ↔ success | 1 point (79 vs `BREAKOUT_VOLUME_WITH_MOMENTUM` 80) |
 | Warhammer 40,000: Space Marine 2 | breakout → success | 4 points (86 vs `BREAKOUT_VOLUME` 90); retention 1.78 vs 2.0 |
-| Suicide Squad: Kill the Justice League | flop → underperform | 3 points (75% vs `SENTIMENT_BAR` 78%) |
 
 Quote the figure with the count it came from, and treat a 3-point move between
 runs as noise until the labeled set is large enough for it not to be.
+
+#### Every met-expectations miss is a reviewer override
+At 36 scored rows the falsifiable axis reads 88.9%: four misses, and **all four
+are rows a reviewer deliberately labeled against the rubric** on commercial
+evidence the rubric has no access to.
+
+| release | label | rubric | the gate that closed | what overruled it |
+|---|---|---|---|---|
+| Monster Hunter Wilds | breakout | underperform | sentiment (56% vs 78%) | 10M units in the first month |
+| TEKKEN 8 | success | underperform | sentiment (75% vs 78%) | 1M day one, 2M in a month |
+| It Takes Two | success | underperform | volume floor (32nd vs 35th) | 1M units at 29 days |
+| Like a Dragon: Infinite Wealth | success | underperform | volume floor (24th vs 35th) | 1M units at 8 days |
+
+**The rubric makes no unforced errors on this corpus.** That is the honest
+reading of the drop from the earlier 100%: the figure fell because
+disagreements were entered into the record, which is what the Evaluation
+Protocol asks for, not because the rubric got worse.
+
+It also means the headline is now partly a measure of reviewer behavior. Four
+more overrides would put it near 78% with the rubric untouched. Read the
+confusion matrix and this table together, or the number misleads.
+
+**Three of the four overrides are the review-count-as-units proxy failing.**
+A cluster that size on one mechanism is evidence about the mechanism, not four
+special cases — but it is *not yet* evidence, because the same reviewer wrote
+both the overrides and the objection to the gate they override. See the open
+item on the volume floor for the one test that breaks that circularity.
 
 `RETENTION_STRONG` (2.5), `RETENTION_SUSTAINED` (2.0) and
 `BREAKOUT_VOLUME_WITH_MOMENTUM` (80) were all fitted against narrower windows
 and a smaller cohort. They are stale.
 
-**Do not adjust them against these 32 rows.** That is precisely the in-sample
+**Do not adjust them against these 36 rows.** That is precisely the in-sample
 tuning the Evaluation Protocol below bans, and the Phase 1 rubric's headline
 figure is already optimistic for having been fitted this way once. Recalibrate
 when there are enough labels to hold rows back — which is the same thing
