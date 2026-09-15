@@ -628,6 +628,51 @@ on the unlabeled 16 — chosen without looking at the rubric's verdict first —
 the segment axis below, which would make the comparison like-for-like instead of
 arguing about individual rows.
 
+##### A segment axis does not fit in this corpus (2026-09-15)
+The obvious fix — rank a grand-strategy launch against grand-strategy launches —
+was tested against the two axes the project already holds, and **both fail. The
+reason is arithmetic, not the choice of axis.**
+
+Cohorts are already thin: 149 day-one rows over a rolling ±1-year window, with
+`MIN_COHORT_SIZE = 8`. Any segment split multiplies the number of cohorts and
+divides their size, so rows stop being rankable at all.
+
+| axis | rows still rankable | demoted rows rescued |
+|---|---|---|
+| none (today) | 149/149 | — |
+| price band, 3 levels | 129/149 | **0** |
+| price band, best of 6 schemes | 141/149 | **1**, at the cost of 4 newly demoted |
+| publisher | **0/149** | 0 |
+
+Publisher cannot exist as an axis here: 53 distinct publishers, only 6 with 8
+or more rows in the whole corpus, and none with 8 inside any 3-year window.
+
+**Price is not merely unhelpful, it is the wrong hypothesis.** Eleven of the 19
+demoted rows launched at exactly the cohort's going rate — Rainbow Six Siege,
+Total War: WARHAMMER II, Wasteland 3, Marvel's Midnight Suns, Ghostwire: Tokyo,
+Prey, Mass Effect Legendary Edition, Infinite Wealth among them. The demotion
+list is not a list of cheap games, so "these are budget titles ranked against
+blockbusters" does not explain it. Banding by price mostly pushes these rows
+*lower* (Total War: WARHAMMER II 16.1 → 6.8, It Takes Two 31.9 → 18.8) while
+making the five genuinely cheap ones unrankable.
+
+So "get the missing axis" was the wrong framing, and tags were never the
+binding constraint. **The corpus is too small to support any segment split at
+all**, and that holds for a tag axis exactly as it holds for these two.
+
+What remains, in increasing cost:
+
+1. **Label the unlabeled 16**, choosing them before seeing the rubric's verdict.
+   Cheapest, and it attacks the invisibility finding directly.
+2. **Reduce the floor's authority** — let a volume-floor-only failure return
+   `unresolved` rather than demote, since the gate demonstrably cannot separate
+   segment from failure. Needs no new data. **Note the conflict of interest
+   before acting on it:** this moves the reviewer's own two overrides out of the
+   disagreement column, so it should not be adopted on the reviewer's say-so.
+3. **Grow the day-one corpus** until a segment split leaves cohorts above
+   `MIN_COHORT_SIZE`. This is the only route that makes the original idea work,
+   and the table above is the measurement of how far away it is.
+
 **Why it matters now.** These 68 rows are about to become labels on a set that
 holds 35. If the volume floor mis-ranks whole segments, that error becomes two
 thirds of the training data, and it will be invisible afterwards because the
